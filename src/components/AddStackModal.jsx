@@ -7,9 +7,24 @@ import { AnimatePresence } from 'framer-motion';
 const AudioPlayer = ({ audioData }) => {
     const [isPlaying, setIsPlaying] = useState(false);
     const [progress, setProgress] = useState(0);
-    const audioRef = useRef(new Audio(audioData));
+    const audioRef = useRef(null);
     const animationRef = useRef();
     const progressBarRef = useRef();
+
+    if (!audioRef.current) {
+        audioRef.current = new Audio(audioData);
+    }
+
+    useEffect(() => {
+        const audio = audioRef.current;
+        if (audio.src !== audioData) {
+            audio.pause();
+            audio.src = audioData;
+            audio.load();
+            setProgress(0);
+            setIsPlaying(false);
+        }
+    }, [audioData]);
 
     useEffect(() => {
         const audio = audioRef.current;
@@ -20,24 +35,31 @@ const AudioPlayer = ({ audioData }) => {
             animationRef.current = requestAnimationFrame(updateProgress);
         };
 
-        audio.onplay = () => {
+        const onPlay = () => {
             setIsPlaying(true);
             animationRef.current = requestAnimationFrame(updateProgress);
         };
 
-        audio.onpause = () => {
+        const onPause = () => {
             setIsPlaying(false);
             cancelAnimationFrame(animationRef.current);
         };
 
-        audio.onended = () => {
+        const onEnded = () => {
             setIsPlaying(false);
             setProgress(0);
             cancelAnimationFrame(animationRef.current);
         };
 
+        audio.addEventListener('play', onPlay);
+        audio.addEventListener('pause', onPause);
+        audio.addEventListener('ended', onEnded);
+
         return () => {
             audio.pause();
+            audio.removeEventListener('play', onPlay);
+            audio.removeEventListener('pause', onPause);
+            audio.removeEventListener('ended', onEnded);
             cancelAnimationFrame(animationRef.current);
         };
     }, []);
@@ -147,6 +169,10 @@ const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, sh
     };
 
     const startRecording = async (id, field) => {
+        // Set recording state immediately for instant UI feedback
+        setRecording({ id, field });
+        setRecordingTime(0);
+
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             const recorder = new MediaRecorder(stream);
@@ -157,7 +183,18 @@ const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, sh
                 const blob = new Blob(chunks, { type: 'audio/webm' });
                 const reader = new FileReader();
                 reader.onloadend = () => {
-                    handleUpdateCard(id, field, { ...cards.find(c => c.id === id)[field], audio: reader.result });
+                    // Use functional update to avoid stale closure
+                    setCards(prevCards => {
+                        return prevCards.map(c => {
+                            if (c.id === id) {
+                                return {
+                                    ...c,
+                                    [field]: { ...c[field], audio: reader.result }
+                                };
+                            }
+                            return c;
+                        });
+                    });
                 };
                 reader.readAsDataURL(blob);
                 stream.getTracks().forEach(track => track.stop());
@@ -167,14 +204,15 @@ const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, sh
 
             recorder.start();
             setMediaRecorder(recorder);
-            setRecording({ id, field });
-            setRecordingTime(0);
             timerRef.current = setInterval(() => {
                 setRecordingTime(prev => prev + 1);
             }, 1000);
         } catch (err) {
             console.error('Error accessing microphone:', err);
             showAlert('Could not access microphone.');
+            // Clear recording state on error
+            setRecording(null);
+            setRecordingTime(0);
         }
     };
 

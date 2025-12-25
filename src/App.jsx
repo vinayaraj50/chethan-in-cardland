@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { Home as HomeIcon, Plus, Menu, X, LogOut, Trash2, Sun, Moon, Share2, Copy, Github } from 'lucide-react';
+import { Home as HomeIcon, Plus, Menu, X, LogOut, Trash2, Sun, Moon, Share2, Copy, Github, Maximize, Minimize } from 'lucide-react';
 import { initGoogleAuth, signIn, signOut } from './services/googleAuth';
 import { listStacks, saveStack, deleteStack, deleteAllData } from './services/googleDrive';
 
@@ -27,6 +27,7 @@ const App = () => {
     const [activeStack, setActiveStack] = useState(null);
     const [reviewStack, setReviewStack] = useState(null);
     const [notification, setNotification] = useState(null); // { type, message, onConfirm }
+    const [isFullscreen, setIsFullscreen] = useState(false);
 
     useEffect(() => {
         document.documentElement.setAttribute('data-theme', theme);
@@ -176,6 +177,26 @@ const App = () => {
         }
     };
 
+    const toggleFullscreen = () => {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(err => {
+                console.error(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`);
+            });
+            setIsFullscreen(true);
+        } else {
+            document.exitFullscreen();
+            setIsFullscreen(false);
+        }
+    };
+
+    useEffect(() => {
+        const handleFullscreenChange = () => {
+            setIsFullscreen(!!document.fullscreenElement);
+        };
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    }, []);
+
     if (!user) {
         return (
             <div className="login-screen" style={{
@@ -196,9 +217,14 @@ const App = () => {
             <header style={{ padding: '1rem 2rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <img src={logo} alt="Chethan in Cardland" style={{ height: '90px', objectFit: 'contain' }} />
-                    <button className="neo-button icon-btn" onClick={() => setShowMenu(true)}>
-                        <Menu size={24} />
-                    </button>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button className="neo-button icon-btn" onClick={toggleFullscreen} title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}>
+                            {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
+                        </button>
+                        <button className="neo-button icon-btn" onClick={() => setShowMenu(true)}>
+                            <Menu size={24} />
+                        </button>
+                    </div>
                 </div>
 
                 {/* Search Bar */}

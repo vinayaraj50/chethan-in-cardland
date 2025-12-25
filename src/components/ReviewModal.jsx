@@ -10,9 +10,24 @@ import congratulationsImg from '../assets/congratulations.png';
 const AudioPlayer = ({ audioData }) => {
     const [isPlaying, setIsPlaying] = useState(false);
     const [progress, setProgress] = useState(0);
-    const audioRef = useRef(new Audio(audioData));
+    const audioRef = useRef(null);
     const animationRef = useRef();
     const progressBarRef = useRef();
+
+    if (!audioRef.current) {
+        audioRef.current = new Audio(audioData);
+    }
+
+    useEffect(() => {
+        const audio = audioRef.current;
+        if (audio.src !== audioData) {
+            audio.pause();
+            audio.src = audioData;
+            audio.load();
+            setProgress(0);
+            setIsPlaying(false);
+        }
+    }, [audioData]);
 
     useEffect(() => {
         const audio = audioRef.current;
@@ -23,24 +38,31 @@ const AudioPlayer = ({ audioData }) => {
             animationRef.current = requestAnimationFrame(updateProgress);
         };
 
-        audio.onplay = () => {
+        const onPlay = () => {
             setIsPlaying(true);
             animationRef.current = requestAnimationFrame(updateProgress);
         };
 
-        audio.onpause = () => {
+        const onPause = () => {
             setIsPlaying(false);
             cancelAnimationFrame(animationRef.current);
         };
 
-        audio.onended = () => {
+        const onEnded = () => {
             setIsPlaying(false);
             setProgress(0);
             cancelAnimationFrame(animationRef.current);
         };
 
+        audio.addEventListener('play', onPlay);
+        audio.addEventListener('pause', onPause);
+        audio.addEventListener('ended', onEnded);
+
         return () => {
             audio.pause();
+            audio.removeEventListener('play', onPlay);
+            audio.removeEventListener('pause', onPause);
+            audio.removeEventListener('ended', onEnded);
             cancelAnimationFrame(animationRef.current);
         };
     }, []);
