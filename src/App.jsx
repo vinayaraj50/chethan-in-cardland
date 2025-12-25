@@ -36,6 +36,7 @@ const App = () => {
     useEffect(() => {
         const handleAuthUpdate = (profile) => {
             setUser(profile);
+            setShowMenu(false); // Ensure menu is closed on login
             if (profile) {
                 fetchStacks(profile.token);
             } else {
@@ -181,7 +182,7 @@ const App = () => {
                 display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', gap: '2rem'
             }}>
                 <img src={logo} alt="Chethan in Cardland" style={{ height: '180px', objectFit: 'contain' }} />
-                <p>Your personal flashcard vault, powered by Google Drive.</p>
+                <p style={{ textAlign: 'center', padding: '0 1rem' }}>Your personal flashcard vault, powered by Google Drive.</p>
                 <button className="neo-button" onClick={signIn} style={{ padding: '15px 30px', fontSize: '1.1rem' }}>
                     Sign in with Google
                 </button>
