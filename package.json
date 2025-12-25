@@ -1,0 +1,28 @@
+{
+  "name": "chethan-in-cardland",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "homepage": "https://vinayaraj50.github.io/chethan-in-cardland",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d dist"
+  },
+  "dependencies": {
+    "canvas-confetti": "^1.9.4",
+    "framer-motion": "^10.12.16",
+    "lucide-react": "^0.263.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.14",
+    "@types/react-dom": "^18.2.6",
+    "@vitejs/plugin-react": "^4.0.1",
+    "gh-pages": "^5.0.0",
+    "vite": "^4.3.9"
+  }
+}
