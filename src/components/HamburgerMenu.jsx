@@ -16,7 +16,7 @@ const HamburgerMenu = ({ user, theme, onToggleTheme, onClose, onLogout, onDelete
                 className="menu-content neo-flat"
                 style={{
                     position: 'absolute', top: 0, right: 0, width: '300px', height: '100%', padding: '2rem',
-                    display: 'flex', flexDirection: 'column', gap: '2rem', animation: 'slideIn 0.3s ease-out'
+                    display: 'flex', flexDirection: 'column', gap: '2rem', animation: 'slideIn 0.3s ease-out', overflowY: 'auto'
                 }}
                 onClick={(e) => e.stopPropagation()}
             >
@@ -59,8 +59,8 @@ const HamburgerMenu = ({ user, theme, onToggleTheme, onClose, onLogout, onDelete
 
                     {isSortOpen && (
                         <div className="neo-flat" style={{
-                            position: 'absolute', top: '100%', left: 0, width: '100%', marginTop: '10px',
-                            zIndex: 10, padding: '10px', display: 'flex', flexDirection: 'column', gap: '5px'
+                            marginTop: '10px', width: '100%',
+                            padding: '10px', display: 'flex', flexDirection: 'column', gap: '5px'
                         }}>
                             {sortOptions.map(opt => (
                                 <div
@@ -94,8 +94,8 @@ const HamburgerMenu = ({ user, theme, onToggleTheme, onClose, onLogout, onDelete
 
                     {isLabelOpen && (
                         <div className="neo-flat" style={{
-                            position: 'absolute', top: '100%', left: 0, width: '100%', marginTop: '10px',
-                            zIndex: 10, padding: '10px', display: 'flex', flexDirection: 'column', gap: '5px'
+                            marginTop: '10px', width: '100%',
+                            padding: '10px', display: 'flex', flexDirection: 'column', gap: '5px'
                         }}>
                             <div
                                 className={`neo-button ${!filterLabel ? 'neo-inset' : ''}`}
