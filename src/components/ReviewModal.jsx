@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Edit2, Share2, Copy, Star, Play, SkipForward, Square, Pause } from 'lucide-react';
-import { saveStack, shareStack } from '../services/googleDrive';
+import { X, Edit2, Copy, Star, Play, SkipForward, Square, Pause, Download } from 'lucide-react';
+import { saveStack } from '../services/googleDrive';
+import { downloadStackAsZip } from '../utils/zipUtils';
 import ImageViewer from './ImageViewer';
 import confetti from 'canvas-confetti';
 import { playTada, playSwoosh, playTing, playCompletion } from '../utils/soundEffects';
@@ -139,11 +140,6 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
     const [sessionRatings, setSessionRatings] = useState([]);
     const [studyCards, setStudyCards] = useState(stack.cards);
     const [sessionResult, setSessionResult] = useState(null);
-
-    // Share state
-    const [showShare, setShowShare] = useState(false);
-    const [shareEmail, setShareEmail] = useState('');
-    const [shareRole, setShareRole] = useState('reader');
     const [viewingImage, setViewingImage] = useState(null);
 
     useEffect(() => {
@@ -188,7 +184,7 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
 
             saveStack(user.token, updatedStack, stack.driveFileId)
                 .then(() => {
-                    onUpdate();
+                    onUpdate(updatedStack);
                 })
                 .catch((error) => {
                     console.error('Failed to update stack rating:', error);
@@ -220,14 +216,13 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
         setTimeout(() => handleNext(val), 500);
     };
 
-    const executeShare = async () => {
-        if (!shareEmail) return;
+    const handleDownload = async () => {
         try {
-            await shareStack(user.token, stack.driveFileId, shareEmail, shareRole);
-            showAlert('Shared successfully!');
-            setShowShare(false);
+            await downloadStackAsZip(stack);
+            showAlert('Stack downloaded successfully!');
         } catch (error) {
-            showAlert('Failed to share.');
+            console.error('Error downloading stack:', error);
+            showAlert('Failed to download stack.');
         }
     };
 
@@ -311,7 +306,7 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                         </div>
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
                             <button className="neo-button icon-btn" onClick={onEdit}><Edit2 size={18} /></button>
-                            <button className="neo-button icon-btn" title="Share" onClick={() => setShowShare(true)}><Share2 size={18} /></button>
+                            <button className="neo-button icon-btn" title="Download Stack" onClick={handleDownload}><Download size={18} /></button>
                             <button className="neo-button icon-btn" title="Duplicate" onClick={() => onDuplicate(stack)}><Copy size={18} /></button>
                             <button className="neo-button icon-btn" onClick={onClose}><X size={18} /></button>
                         </div>
@@ -403,41 +398,7 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                         </div>
                     )}
 
-                    {/* Share Modal */}
-                    <AnimatePresence>
-                        {showShare && (
-                            <motion.div
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: 20 }}
-                                className="neo-flat"
-                                style={{
-                                    position: 'absolute', top: '20%', left: '5%', right: '5%',
-                                    padding: '2rem', zIndex: 100, display: 'flex', flexDirection: 'column', gap: '1.5rem'
-                                }}
-                            >
-                                <h3 style={{ textAlign: 'center' }}>Share this Stack</h3>
-                                <input
-                                    className="neo-input"
-                                    placeholder="Enter Gmail ID"
-                                    value={shareEmail}
-                                    onChange={(e) => setShareEmail(e.target.value)}
-                                />
-                                <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
-                                    <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
-                                        <input type="radio" name="review_role" checked={shareRole === 'reader'} onChange={() => setShareRole('reader')} /> View Only
-                                    </label>
-                                    <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
-                                        <input type="radio" name="review_role" checked={shareRole === 'writer'} onChange={() => setShareRole('writer')} /> Edit
-                                    </label>
-                                </div>
-                                <div style={{ display: 'flex', gap: '1rem' }}>
-                                    <button className="neo-button" style={{ flex: 1, justifyContent: 'center', background: 'var(--accent-color)', color: 'white', border: 'none' }} onClick={executeShare}>Send Invite</button>
-                                    <button className="neo-button" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setShowShare(false)}>Cancel</button>
-                                </div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
+
                 </div>
             )}
 

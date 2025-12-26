@@ -6,6 +6,9 @@
 const DRIVE_API_URL = 'https://www.googleapis.com/drive/v3/files';
 const UPLOAD_API_URL = 'https://www.googleapis.com/upload/drive/v3/files';
 
+// In-memory cache for file contents to avoid redundant fetches
+const fileContentCache = new Map();
+
 const getHeaders = (token) => ({
     Authorization: `Bearer ${token}`,
     'Content-Type': 'application/json',
@@ -16,19 +19,75 @@ const getHeaders = (token) => ({
  */
 export const listStacks = async (token) => {
     const query = "mimeType = 'application/json' and name contains 'flashcard_stack_' and trashed = false";
-    const response = await fetch(`${DRIVE_API_URL}?q=${encodeURIComponent(query)}&fields=files(id, name, owners, permissions)`, {
+    const fields = 'files(id, name, owners, permissions, ownedByMe, sharingUser, starred, createdTime, modifiedTime)';
+    const url = `${DRIVE_API_URL}?q=${encodeURIComponent(query)}&fields=${fields}&supportsAllDrives=true&includeItemsFromAllDrives=true&spaces=drive`;
+
+    const response = await fetch(url, {
         headers: getHeaders(token),
     });
     const data = await response.json();
 
+    if (!data.files) return [];
+
     const stacks = await Promise.all(
         data.files.map(async (file) => {
-            const content = await getFileContent(token, file.id);
-            return { ...content, driveFileId: file.id };
+            try {
+                // Check cache first
+                const cacheKey = file.id;
+                const cached = fileContentCache.get(cacheKey);
+
+                // If cached and modified time matches, return cached content
+                if (cached && cached.modifiedTime === file.modifiedTime) {
+                    return {
+                        ...cached.content,
+                        driveFileId: file.id,
+                        ownedByMe: file.ownedByMe,
+                        ownerName: file.owners?.[0]?.displayName,
+                        sharingUser: file.sharingUser,
+                        isAccepted: file.ownedByMe || file.starred
+                    };
+                }
+
+                const content = await getFileContent(token, file.id);
+
+                // Update cache
+                fileContentCache.set(cacheKey, {
+                    content,
+                    modifiedTime: file.modifiedTime
+                });
+
+                return {
+                    ...content,
+                    driveFileId: file.id,
+                    ownedByMe: file.ownedByMe,
+                    ownerName: file.owners?.[0]?.displayName,
+                    sharingUser: file.sharingUser,
+                    isAccepted: file.ownedByMe || file.starred
+                };
+            } catch (error) {
+                console.warn(`Failed to fetch content for file ${file.id}:`, error);
+                return {
+                    id: file.id,
+                    title: file.name.replace('flashcard_stack_', '').replace('.json', '') || 'Shared Stack',
+                    driveFileId: file.id,
+                    ownedByMe: file.ownedByMe,
+                    ownerName: file.owners?.[0]?.displayName,
+                    sharingUser: file.sharingUser,
+                    isAccepted: file.ownedByMe || file.starred,
+                    cards: [],
+                    error: true
+                };
+            }
         })
     );
-    return stacks;
+    return stacks.filter(stack => stack !== null);
 };
+
+
+
+
+
+
 
 /**
  * Get content of a specific file.
@@ -41,12 +100,12 @@ export const getFileContent = async (token, fileId) => {
 };
 
 /**
- * Create or Update a Flashcard Stack.
+ * Generic function to Save a File to Google Drive.
  */
-export const saveStack = async (token, stack, fileId = null) => {
+export const saveFile = async (token, name, content, fileId = null, mimeType = 'application/json') => {
     const metadata = {
-        name: `flashcard_stack_${stack.id}.json`,
-        mimeType: 'application/json',
+        name: name,
+        mimeType: mimeType,
     };
 
     const url = fileId
@@ -64,7 +123,7 @@ export const saveStack = async (token, stack, fileId = null) => {
         JSON.stringify(metadata) +
         delimiter +
         'Content-Type: application/json\r\n\r\n' +
-        JSON.stringify(stack) +
+        (typeof content === 'string' ? content : JSON.stringify(content)) +
         close_delim;
 
     try {
@@ -83,28 +142,57 @@ export const saveStack = async (token, stack, fileId = null) => {
             throw new Error(errorData.error?.message || 'Failed to save to Google Drive');
         }
 
-        return await response.json();
+        const result = await response.json();
+
+        // Update cache with the new content
+        fileContentCache.set(result.id, {
+            content: content,
+            modifiedTime: result.modifiedTime || new Date().toISOString()
+        });
+
+        return result;
     } catch (error) {
-        console.error('saveStack Error:', error);
+        console.error('saveFile Error:', error);
         throw error;
     }
 };
 
 /**
- * Share stack with another user.
+ * Create or Update a Flashcard Stack.
  */
-export const shareStack = async (token, fileId, email, role = 'reader') => {
-    const response = await fetch(`${DRIVE_API_URL}/${fileId}/permissions`, {
+export const saveStack = async (token, stack, fileId = null) => {
+    return saveFile(token, `flashcard_stack_${stack.id}.json`, stack, fileId);
+};
+
+/**
+ * Share a file with another user (used for feedback).
+ */
+export const shareStack = async (token, fileId, email, role = 'reader', message = '') => {
+    const body = {
+        role,
+        type: 'user',
+        emailAddress: email,
+    };
+
+    if (message) {
+        body.emailMessage = message;
+    }
+
+    const response = await fetch(`${DRIVE_API_URL}/${fileId}/permissions?sendNotificationEmail=true`, {
         method: 'POST',
         headers: getHeaders(token),
-        body: JSON.stringify({
-            role,
-            type: 'user',
-            emailAddress: email,
-        }),
+        body: JSON.stringify(body),
     });
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Google Drive Share Error:', errorData);
+        throw new Error(errorData.error?.message || 'Failed to share file');
+    }
+
     return await response.json();
 };
+
 
 /**
  * Delete a specific stack.

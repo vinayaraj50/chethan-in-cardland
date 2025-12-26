@@ -22,8 +22,15 @@ const StackCard = ({ stack, onReview, onEdit }) => {
 
             <div>
                 <h3 style={{ fontSize: '1.1rem', marginBottom: '0.2rem' }}>{stack.title}</h3>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', opacity: 0.6, fontSize: '0.85rem' }}>
-                    <Layers size={14} /> {stack.cards?.length || 0} Flashcards
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', opacity: 0.6, fontSize: '0.85rem' }}>
+                        <Layers size={14} /> {stack.cards?.length || 0} Flashcards
+                    </div>
+                    {!stack.ownedByMe && (
+                        <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: 'bold', color: 'var(--accent-color)' }}>
+                            Shared By: {stack.ownerName || stack.sharingUser?.displayName || 'Partner'}
+                        </div>
+                    )}
                 </div>
             </div>
 
