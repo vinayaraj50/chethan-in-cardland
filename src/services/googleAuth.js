@@ -12,6 +12,7 @@ let accessToken = null;
 export const initGoogleAuth = (onAuthUpdate) => {
     if (!window.google) return;
 
+    // Initialize token client
     tokenClient = window.google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
         scope: SCOPES,
@@ -20,10 +21,26 @@ export const initGoogleAuth = (onAuthUpdate) => {
                 throw response;
             }
             accessToken = response.access_token;
-            // Fetch user profile info
+            const expiresAt = Date.now() + (response.expires_in * 1000);
+            localStorage.setItem('google_access_token', accessToken);
+            localStorage.setItem('google_token_expires_at', expiresAt);
             fetchUserProfile(accessToken, onAuthUpdate);
         },
     });
+
+    // Check for existing token
+    const storedToken = localStorage.getItem('google_access_token');
+    const expiresAt = localStorage.getItem('google_token_expires_at');
+    const storedProfile = localStorage.getItem('google_user_profile');
+
+    if (storedToken && expiresAt && Date.now() < parseInt(expiresAt)) {
+        accessToken = storedToken;
+        if (storedProfile) {
+            onAuthUpdate({ ...JSON.parse(storedProfile), token: accessToken });
+        } else {
+            fetchUserProfile(accessToken, onAuthUpdate);
+        }
+    }
 };
 
 const fetchUserProfile = async (token, onAuthUpdate) => {
@@ -32,9 +49,12 @@ const fetchUserProfile = async (token, onAuthUpdate) => {
             headers: { Authorization: `Bearer ${token}` },
         });
         const profile = await response.json();
+        localStorage.setItem('google_user_profile', JSON.stringify(profile));
         onAuthUpdate({ ...profile, token });
     } catch (error) {
         console.error('Error fetching user profile:', error);
+        // If token is invalid, clear it
+        signOut(onAuthUpdate);
     }
 };
 
@@ -45,12 +65,17 @@ export const signIn = () => {
 };
 
 export const signOut = (onAuthUpdate) => {
-    if (accessToken) {
+    localStorage.removeItem('google_access_token');
+    localStorage.removeItem('google_token_expires_at');
+    localStorage.removeItem('google_user_profile');
+
+    if (accessToken && window.google) {
         window.google.accounts.oauth2.revoke(accessToken, () => {
             accessToken = null;
             onAuthUpdate(null);
         });
     } else {
+        accessToken = null;
         onAuthUpdate(null);
     }
 };

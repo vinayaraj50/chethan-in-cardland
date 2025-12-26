@@ -36,17 +36,21 @@ const Home = ({ stacks, loading, onReview, onEdit }) => {
     }
 
     return (
-        <div style={{
-            display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '2rem'
-        }}>
-            {stacks.map(stack => (
-                <StackCard
-                    key={stack.driveFileId || stack.id}
-                    stack={stack}
-                    onReview={onReview}
-                    onEdit={onEdit}
-                />
-            ))}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '3rem' }}>
+            <section>
+                <div style={{
+                    display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '2rem'
+                }}>
+                    {stacks.map(stack => (
+                        <StackCard
+                            key={stack.driveFileId || stack.id}
+                            stack={stack}
+                            onReview={onReview}
+                            onEdit={onEdit}
+                        />
+                    ))}
+                </div>
+            </section>
         </div>
     );
 };

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Sun, Moon, LogOut, Trash2, X, User, ChevronDown } from 'lucide-react';
+import { Sun, Moon, LogOut, Trash2, X, User, ChevronDown, Volume2, VolumeX, MessageSquare } from 'lucide-react';
 
-const HamburgerMenu = ({ user, theme, onToggleTheme, onClose, onLogout, onDeleteData, onDeleteAndLogout, sortBy, onSortChange, filterLabel, onLabelChange, availableLabels }) => {
+const HamburgerMenu = ({ user, theme, onToggleTheme, soundsEnabled, onToggleSounds, onShowFeedback, onClose, onLogout, onDeleteData, onDeleteAndLogout, sortBy, onSortChange, filterLabel, onLabelChange, availableLabels }) => {
     const [isSortOpen, setIsSortOpen] = useState(false);
     const [isLabelOpen, setIsLabelOpen] = useState(false);
 
@@ -42,6 +42,14 @@ const HamburgerMenu = ({ user, theme, onToggleTheme, onClose, onLogout, onDelete
                     <span>{theme === 'light' ? 'Light Mode' : 'Dark Mode'}</span>
                     <button className="neo-button icon-btn neo-glow-blue" onClick={onToggleTheme}>
                         {theme === 'light' ? <Sun size={20} /> : <Moon size={20} />}
+                    </button>
+                </div>
+
+                {/* Sound Toggle */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>{soundsEnabled ? 'Sounds On' : 'Sounds Off'}</span>
+                    <button className="neo-button icon-btn neo-glow-blue" onClick={onToggleSounds}>
+                        {soundsEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
                     </button>
                 </div>
 
@@ -132,6 +140,9 @@ const HamburgerMenu = ({ user, theme, onToggleTheme, onClose, onLogout, onDelete
 
                 {/* Actions */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <button className="neo-button" style={{ width: '100%', color: 'var(--accent-color)' }} onClick={onShowFeedback}>
+                        <MessageSquare size={18} /> Feedback
+                    </button>
                     <button className="neo-button" style={{ width: '100%' }} onClick={onLogout}>
                         <LogOut size={18} /> Logout
                     </button>

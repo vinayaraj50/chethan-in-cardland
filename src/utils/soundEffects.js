@@ -8,6 +8,10 @@ const getContext = () => {
     return audioContext;
 };
 
+const isSoundsEnabled = () => {
+    return localStorage.getItem('soundsEnabled') !== 'false';
+};
+
 const createOscillator = (type, freq, startTime, duration, vol = 0.1) => {
     const ctx = getContext();
     const osc = ctx.createOscillator();
@@ -28,6 +32,7 @@ const createOscillator = (type, freq, startTime, duration, vol = 0.1) => {
 };
 
 export const playTada = () => {
+    if (!isSoundsEnabled()) return;
     const ctx = getContext();
     if (ctx.state === 'suspended') ctx.resume();
     const now = ctx.currentTime;
@@ -40,6 +45,7 @@ export const playTada = () => {
 };
 
 export const playSwoosh = () => {
+    if (!isSoundsEnabled()) return;
     const ctx = getContext();
     if (ctx.state === 'suspended') ctx.resume();
     const now = ctx.currentTime;
@@ -74,6 +80,7 @@ export const playSwoosh = () => {
 };
 
 export const playTing = () => {
+    if (!isSoundsEnabled()) return;
     const ctx = getContext();
     if (ctx.state === 'suspended') ctx.resume();
     const now = ctx.currentTime;
@@ -85,6 +92,7 @@ export const playTing = () => {
 };
 
 export const playCompletion = () => {
+    if (!isSoundsEnabled()) return;
     const ctx = getContext();
     if (ctx.state === 'suspended') ctx.resume();
     const now = ctx.currentTime;
@@ -132,3 +140,4 @@ export const playCompletion = () => {
         osc.stop(end + 0.1);
     });
 };
+

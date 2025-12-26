@@ -11,6 +11,8 @@ import AddStackModal from './components/AddStackModal';
 import ReviewModal from './components/ReviewModal';
 import NotificationModal from './components/NotificationModal';
 import Home from './pages/Home';
+import FeedbackModal from './components/FeedbackModal';
+import { loadPicker, showPicker } from './services/googlePicker';
 
 const App = () => {
     const [user, setUser] = useState(null);
@@ -28,6 +30,8 @@ const App = () => {
     const [reviewStack, setReviewStack] = useState(null);
     const [notification, setNotification] = useState(null); // { type, message, onConfirm }
     const [isFullscreen, setIsFullscreen] = useState(false);
+    const [soundsEnabled, setSoundsEnabled] = useState(localStorage.getItem('soundsEnabled') !== 'false');
+    const [showFeedback, setShowFeedback] = useState(false);
 
     useEffect(() => {
         document.documentElement.setAttribute('data-theme', theme);
@@ -112,6 +116,12 @@ const App = () => {
         setTheme(prev => prev === 'light' ? 'dark' : 'light');
     };
 
+    const handleToggleSounds = () => {
+        const newValue = !soundsEnabled;
+        setSoundsEnabled(newValue);
+        localStorage.setItem('soundsEnabled', newValue);
+    };
+
     const handleDeleteAll = async () => {
         setNotification({
             type: 'confirm',
@@ -143,7 +153,7 @@ const App = () => {
                 setLoading(true);
                 try {
                     await deleteStack(user.token, stack.driveFileId);
-                    await fetchStacks(user.token);
+                    setStacks(prev => prev.filter(s => s.driveFileId !== stack.driveFileId));
                     setShowAddModal(false);
                     setReviewStack(null);
                 } catch (error) {
@@ -152,6 +162,20 @@ const App = () => {
                 } finally {
                     setLoading(false);
                 }
+            }
+        });
+    };
+
+    const handleUpdateLocalStack = (updatedStack) => {
+        setStacks(prev => {
+            const index = prev.findIndex(s => s.id === updatedStack.id || s.driveFileId === updatedStack.driveFileId);
+            if (index >= 0) {
+                const newStacks = [...prev];
+                // Preserve additional properties from drive list like ownedByMe, ownerName etc if present
+                newStacks[index] = { ...newStacks[index], ...updatedStack };
+                return newStacks;
+            } else {
+                return [updatedStack, ...prev];
             }
         });
     };
@@ -167,8 +191,8 @@ const App = () => {
                 lastReviewed: null,
                 driveFileId: null // Force create new file
             };
-            await saveStack(user.token, newStack);
-            await fetchStacks(user.token);
+            const result = await saveStack(user.token, newStack);
+            handleUpdateLocalStack({ ...newStack, driveFileId: result.id });
         } catch (error) {
             console.error('Failed to duplicate stack:', error);
             setNotification({ type: 'alert', message: 'Failed to duplicate stack.' });
@@ -176,6 +200,8 @@ const App = () => {
             setLoading(false);
         }
     };
+
+
 
     const toggleFullscreen = () => {
         if (!document.fullscreenElement) {
@@ -188,6 +214,8 @@ const App = () => {
             setIsFullscreen(false);
         }
     };
+
+
 
     useEffect(() => {
         const handleFullscreenChange = () => {
@@ -269,6 +297,9 @@ const App = () => {
                     user={user}
                     theme={theme}
                     onToggleTheme={handleToggleTheme}
+                    soundsEnabled={soundsEnabled}
+                    onToggleSounds={handleToggleSounds}
+                    onShowFeedback={() => { setShowMenu(false); setShowFeedback(true); }}
                     onClose={() => setShowMenu(false)}
                     onLogout={() => signOut(setUser)}
                     onDeleteData={handleDeleteAll}
@@ -286,12 +317,13 @@ const App = () => {
                     user={user}
                     stack={activeStack}
                     onClose={() => setShowAddModal(false)}
-                    onSave={() => { fetchStacks(user.token); setShowAddModal(false); }}
+                    onSave={(updated) => { handleUpdateLocalStack(updated); setShowAddModal(false); }}
                     onDuplicate={handleDuplicateStack}
                     onDelete={handleDeleteStack}
                     showAlert={(msg) => setNotification({ type: 'alert', message: msg })}
                     showConfirm={(msg, cb) => setNotification({ type: 'confirm', message: msg, onConfirm: cb })}
                     availableLabels={getAvailableLabels()}
+                    allStacks={stacks}
                 />
             )}
 
@@ -300,7 +332,7 @@ const App = () => {
                     stack={reviewStack}
                     user={user}
                     onClose={() => setReviewStack(null)}
-                    onUpdate={() => fetchStacks(user.token)}
+                    onUpdate={(updated) => handleUpdateLocalStack(updated)}
                     onEdit={() => { setActiveStack(reviewStack); setReviewStack(null); setShowAddModal(true); }}
                     onDuplicate={handleDuplicateStack}
                     showAlert={(msg) => setNotification({ type: 'alert', message: msg })}
@@ -316,6 +348,13 @@ const App = () => {
                     />
                 )}
             </AnimatePresence>
+            {showFeedback && (
+                <FeedbackModal
+                    user={user}
+                    onClose={() => setShowFeedback(false)}
+                    showAlert={(msg) => setNotification({ type: 'alert', message: msg })}
+                />
+            )}
         </div>
     );
 };

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Mic, Image as ImageIcon, Plus, Trash2, Share2, Copy, Save, Check, Play, Square, Pause, ChevronDown } from 'lucide-react';
-import { saveStack, shareStack } from '../services/googleDrive';
+import { X, Mic, Image as ImageIcon, Plus, Trash2, Copy, Save, Check, Play, Square, Pause, ChevronDown, Download, Upload, Split, Merge } from 'lucide-react';
+import { saveStack, deleteStack } from '../services/googleDrive';
+import { downloadStackAsZip, uploadStackFromZip } from '../utils/zipUtils';
 import ImageViewer from './ImageViewer';
 import { AnimatePresence } from 'framer-motion';
 
@@ -126,17 +127,21 @@ const AudioPlayer = ({ audioData }) => {
     );
 };
 
-const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, showAlert, showConfirm, availableLabels }) => {
+const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, showAlert, showConfirm, availableLabels, allStacks }) => {
     const [title, setTitle] = useState(stack?.title || '');
     const [titleImage, setTitleImage] = useState(stack?.titleImage || '');
     const [label, setLabel] = useState(stack?.label || 'No label');
     const [isLabelDropdownOpen, setIsLabelDropdownOpen] = useState(false);
     const [newLabelInput, setNewLabelInput] = useState('');
     const [cards, setCards] = useState(stack?.cards || [{ id: Date.now(), question: { text: '', image: '', audio: '' }, answer: { text: '', image: '', audio: '' } }]);
-    const [showShare, setShowShare] = useState(false);
-    const [shareEmail, setShareEmail] = useState('');
-    const [shareRole, setShareRole] = useState('reader');
     const [viewingImage, setViewingImage] = useState(null);
+    const uploadInputRef = useRef(null);
+
+    // Split/Merge state
+    const [showSplitUI, setShowSplitUI] = useState(false);
+    const [selectedCards, setSelectedCards] = useState(new Set());
+    const [showMergeUI, setShowMergeUI] = useState(false);
+    const [mergeTargetId, setMergeTargetId] = useState('');
 
     // Recording state
     const [recording, setRecording] = useState(null); // { id, field }
@@ -243,7 +248,16 @@ const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, sh
     };
 
     const handleSave = async () => {
-        if (!title) return showAlert('Please enter a title');
+        if (!title.trim()) return showAlert('Please enter a title');
+
+        for (let i = 0; i < cards.length; i++) {
+            const card = cards[i];
+            const hasQuestion = card.question.text.trim() || card.question.image || card.question.audio;
+            const hasAnswer = card.answer.text.trim() || card.answer.image || card.answer.audio;
+
+            if (!hasQuestion) return showAlert(`Question is required for card ${i + 1}`);
+            if (!hasAnswer) return showAlert(`Answer is required for card ${i + 1}`);
+        }
 
         const newStack = {
             id: stack?.id || Date.now().toString(),
@@ -257,28 +271,148 @@ const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, sh
         };
 
         try {
-            await saveStack(user.token, newStack, stack?.driveFileId);
-            onSave();
+            const result = await saveStack(user.token, newStack, stack?.driveFileId);
+            // Passing back the stack with the possibly new driveFileId
+            onSave({ ...newStack, driveFileId: result.id });
         } catch (error) {
             console.error('Error saving stack:', error);
             showAlert('Failed to save stack.');
         }
     };
 
-    const handleShare = async () => {
-        if (showShare) return setShowShare(false);
-        setShowShare(true);
+    const handleDownload = async () => {
+        if (!title) return showAlert('Please save the stack first');
+
+        const stackToDownload = {
+            id: stack?.id || Date.now().toString(),
+            title,
+            titleImage,
+            label,
+            cards,
+            createdAt: stack?.createdAt || new Date().toISOString()
+        };
+
+        try {
+            await downloadStackAsZip(stackToDownload);
+            showAlert('Stack downloaded successfully!');
+        } catch (error) {
+            console.error('Error downloading stack:', error);
+            showAlert('Failed to download stack.');
+        }
     };
 
-    const executeShare = async () => {
-        if (!shareEmail) return;
+    const handleUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
         try {
-            await shareStack(user.token, stack.driveFileId, shareEmail, shareRole);
-            showAlert('Shared successfully!');
-            setShowShare(false);
+            const importedStack = await uploadStackFromZip(file);
+
+            // Populate the form with imported data
+            setTitle(importedStack.title);
+            setTitleImage(importedStack.titleImage || '');
+            setLabel(importedStack.label || 'No label');
+            setCards(importedStack.cards);
+
+            showAlert('Stack imported successfully! Review and save.');
         } catch (error) {
-            showAlert('Failed to share.');
+            console.error('Error uploading stack:', error);
+            showAlert(error.message || 'Failed to import stack.');
         }
+    };
+
+    const handleSplitStack = () => {
+        if (selectedCards.size === 0) {
+            return showAlert('Please select at least one card to split.');
+        }
+        if (selectedCards.size === cards.length) {
+            return showAlert('Cannot split all cards. Leave at least one card in the current stack.');
+        }
+
+        showConfirm(`Split ${selectedCards.size} card(s) into a new stack?`, async () => {
+            const cardsToSplit = cards.filter(c => selectedCards.has(c.id));
+            const remainingCards = cards.filter(c => !selectedCards.has(c.id));
+
+            // Create new stack with selected cards
+            const newStack = {
+                id: Date.now().toString(),
+                title: `${title} (Split)`,
+                titleImage,
+                label,
+                cards: cardsToSplit,
+                owner: user.email,
+                avgRating: null,
+                lastReviewed: null,
+            };
+
+            try {
+                // Save new stack
+                const result = await saveStack(user.token, newStack);
+
+                // Update current stack with remaining cards
+                setCards(remainingCards);
+                setSelectedCards(new Set());
+                setShowSplitUI(false);
+
+                showAlert(`Stack split successfully! New stack "${newStack.title}" created.`);
+
+                // Save the updated current stack
+                await handleSave();
+            } catch (error) {
+                console.error('Error splitting stack:', error);
+                showAlert('Failed to split stack.');
+            }
+        });
+    };
+
+    const handleMergeStack = async () => {
+        if (!mergeTargetId) {
+            return showAlert('Please select a stack to merge with.');
+        }
+
+        const targetStack = allStacks?.find(s => s.id === mergeTargetId);
+        if (!targetStack) {
+            return showAlert('Target stack not found.');
+        }
+
+        showConfirm(`Merge "${title}" into "${targetStack.title}"? The current stack will be deleted.`, async () => {
+            try {
+                // Combine cards
+                const mergedCards = [...targetStack.cards, ...cards];
+
+                // Update target stack
+                const updatedStack = {
+                    ...targetStack,
+                    cards: mergedCards
+                };
+
+                await saveStack(user.token, updatedStack, targetStack.driveFileId);
+
+                // Delete current stack if it exists in Drive
+                if (stack?.driveFileId) {
+                    await deleteStack(user.token, stack.driveFileId);
+                }
+
+                showAlert(`Stacks merged successfully into "${targetStack.title}"!`);
+                onClose();
+                window.location.reload(); // Refresh to show updated stacks
+            } catch (error) {
+                console.error('Error merging stacks:', error);
+                showAlert('Failed to merge stacks.');
+            }
+        });
+    };
+
+    const toggleCardSelection = (cardId) => {
+        setSelectedCards(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(cardId)) {
+                newSet.delete(cardId);
+            } else {
+                newSet.add(cardId);
+            }
+            return newSet;
+        });
     };
 
     return (
@@ -293,32 +427,74 @@ const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, sh
             }}>
                 {/* Header Icons */}
                 <div style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', display: 'flex', gap: '0.5rem' }}>
-                    {stack && <button className={`neo-button icon-btn ${showShare ? 'neo-inset' : ''}`} title="Share" onClick={handleShare}><Share2 size={18} /></button>}
+                    {stack && <button className="neo-button icon-btn" title="Download Stack" onClick={handleDownload}><Download size={18} /></button>}
                     {stack && <button className="neo-button icon-btn" title="Duplicate" onClick={() => onDuplicate(stack)}><Copy size={18} /></button>}
                     <button className="neo-button icon-btn" onClick={onClose}><X size={18} /></button>
                 </div>
 
                 <h2 style={{ fontSize: '1.5rem' }}>{stack ? 'Edit Stack' : 'New Flashcard Stack'}</h2>
 
-                {/* Share UI */}
-                {showShare && (
-                    <div className="neo-inset" style={{ padding: '1rem', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        <div style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>Collaborate</div>
-                        <div style={{ display: 'flex', gap: '10px' }}>
-                            <input
-                                className="neo-input"
-                                placeholder="Email address"
-                                value={shareEmail}
-                                onChange={(e) => setShareEmail(e.target.value)}
-                            />
-                            <select className="neo-select" style={{ width: '100px' }} value={shareRole} onChange={(e) => setShareRole(e.target.value)}>
-                                <option value="reader">Read</option>
-                                <option value="writer">Edit</option>
-                            </select>
-                            <button className="neo-button" onClick={executeShare}>Add</button>
-                        </div>
+                {/* Split/Merge UI */}
+                {stack && cards.length > 1 && (
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <button
+                            className={`neo-button ${showSplitUI ? 'neo-inset' : ''}`}
+                            style={{ flex: 1, justifyContent: 'center', fontSize: '0.9rem' }}
+                            onClick={() => { setShowSplitUI(!showSplitUI); setShowMergeUI(false); setSelectedCards(new Set()); }}
+                        >
+                            <Split size={16} /> {showSplitUI ? 'Cancel Split' : 'Split Stack'}
+                        </button>
+                        {allStacks && allStacks.filter(s => s.id !== stack?.id).length > 0 && (
+                            <button
+                                className={`neo-button ${showMergeUI ? 'neo-inset' : ''}`}
+                                style={{ flex: 1, justifyContent: 'center', fontSize: '0.9rem' }}
+                                onClick={() => { setShowMergeUI(!showMergeUI); setShowSplitUI(false); setSelectedCards(new Set()); }}
+                            >
+                                <Merge size={16} /> {showMergeUI ? 'Cancel Merge' : 'Merge Stack'}
+                            </button>
+                        )}
                     </div>
                 )}
+
+                {/* Split UI */}
+                {showSplitUI && (
+                    <div className="neo-inset" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <p style={{ fontSize: '0.9rem', opacity: 0.7 }}>Select cards to move to a new stack:</p>
+                        <button
+                            className="neo-button neo-glow-blue"
+                            style={{ background: 'var(--accent-color)', color: 'white', border: 'none' }}
+                            onClick={handleSplitStack}
+                        >
+                            Create New Stack with {selectedCards.size} Selected Card(s)
+                        </button>
+                    </div>
+                )}
+
+                {/* Merge UI */}
+                {showMergeUI && (
+                    <div className="neo-inset" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <p style={{ fontSize: '0.9rem', opacity: 0.7 }}>Select stack to merge into:</p>
+                        <select
+                            className="neo-select"
+                            value={mergeTargetId}
+                            onChange={(e) => setMergeTargetId(e.target.value)}
+                        >
+                            <option value="">-- Select Stack --</option>
+                            {allStacks?.filter(s => s.id !== stack?.id).map(s => (
+                                <option key={s.id} value={s.id}>{s.title} ({s.cards?.length || 0} cards)</option>
+                            ))}
+                        </select>
+                        <button
+                            className="neo-button neo-glow-blue"
+                            style={{ background: 'var(--accent-color)', color: 'white', border: 'none' }}
+                            onClick={handleMergeStack}
+                            disabled={!mergeTargetId}
+                        >
+                            Merge Into Selected Stack
+                        </button>
+                    </div>
+                )}
+
 
                 {/* Title Image Upload */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -339,12 +515,24 @@ const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, sh
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                         <label style={{ fontWeight: '600', opacity: 0.7 }}>Title & Cover Image</label>
                         <div style={{ display: 'flex', gap: '10px' }}>
-                            <input
-                                className="neo-input"
-                                placeholder="Stack Title"
-                                value={title}
-                                onChange={(e) => setTitle(e.target.value)}
-                            />
+                            <div style={{ position: 'relative', flex: 1 }}>
+                                <input
+                                    className="neo-input"
+                                    placeholder="Stack Title "
+                                    value={title}
+                                    onChange={(e) => setTitle(e.target.value)}
+                                    style={{ paddingRight: '30px' }}
+                                />
+                                <span style={{
+                                    position: 'absolute',
+                                    right: '12px',
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    color: 'red',
+                                    pointerEvents: 'none',
+                                    visibility: title ? 'hidden' : 'visible'
+                                }}>*</span>
+                            </div>
                             <label className="neo-button icon-btn" style={{ cursor: 'pointer', flexShrink: 0 }}>
                                 <ImageIcon size={18} />
                                 <input type="file" hidden accept="image/*" onChange={(e) => handleFileUpload(e, setTitleImage)} />
@@ -439,6 +627,16 @@ const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, sh
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
                     {cards.map((card, index) => (
                         <div key={card.id} className="neo-inset" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', position: 'relative' }}>
+                            {showSplitUI && (
+                                <div style={{ position: 'absolute', top: '10px', left: '10px', zIndex: 5 }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedCards.has(card.id)}
+                                        onChange={() => toggleCardSelection(card.id)}
+                                        style={{ width: '20px', height: '20px', cursor: 'pointer' }}
+                                    />
+                                </div>
+                            )}
                             <div style={{ position: 'absolute', top: '10px', right: '10px' }}>
                                 <button className="neo-button icon-btn" style={{ width: '30px', height: '30px' }} onClick={() => handleRemoveCard(card.id)}>
                                     <Trash2 size={14} color="var(--error-color)" />
@@ -506,13 +704,24 @@ const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, sh
                                         </button>
                                     </div>
                                 )}
-                                <textarea
-                                    className="neo-input"
-                                    rows="1"
-                                    placeholder="The question..."
-                                    value={card.question.text}
-                                    onChange={(e) => handleUpdateCard(card.id, 'question', { ...card.question, text: e.target.value })}
-                                />
+                                <div style={{ position: 'relative' }}>
+                                    <textarea
+                                        className="neo-input"
+                                        rows="1"
+                                        placeholder="The question... "
+                                        value={card.question.text}
+                                        onChange={(e) => handleUpdateCard(card.id, 'question', { ...card.question, text: e.target.value })}
+                                        style={{ paddingRight: '30px' }}
+                                    />
+                                    <span style={{
+                                        position: 'absolute',
+                                        right: '12px',
+                                        top: '12px',
+                                        color: 'red',
+                                        pointerEvents: 'none',
+                                        visibility: (card.question.text || card.question.image || card.question.audio) ? 'hidden' : 'visible'
+                                    }}>*</span>
+                                </div>
                                 {card.question.audio && (
                                     <AudioPlayer audioData={card.question.audio} />
                                 )}
@@ -576,13 +785,24 @@ const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, sh
                                         </button>
                                     </div>
                                 )}
-                                <textarea
-                                    className="neo-input"
-                                    rows="1"
-                                    placeholder="The answer..."
-                                    value={card.answer.text}
-                                    onChange={(e) => handleUpdateCard(card.id, 'answer', { ...card.answer, text: e.target.value })}
-                                />
+                                <div style={{ position: 'relative' }}>
+                                    <textarea
+                                        className="neo-input"
+                                        rows="1"
+                                        placeholder="The answer... "
+                                        value={card.answer.text}
+                                        onChange={(e) => handleUpdateCard(card.id, 'answer', { ...card.answer, text: e.target.value })}
+                                        style={{ paddingRight: '30px' }}
+                                    />
+                                    <span style={{
+                                        position: 'absolute',
+                                        right: '12px',
+                                        top: '12px',
+                                        color: 'red',
+                                        pointerEvents: 'none',
+                                        visibility: (card.answer.text || card.answer.image || card.answer.audio) ? 'hidden' : 'visible'
+                                    }}>*</span>
+                                </div>
                                 {card.answer.audio && (
                                     <AudioPlayer audioData={card.answer.audio} />
                                 )}
@@ -596,6 +816,24 @@ const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, sh
                 </button>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
+                    {!stack && (
+                        <div style={{ display: 'flex', gap: '1rem' }}>
+                            <input
+                                ref={uploadInputRef}
+                                type="file"
+                                hidden
+                                accept=".zip"
+                                onChange={handleUpload}
+                            />
+                            <button
+                                className="neo-button neo-glow-blue"
+                                style={{ flex: 1, justifyContent: 'center', background: 'var(--accent-soft)', color: 'var(--accent-color)' }}
+                                onClick={() => uploadInputRef.current?.click()}
+                            >
+                                <Upload size={18} /> Upload from Device
+                            </button>
+                        </div>
+                    )}
                     <div style={{ display: 'flex', gap: '1rem' }}>
                         {stack && (
                             <button className="neo-button neo-glow-red" style={{ flex: 1, justifyContent: 'center', color: 'var(--error-color)' }} onClick={() => onDelete(stack)}>
@@ -610,30 +848,6 @@ const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, sh
                         <Save size={18} /> {stack ? 'Save Changes' : 'Create Stack'}
                     </button>
                 </div>
-
-                {/* Collaboration Popup */}
-                {showShare && (
-                    <div className="neo-flat" style={{
-                        position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-                        width: '80%', padding: '1.5rem', zIndex: 10, display: 'flex', flexDirection: 'column', gap: '1rem'
-                    }}>
-                        <h3>Collaborate</h3>
-                        <input
-                            className="neo-input"
-                            placeholder="Enter Gmail ID"
-                            value={shareEmail}
-                            onChange={(e) => setShareEmail(e.target.value)}
-                        />
-                        <div style={{ display: 'flex', gap: '1rem' }}>
-                            <label><input type="radio" name="role" checked={shareRole === 'reader'} onChange={() => setShareRole('reader')} /> View Only</label>
-                            <label><input type="radio" name="role" checked={shareRole === 'writer'} onChange={() => setShareRole('writer')} /> Edit</label>
-                        </div>
-                        <div style={{ display: 'flex', gap: '1rem' }}>
-                            <button className="neo-button" style={{ flex: 1 }} onClick={handleShare}>Send Notification</button>
-                            <button className="neo-button" onClick={() => setShowShare(false)}>Close</button>
-                        </div>
-                    </div>
-                )}
 
                 {/* Image Viewer */}
                 <AnimatePresence>
