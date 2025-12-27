@@ -66,7 +66,11 @@ const App = () => {
             const data = await listStacks(token);
             setStacks(data);
         } catch (error) {
-            console.error('Failed to fetch stacks:', error);
+            if (error.message === 'REAUTH_NEEDED') {
+                signIn(); // Prompt for re-auth
+            } else {
+                console.error('Failed to fetch stacks:', error);
+            }
         } finally {
             setLoading(false);
         }
@@ -157,8 +161,12 @@ const App = () => {
                     setShowAddModal(false);
                     setReviewStack(null);
                 } catch (error) {
-                    console.error('Failed to delete stack:', error);
-                    setNotification({ type: 'alert', message: 'Failed to delete stack.' });
+                    if (error.message === 'REAUTH_NEEDED') {
+                        signIn();
+                    } else {
+                        console.error('Failed to delete stack:', error);
+                        setNotification({ type: 'alert', message: 'Failed to delete stack.' });
+                    }
                 } finally {
                     setLoading(false);
                 }
@@ -194,8 +202,12 @@ const App = () => {
             const result = await saveStack(user.token, newStack);
             handleUpdateLocalStack({ ...newStack, driveFileId: result.id });
         } catch (error) {
-            console.error('Failed to duplicate stack:', error);
-            setNotification({ type: 'alert', message: 'Failed to duplicate stack.' });
+            if (error.message === 'REAUTH_NEEDED') {
+                signIn();
+            } else {
+                console.error('Failed to duplicate stack:', error);
+                setNotification({ type: 'alert', message: 'Failed to duplicate stack.' });
+            }
         } finally {
             setLoading(false);
         }
@@ -232,7 +244,7 @@ const App = () => {
             }}>
                 <img src={logo} alt="Chethan in Cardland" style={{ height: '180px', objectFit: 'contain' }} />
                 <p style={{ textAlign: 'center', padding: '0 1rem' }}>Your personal flashcard vault, powered by Google Drive.</p>
-                <button className="neo-button" onClick={signIn} style={{ padding: '15px 30px', fontSize: '1.1rem' }}>
+                <button className="neo-button" onClick={() => signIn()} style={{ padding: '15px 30px', fontSize: '1.1rem' }}>
                     Sign in with Google
                 </button>
             </div>

@@ -25,6 +25,11 @@ export const listStacks = async (token) => {
     const response = await fetch(url, {
         headers: getHeaders(token),
     });
+
+    if (response.status === 401) {
+        throw new Error('REAUTH_NEEDED');
+    }
+
     const data = await response.json();
 
     if (!data.files) return [];
@@ -96,6 +101,11 @@ export const getFileContent = async (token, fileId) => {
     const response = await fetch(`${DRIVE_API_URL}/${fileId}?alt=media`, {
         headers: getHeaders(token),
     });
+
+    if (response.status === 401) {
+        throw new Error('REAUTH_NEEDED');
+    }
+
     return await response.json();
 };
 
@@ -135,6 +145,10 @@ export const saveFile = async (token, name, content, fileId = null, mimeType = '
             },
             body,
         });
+
+        if (response.status === 401) {
+            throw new Error('REAUTH_NEEDED');
+        }
 
         if (!response.ok) {
             const errorData = await response.json();

@@ -58,9 +58,21 @@ const fetchUserProfile = async (token, onAuthUpdate) => {
     }
 };
 
-export const signIn = () => {
+export const isTokenExpired = () => {
+    const expiresAt = localStorage.getItem('google_token_expires_at');
+    if (!expiresAt) return true;
+    // Buffer of 5 minutes before actual expiration
+    return Date.now() > (parseInt(expiresAt) - 5 * 60 * 1000);
+};
+
+export const getAccessToken = () => {
+    if (isTokenExpired()) return null;
+    return accessToken || localStorage.getItem('google_access_token');
+};
+
+export const signIn = (prompt = 'consent') => {
     if (tokenClient) {
-        tokenClient.requestAccessToken({ prompt: 'consent' });
+        tokenClient.requestAccessToken({ prompt });
     }
 };
 

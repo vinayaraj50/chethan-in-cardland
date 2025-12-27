@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Mic, Image as ImageIcon, Plus, Trash2, Copy, Save, Check, Play, Square, Pause, ChevronDown, Download, Upload, Split, Merge } from 'lucide-react';
+import { signIn } from '../services/googleAuth';
 import { saveStack, deleteStack } from '../services/googleDrive';
 import { downloadStackAsZip, uploadStackFromZip } from '../utils/zipUtils';
 import ImageViewer from './ImageViewer';
@@ -277,8 +278,12 @@ const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, sh
             // Passing back the stack with the possibly new driveFileId
             onSave({ ...newStack, driveFileId: result.id });
         } catch (error) {
-            console.error('Error saving stack:', error);
-            showAlert('Failed to save stack.');
+            if (error.message === 'REAUTH_NEEDED') {
+                signIn();
+            } else {
+                console.error('Error saving stack:', error);
+                showAlert('Failed to save stack.');
+            }
         }
     };
 
@@ -365,8 +370,12 @@ const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, sh
                 await handleSave();
 
             } catch (error) {
-                console.error('Error splitting stack:', error);
-                showAlert('Failed to split stack.');
+                if (error.message === 'REAUTH_NEEDED') {
+                    signIn();
+                } else {
+                    console.error('Error splitting stack:', error);
+                    showAlert('Failed to split stack.');
+                }
             }
         });
     };
@@ -403,8 +412,12 @@ const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, sh
                 onClose();
                 window.location.reload(); // Refresh to show updated stacks
             } catch (error) {
-                console.error('Error merging stacks:', error);
-                showAlert('Failed to merge stacks.');
+                if (error.message === 'REAUTH_NEEDED') {
+                    signIn();
+                } else {
+                    console.error('Error merging stacks:', error);
+                    showAlert('Failed to merge stacks.');
+                }
             }
         });
     };
@@ -445,48 +458,6 @@ const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, sh
 
                 {/* Title Image Upload */}
                 <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
-                    <div className="neo-inset" style={{
-                        width: '120px',
-                        height: '120px',
-                        borderRadius: '16px',
-                        overflow: 'hidden',
-                        flexShrink: 0,
-                        position: 'relative',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginTop: '1.8rem' // Align with the first input
-                    }}>
-                        {titleImage ? (
-                            <>
-                                <img
-                                    src={titleImage}
-                                    alt="Title"
-                                    style={{ width: '100%', height: '100%', objectFit: 'contain', cursor: 'pointer' }}
-                                    onClick={() => setViewingImage(titleImage)}
-                                />
-                                <button
-                                    className="neo-button icon-btn"
-                                    style={{
-                                        position: 'absolute',
-                                        top: '5px',
-                                        right: '5px',
-                                        width: '24px',
-                                        height: '24px',
-                                        background: 'rgba(255,255,255,0.8)',
-                                        backdropFilter: 'blur(4px)'
-                                    }}
-                                    onClick={(e) => { e.stopPropagation(); setTitleImage(''); }}
-                                >
-                                    <Trash2 size={12} color="var(--error-color)" />
-                                </button>
-                            </>
-                        ) : (
-                            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.3 }}>
-                                <ImageIcon size={40} />
-                            </div>
-                        )}
-                    </div>
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
                         <label style={{ fontWeight: '600', opacity: 0.7 }}>Title & Cover Image</label>
                         <div style={{ display: 'flex', gap: '10px' }}>
@@ -508,10 +479,17 @@ const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, sh
                                     visibility: title ? 'hidden' : 'visible'
                                 }}>*</span>
                             </div>
-                            <label className="neo-button icon-btn" style={{ cursor: 'pointer', flexShrink: 0 }}>
-                                <ImageIcon size={18} />
-                                <input type="file" hidden accept="image/*" onChange={(e) => handleFileUpload(e, setTitleImage)} />
-                            </label>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                <label className="neo-button icon-btn" style={{ cursor: 'pointer', flexShrink: 0, color: titleImage ? 'var(--accent-color)' : 'currentColor' }}>
+                                    <ImageIcon size={18} />
+                                    <input type="file" hidden accept="image/*" onChange={(e) => handleFileUpload(e, setTitleImage)} />
+                                </label>
+                                {titleImage && (
+                                    <button className="neo-button icon-btn" style={{ flexShrink: 0 }} onClick={() => setTitleImage('')}>
+                                        <Trash2 size={16} color="var(--error-color)" />
+                                    </button>
+                                )}
+                            </div>
                         </div>
 
 
