@@ -142,6 +142,8 @@ const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, sh
     const [selectedCards, setSelectedCards] = useState(new Set());
     const [showMergeUI, setShowMergeUI] = useState(false);
     const [mergeTargetId, setMergeTargetId] = useState('');
+    const [isMergeDropdownOpen, setIsMergeDropdownOpen] = useState(false);
+
 
     // Recording state
     const [recording, setRecording] = useState(null); // { id, field }
@@ -349,6 +351,9 @@ const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, sh
                 // Save new stack
                 const result = await saveStack(user.token, newStack);
 
+                // Notify parent about the new stack without closing modal
+                onSave({ ...newStack, driveFileId: result.id }, false);
+
                 // Update current stack with remaining cards
                 setCards(remainingCards);
                 setSelectedCards(new Set());
@@ -358,6 +363,7 @@ const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, sh
 
                 // Save the updated current stack
                 await handleSave();
+
             } catch (error) {
                 console.error('Error splitting stack:', error);
                 showAlert('Failed to split stack.');
@@ -434,85 +440,54 @@ const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, sh
 
                 <h2 style={{ fontSize: '1.5rem' }}>{stack ? 'Edit Stack' : 'New Flashcard Stack'}</h2>
 
-                {/* Split/Merge UI */}
-                {stack && cards.length > 1 && (
-                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        <button
-                            className={`neo-button ${showSplitUI ? 'neo-inset' : ''}`}
-                            style={{ flex: 1, justifyContent: 'center', fontSize: '0.9rem' }}
-                            onClick={() => { setShowSplitUI(!showSplitUI); setShowMergeUI(false); setSelectedCards(new Set()); }}
-                        >
-                            <Split size={16} /> {showSplitUI ? 'Cancel Split' : 'Split Stack'}
-                        </button>
-                        {allStacks && allStacks.filter(s => s.id !== stack?.id).length > 0 && (
-                            <button
-                                className={`neo-button ${showMergeUI ? 'neo-inset' : ''}`}
-                                style={{ flex: 1, justifyContent: 'center', fontSize: '0.9rem' }}
-                                onClick={() => { setShowMergeUI(!showMergeUI); setShowSplitUI(false); setSelectedCards(new Set()); }}
-                            >
-                                <Merge size={16} /> {showMergeUI ? 'Cancel Merge' : 'Merge Stack'}
-                            </button>
-                        )}
-                    </div>
-                )}
 
-                {/* Split UI */}
-                {showSplitUI && (
-                    <div className="neo-inset" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        <p style={{ fontSize: '0.9rem', opacity: 0.7 }}>Select cards to move to a new stack:</p>
-                        <button
-                            className="neo-button neo-glow-blue"
-                            style={{ background: 'var(--accent-color)', color: 'white', border: 'none' }}
-                            onClick={handleSplitStack}
-                        >
-                            Create New Stack with {selectedCards.size} Selected Card(s)
-                        </button>
-                    </div>
-                )}
-
-                {/* Merge UI */}
-                {showMergeUI && (
-                    <div className="neo-inset" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        <p style={{ fontSize: '0.9rem', opacity: 0.7 }}>Select stack to merge into:</p>
-                        <select
-                            className="neo-select"
-                            value={mergeTargetId}
-                            onChange={(e) => setMergeTargetId(e.target.value)}
-                        >
-                            <option value="">-- Select Stack --</option>
-                            {allStacks?.filter(s => s.id !== stack?.id).map(s => (
-                                <option key={s.id} value={s.id}>{s.title} ({s.cards?.length || 0} cards)</option>
-                            ))}
-                        </select>
-                        <button
-                            className="neo-button neo-glow-blue"
-                            style={{ background: 'var(--accent-color)', color: 'white', border: 'none' }}
-                            onClick={handleMergeStack}
-                            disabled={!mergeTargetId}
-                        >
-                            Merge Into Selected Stack
-                        </button>
-                    </div>
-                )}
 
 
                 {/* Title Image Upload */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <div className="neo-inset" style={{ width: '80px', height: '80px', borderRadius: '12px', overflow: 'hidden', flexShrink: 0 }}>
+                <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
+                    <div className="neo-inset" style={{
+                        width: '120px',
+                        height: '120px',
+                        borderRadius: '16px',
+                        overflow: 'hidden',
+                        flexShrink: 0,
+                        position: 'relative',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginTop: '1.8rem' // Align with the first input
+                    }}>
                         {titleImage ? (
-                            <img
-                                src={titleImage}
-                                alt="Title"
-                                style={{ width: '100%', height: '100%', objectFit: 'contain', cursor: 'pointer' }}
-                                onClick={() => setViewingImage(titleImage)}
-                            />
+                            <>
+                                <img
+                                    src={titleImage}
+                                    alt="Title"
+                                    style={{ width: '100%', height: '100%', objectFit: 'contain', cursor: 'pointer' }}
+                                    onClick={() => setViewingImage(titleImage)}
+                                />
+                                <button
+                                    className="neo-button icon-btn"
+                                    style={{
+                                        position: 'absolute',
+                                        top: '5px',
+                                        right: '5px',
+                                        width: '24px',
+                                        height: '24px',
+                                        background: 'rgba(255,255,255,0.8)',
+                                        backdropFilter: 'blur(4px)'
+                                    }}
+                                    onClick={(e) => { e.stopPropagation(); setTitleImage(''); }}
+                                >
+                                    <Trash2 size={12} color="var(--error-color)" />
+                                </button>
+                            </>
                         ) : (
                             <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.3 }}>
-                                <ImageIcon size={32} />
+                                <ImageIcon size={40} />
                             </div>
                         )}
                     </div>
-                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
                         <label style={{ fontWeight: '600', opacity: 0.7 }}>Title & Cover Image</label>
                         <div style={{ display: 'flex', gap: '10px' }}>
                             <div style={{ position: 'relative', flex: 1 }}>
@@ -538,6 +513,7 @@ const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, sh
                                 <input type="file" hidden accept="image/*" onChange={(e) => handleFileUpload(e, setTitleImage)} />
                             </label>
                         </div>
+
 
                         {/* Custom Label Dropdown */}
                         <div style={{ position: 'relative' }}>
@@ -631,9 +607,9 @@ const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, sh
                                 <div style={{ position: 'absolute', top: '10px', left: '10px', zIndex: 5 }}>
                                     <input
                                         type="checkbox"
+                                        className="neo-checkbox"
                                         checked={selectedCards.has(card.id)}
                                         onChange={() => toggleCardSelection(card.id)}
-                                        style={{ width: '20px', height: '20px', cursor: 'pointer' }}
                                     />
                                 </div>
                             )}
@@ -815,7 +791,98 @@ const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, sh
                     <Plus size={18} /> Add More Q&A
                 </button>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
+                {/* Split/Merge UI moved to bottom */}
+                {stack && cards.length > 1 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                            <button
+                                className={`neo-button ${showSplitUI ? 'neo-inset' : ''}`}
+                                style={{ flex: 1, justifyContent: 'center', fontSize: '0.9rem' }}
+                                onClick={() => { setShowSplitUI(!showSplitUI); setShowMergeUI(false); setSelectedCards(new Set()); }}
+                            >
+                                <Split size={16} /> {showSplitUI ? 'Cancel Split' : 'Split Stack'}
+                            </button>
+                            {allStacks && allStacks.filter(s => s.id !== stack?.id).length > 0 && (
+                                <button
+                                    className={`neo-button ${showMergeUI ? 'neo-inset' : ''}`}
+                                    style={{ flex: 1, justifyContent: 'center', fontSize: '0.9rem' }}
+                                    onClick={() => { setShowMergeUI(!showMergeUI); setShowSplitUI(false); setSelectedCards(new Set()); }}
+                                >
+                                    <Merge size={16} /> {showMergeUI ? 'Cancel Merge' : 'Merge Stack'}
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Split UI */}
+                        {showSplitUI && (
+                            <div className="neo-inset" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                <p style={{ fontSize: '0.9rem', opacity: 0.7 }}>Select cards to move to a new stack:</p>
+                                <button
+                                    className="neo-button neo-glow-blue"
+                                    style={{ background: 'var(--accent-color)', color: 'white', border: 'none', justifyContent: 'center' }}
+                                    onClick={handleSplitStack}
+                                >
+                                    Create New Stack with {selectedCards.size} Selected Card(s)
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Merge UI */}
+                        {showMergeUI && (
+                            <div className="neo-inset" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                <p style={{ fontSize: '0.9rem', opacity: 0.7 }}>Select stack to merge into:</p>
+
+                                <div style={{ position: 'relative' }}>
+                                    <button
+                                        className="neo-select"
+                                        style={{ textAlign: 'left', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}
+                                        onClick={() => setIsMergeDropdownOpen(!isMergeDropdownOpen)}
+                                    >
+                                        <span style={{ fontSize: '0.9rem', opacity: mergeTargetId ? 1 : 0.5 }}>
+                                            {mergeTargetId ? allStacks.find(s => s.id === mergeTargetId)?.title : '-- Select Stack --'}
+                                        </span>
+                                        <ChevronDown size={16} style={{ transform: isMergeDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.3s' }} />
+                                    </button>
+
+                                    {isMergeDropdownOpen && (
+                                        <div className="neo-flat" style={{
+                                            position: 'absolute', top: '100%', left: 0, width: '100%', marginTop: '8px',
+                                            zIndex: 100, padding: '10px', display: 'flex', flexDirection: 'column', gap: '8px',
+                                            maxHeight: '200px', overflowY: 'auto'
+                                        }}>
+                                            {allStacks?.filter(s => s.id !== stack?.id).map(s => (
+                                                <div
+                                                    key={s.id}
+                                                    className={`neo-button ${mergeTargetId === s.id ? 'neo-inset' : ''}`}
+                                                    style={{
+                                                        padding: '10px', fontSize: '0.9rem', cursor: 'pointer',
+                                                        boxShadow: mergeTargetId === s.id ? 'inset 2px 2px 5px var(--shadow-dark), inset -2px -2px 5px var(--shadow-light)' : 'none',
+                                                        background: mergeTargetId === s.id ? 'var(--accent-soft)' : 'transparent',
+                                                        border: 'none', borderRadius: '8px', width: '100%', textAlign: 'left'
+                                                    }}
+                                                    onClick={() => { setMergeTargetId(s.id); setIsMergeDropdownOpen(false); }}
+                                                >
+                                                    {s.title} ({s.cards?.length || 0} cards)
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                <button
+                                    className="neo-button neo-glow-blue"
+                                    style={{ background: 'var(--accent-color)', color: 'white', border: 'none', justifyContent: 'center' }}
+                                    onClick={handleMergeStack}
+                                    disabled={!mergeTargetId}
+                                >
+                                    Merge Into Selected Stack
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     {!stack && (
                         <div style={{ display: 'flex', gap: '1rem' }}>
                             <input

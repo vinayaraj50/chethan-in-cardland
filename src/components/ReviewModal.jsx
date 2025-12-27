@@ -382,12 +382,14 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                         </button>
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
-                            <p style={{ opacity: 0.6 }}>Rate your answer to show next.</p>
+                            <div className="neo-inset" style={{ padding: '0.6rem 1.2rem', borderRadius: '12px' }}>
+                                <p style={{ opacity: 0.8, fontSize: '0.9rem', fontWeight: 'bold', margin: 0 }}>Rate your answer to show next.</p>
+                            </div>
                             <div style={{ display: 'flex', gap: '10px' }}>
                                 {[1, 2, 3, 4, 5].map((star) => (
                                     <button
                                         key={star}
-                                        className={`neo-button icon-btn ${star <= rating ? 'neo-glow-blue' : ''}`}
+                                        className={`neo-button icon-btn ${(star <= rating && rating >= 4) ? 'neo-glow-blue' : ''}`}
                                         style={{ width: '50px', height: '50px' }}
                                         onClick={(e) => { e.stopPropagation(); handleRating(star); }}
                                     >

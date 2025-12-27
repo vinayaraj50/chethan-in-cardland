@@ -48,7 +48,7 @@ const HamburgerMenu = ({ user, theme, onToggleTheme, soundsEnabled, onToggleSoun
                 {/* Sound Toggle */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span>{soundsEnabled ? 'Sounds On' : 'Sounds Off'}</span>
-                    <button className="neo-button icon-btn neo-glow-blue" onClick={onToggleSounds}>
+                    <button className={`neo-button icon-btn ${soundsEnabled ? 'neo-glow-blue' : ''}`} onClick={onToggleSounds}>
                         {soundsEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
                     </button>
                 </div>
