@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Edit2, Copy, Star, Play, SkipForward, Square, Pause, Download } from 'lucide-react';
+import { X, Edit2, Copy, Star, Play, SkipForward, Square, Pause, Download, Mic, Trash2 } from 'lucide-react';
 import { saveStack } from '../services/googleDrive';
 import { downloadStackAsZip } from '../utils/zipUtils';
 import ImageViewer from './ImageViewer';
@@ -141,6 +141,82 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
     const [studyCards, setStudyCards] = useState(stack.cards);
     const [sessionResult, setSessionResult] = useState(null);
     const [viewingImage, setViewingImage] = useState(null);
+    const [isRecording, setIsRecording] = useState(false);
+    const [recordedAudio, setRecordedAudio] = useState(null);
+    const [isPlayingRecorded, setIsPlayingRecorded] = useState(false);
+    const recordedAudioRef = useRef(null);
+    const mediaRecorderRef = useRef(null);
+    const chunksRef = useRef([]);
+
+    useEffect(() => {
+        // Cleanup recorded audio on unmount
+        return () => {
+            if (recordedAudioRef.current) {
+                recordedAudioRef.current.pause();
+                recordedAudioRef.current = null;
+            }
+        };
+    }, []);
+
+    const startRecording = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const recorder = new MediaRecorder(stream);
+            mediaRecorderRef.current = recorder;
+            chunksRef.current = [];
+
+            recorder.ondataavailable = (e) => {
+                if (e.data.size > 0) chunksRef.current.push(e.data);
+            };
+
+            recorder.onstop = () => {
+                const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+                const url = URL.createObjectURL(blob);
+                setRecordedAudio(url);
+                recordedAudioRef.current = new Audio(url);
+                recordedAudioRef.current.onended = () => setIsPlayingRecorded(false);
+                stream.getTracks().forEach(track => track.stop());
+            };
+
+            recorder.start();
+            setIsRecording(true);
+        } catch (err) {
+            console.error('Error starting recording:', err);
+            showAlert('Microphone access denied or not available.');
+        }
+    };
+
+    const stopRecording = () => {
+        if (mediaRecorderRef.current && isRecording) {
+            mediaRecorderRef.current.stop();
+            setIsRecording(false);
+        }
+    };
+
+    const deleteRecording = () => {
+        if (recordedAudio) {
+            if (recordedAudioRef.current) {
+                recordedAudioRef.current.pause();
+                recordedAudioRef.current = null;
+            }
+            URL.revokeObjectURL(recordedAudio);
+            setRecordedAudio(null);
+            setIsPlayingRecorded(false);
+        }
+    };
+
+    const toggleRecordedPlayback = (e) => {
+        if (e) e.stopPropagation();
+        if (!recordedAudioRef.current) return;
+
+        if (isPlayingRecorded) {
+            recordedAudioRef.current.pause();
+            setIsPlayingRecorded(false);
+        } else {
+            recordedAudioRef.current.play();
+            setIsPlayingRecorded(true);
+        }
+    };
 
     useEffect(() => {
         playTada();
@@ -175,26 +251,31 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                 });
             }
 
-            // Save in background
+            // Save in background only if owned by me
             const updatedStack = {
                 ...stack,
                 avgRating: avg,
                 lastReviewed: new Date().toLocaleDateString()
             };
 
-            saveStack(user.token, updatedStack, stack.driveFileId)
-                .then(() => {
-                    onUpdate(updatedStack);
-                })
-                .catch((error) => {
-                    console.error('Failed to update stack rating:', error);
-                    showAlert('Save failed, but your session is complete.');
-                });
+            if (stack.ownedByMe) {
+                saveStack(user.token, updatedStack, stack.driveFileId)
+                    .then(() => {
+                        onUpdate(updatedStack);
+                    })
+                    .catch((error) => {
+                        console.error('Failed to update stack rating:', error);
+                        showAlert('Save failed, but your session is complete.');
+                    });
+            } else {
+                onUpdate(updatedStack);
+            }
         } else {
             setSessionRatings(newRatings);
             // Reset flip state first, then change card after a brief delay
             setIsFlipped(false);
             setRating(0);
+            deleteRecording();
             setTimeout(() => {
                 setCurrentIndex(currentIndex + 1);
             }, 100);
@@ -208,6 +289,7 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
         setRating(0);
         setSessionRatings([]);
         setSessionResult(null);
+        deleteRecording();
     };
 
     const handleRating = (val) => {
@@ -315,7 +397,11 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                     {/* Card Flip Content */}
                     <div
                         style={{ perspective: '1000px', height: '400px', cursor: 'pointer' }}
-                        onClick={() => setIsFlipped(!isFlipped)}
+                        onClick={() => {
+                            if (isFlipped) {
+                                setIsFlipped(false);
+                            }
+                        }}
                     >
                         <motion.div
                             style={{
@@ -327,63 +413,120 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                             {/* Front (Question) */}
                             <div className="neo-flat" style={{
                                 position: 'absolute', width: '100%', height: '100%', backfaceVisibility: 'hidden',
-                                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                                padding: '2rem', textAlign: 'center', overflow: 'hidden'
+                                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start',
+                                padding: '1.5rem', textAlign: 'center', overflowY: 'auto', overflowX: 'hidden'
                             }}>
-                                <span style={{ fontSize: '0.8rem', fontWeight: 'bold', opacity: 0.4, marginBottom: '1rem' }}>QUESTION</span>
-                                {currentCard && currentCard.question.image && (
-                                    <img
-                                        src={currentCard.question.image}
-                                        style={{ maxWidth: '100%', maxHeight: '180px', objectFit: 'contain', borderRadius: '12px', marginBottom: '1rem', cursor: 'pointer' }}
-                                        alt="Q"
-                                        onClick={(e) => { e.stopPropagation(); setViewingImage(currentCard.question.image); }}
-                                    />
-                                )}
-                                <h2 style={{ fontSize: '1.4rem' }}>{currentCard ? currentCard.question.text : 'No more cards'}</h2>
-                                {currentCard && currentCard.question.audio && (
-                                    <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }} onClick={(e) => e.stopPropagation()}>
-                                        <AudioPlayer audioData={currentCard.question.audio} />
-                                    </div>
-                                )}
+                                <div style={{ margin: 'auto 0', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                                    <span style={{ fontSize: '0.8rem', fontWeight: 'bold', opacity: 0.4, marginBottom: '1rem', display: 'block' }}>QUESTION</span>
+                                    {currentCard && currentCard.question.image && (
+                                        <img
+                                            src={currentCard.question.image}
+                                            style={{ maxWidth: '100%', maxHeight: '180px', objectFit: 'contain', borderRadius: '12px', marginBottom: '1rem', cursor: 'pointer' }}
+                                            alt="Q"
+                                            onClick={(e) => { e.stopPropagation(); setViewingImage(currentCard.question.image); }}
+                                        />
+                                    )}
+                                    <h2 style={{ fontSize: '1.4rem' }}>{currentCard ? currentCard.question.text : 'No more cards'}</h2>
+                                    {currentCard && currentCard.question.audio && (
+                                        <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }} onClick={(e) => e.stopPropagation()}>
+                                            <AudioPlayer audioData={currentCard.question.audio} />
+                                        </div>
+                                    )}
+                                </div>
                             </div>
 
                             {/* Back (Answer) */}
                             <div className="neo-flat" style={{
                                 position: 'absolute', width: '100%', height: '100%', backfaceVisibility: 'hidden', transform: 'rotateY(180deg)',
-                                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                                padding: '2rem', textAlign: 'center', overflow: 'hidden'
+                                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start',
+                                padding: '1.5rem', textAlign: 'center', overflowY: 'auto', overflowX: 'hidden'
                             }}>
-                                <span style={{ fontSize: '0.8rem', fontWeight: 'bold', opacity: 0.4, marginBottom: '1rem' }}>ANSWER</span>
-                                {currentCard && currentCard.answer.image && (
-                                    <img
-                                        src={currentCard.answer.image}
-                                        style={{ maxWidth: '100%', maxHeight: '180px', objectFit: 'contain', borderRadius: '12px', marginBottom: '1rem', cursor: 'pointer' }}
-                                        alt="A"
-                                        onClick={(e) => { e.stopPropagation(); setViewingImage(currentCard.answer.image); }}
-                                    />
-                                )}
-                                <h2 style={{ fontSize: '1.4rem', color: 'var(--accent-color)' }}>{currentCard ? currentCard.answer.text : ''}</h2>
-                                {currentCard && currentCard.answer.audio && (
-                                    <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }} onClick={(e) => e.stopPropagation()}>
-                                        <AudioPlayer audioData={currentCard.answer.audio} />
-                                    </div>
-                                )}
+                                <div style={{ margin: 'auto 0', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                                    <span style={{ fontSize: '0.8rem', fontWeight: 'bold', opacity: 0.4, marginBottom: '1rem', display: 'block' }}>ANSWER</span>
+                                    {currentCard && currentCard.answer.image && (
+                                        <img
+                                            src={currentCard.answer.image}
+                                            style={{ maxWidth: '100%', maxHeight: '180px', objectFit: 'contain', borderRadius: '12px', marginBottom: '1rem', cursor: 'pointer' }}
+                                            alt="A"
+                                            onClick={(e) => { e.stopPropagation(); setViewingImage(currentCard.answer.image); }}
+                                        />
+                                    )}
+                                    <h2 style={{ fontSize: '1.4rem', color: 'var(--accent-color)' }}>{currentCard ? currentCard.answer.text : ''}</h2>
+                                    {currentCard && currentCard.answer.audio && (
+                                        <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }} onClick={(e) => e.stopPropagation()}>
+                                            <AudioPlayer audioData={currentCard.answer.audio} />
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </motion.div>
                     </div>
 
                     {!isFlipped ? (
-                        <button
-                            className="neo-button neo-glow-blue"
-                            style={{ width: '100%', justifyContent: 'center', padding: '1.2rem', fontSize: '1.1rem', background: 'var(--accent-color)', color: 'white' }}
-                            onClick={() => { playSwoosh(); setIsFlipped(true); }}
-                        >
-                            Show Answer
-                        </button>
+                        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            {/* Record Answer UI */}
+                            <div className="neo-flat" style={{ padding: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', borderRadius: '16px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+                                    <div style={{
+                                        width: '10px', height: '10px', borderRadius: '50%',
+                                        background: isRecording ? '#ff4444' : '#ccc',
+                                        boxShadow: isRecording ? '0 0 8px #ff4444' : 'none',
+                                        animation: isRecording ? 'pulse 1.5s infinite' : 'none'
+                                    }} />
+                                    <span style={{ fontSize: '0.85rem', fontWeight: 'bold', opacity: 0.7 }}>
+                                        {isRecording ? 'RECORDING ANSWER...' : recordedAudio ? 'ANSWER RECORDED' : 'RECORD YOUR ANSWER'}
+                                    </span>
+                                </div>
+                                <div style={{ display: 'flex', gap: '0.8rem' }}>
+                                    {!isRecording && !recordedAudio ? (
+                                        <button className="neo-button icon-btn" onClick={startRecording} style={{ color: 'var(--accent-color)' }}>
+                                            <Mic size={18} />
+                                        </button>
+                                    ) : isRecording ? (
+                                        <button className="neo-button icon-btn" onClick={stopRecording} style={{ color: '#ff4444' }}>
+                                            <Square size={18} fill="currentColor" />
+                                        </button>
+                                    ) : (
+                                        <>
+                                            <button className="neo-button icon-btn" onClick={deleteRecording} style={{ color: '#ff4444' }}>
+                                                <Trash2 size={18} />
+                                            </button>
+                                            <div style={{ display: 'none' }}>
+                                                {/* Hidden player to handle the object URL lifecycle if needed, 
+                                                    but AudioPlayer will handle it visually on the flip side */}
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+
+                            <button
+                                className="neo-button neo-glow-blue"
+                                style={{ width: '100%', justifyContent: 'center', padding: '1.2rem', fontSize: '1.1rem', background: 'var(--accent-color)', color: 'white' }}
+                                onClick={() => {
+                                    playSwoosh();
+                                    setIsFlipped(true);
+                                    if (recordedAudio) {
+                                        setTimeout(() => toggleRecordedPlayback(), 300);
+                                    }
+                                }}
+                            >
+                                Show Answer
+                            </button>
+                        </div>
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
-                            <div className="neo-inset" style={{ padding: '0.6rem 1.2rem', borderRadius: '12px' }}>
+                            <div className="neo-inset" style={{ padding: '0.6rem 1.2rem', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                                 <p style={{ opacity: 0.8, fontSize: '0.9rem', fontWeight: 'bold', margin: 0 }}>Rate your answer to show next.</p>
+                                {recordedAudio && (
+                                    <button
+                                        className="neo-button icon-btn"
+                                        onClick={toggleRecordedPlayback}
+                                        style={{ width: '32px', height: '32px', background: 'var(--accent-soft)', color: 'var(--accent-color)', borderRadius: '50%' }}
+                                    >
+                                        {isPlayingRecorded ? <Square size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
+                                    </button>
+                                )}
                             </div>
                             <div style={{ display: 'flex', gap: '10px' }}>
                                 {[1, 2, 3, 4, 5].map((star) => (
