@@ -240,56 +240,56 @@ const App = () => {
     }
 
     return (
-        <div className="app-container">
-            {/* Header */}
-            <header style={{ padding: '1rem 2rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <img src={logo} alt="Chethan in Cardland" style={{ height: '90px', objectFit: 'contain' }} />
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <button className="neo-button icon-btn" onClick={toggleFullscreen} title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}>
-                            {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
-                        </button>
-                        <button className="neo-button icon-btn" onClick={() => setShowMenu(true)}>
-                            <Menu size={24} />
-                        </button>
-                    </div>
-                </div>
+        <div className="app-layout">
+            <header className="main-header">
+                <img src={logo} alt="Chethan in Cardland" style={{ height: '60px', objectFit: 'contain' }} />
 
                 {/* Search Bar */}
                 {stacks.length > 0 && (
-                    <div style={{ width: '100%', maxWidth: '500px', margin: '0 auto' }}>
+                    <div style={{ flex: '1', maxWidth: '400px' }}>
                         <input
                             className="neo-input"
-                            placeholder="Search stacks by title..."
+                            placeholder="Search stacks..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            style={{ width: '100%', fontSize: '0.95rem' }}
+                            style={{ width: '100%', fontSize: '0.9rem', padding: '8px 16px' }}
                         />
                     </div>
                 )}
+
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button className="neo-button icon-btn" onClick={toggleFullscreen} title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}>
+                        {isFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
+                    </button>
+                    <button className="neo-button icon-btn" onClick={() => setShowMenu(true)}>
+                        <Menu size={20} />
+                    </button>
+                </div>
             </header>
 
-            {/* Main Content */}
-            <main style={{ padding: '0 2rem 2rem' }}>
-                <Home
-                    stacks={getSortedStacks()}
-                    loading={loading}
-                    onReview={(stack) => setReviewStack(stack)}
-                    onEdit={(stack) => { setActiveStack(stack); setShowAddModal(true); }}
-                />
-            </main>
+            <div className="app-container">
+                <main style={{ padding: '1.5rem 2rem 2rem' }}>
+                    <Home
+                        stacks={getSortedStacks()}
+                        loading={loading}
+                        onReview={(stack) => setReviewStack(stack)}
+                        onEdit={(stack) => { setActiveStack(stack); setShowAddModal(true); }}
+                    />
+                </main>
 
-            {/* Floating Action Button */}
-            <button
-                className="neo-button neo-glow-blue"
-                style={{
-                    position: 'fixed', bottom: '2rem', right: '2rem', borderRadius: '50%', width: '60px', height: '60px',
-                    justifyContent: 'center', background: 'var(--accent-color)', color: 'white', border: 'none'
-                }}
-                onClick={() => { setActiveStack(null); setShowAddModal(true); }}
-            >
-                <Plus size={32} />
-            </button>
+                {/* Floating Action Button */}
+                <button
+                    className="neo-button neo-glow-blue"
+                    style={{
+                        position: 'fixed', bottom: '2rem', right: '2rem', borderRadius: '50%', width: '60px', height: '60px',
+                        justifyContent: 'center', background: 'var(--accent-color)', color: 'white', border: 'none',
+                        zIndex: 100 // Ensure it's above content but below modals
+                    }}
+                    onClick={() => { setActiveStack(null); setShowAddModal(true); }}
+                >
+                    <Plus size={32} />
+                </button>
+            </div>
 
             {/* Modals & Overlays */}
             {showMenu && (
@@ -317,7 +317,7 @@ const App = () => {
                     user={user}
                     stack={activeStack}
                     onClose={() => setShowAddModal(false)}
-                    onSave={(updated) => { handleUpdateLocalStack(updated); setShowAddModal(false); }}
+                    onSave={(updated, shouldClose = true) => { handleUpdateLocalStack(updated); if (shouldClose) setShowAddModal(false); }}
                     onDuplicate={handleDuplicateStack}
                     onDelete={handleDeleteStack}
                     showAlert={(msg) => setNotification({ type: 'alert', message: msg })}
