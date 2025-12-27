@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, Send } from 'lucide-react';
+import { sanitizeFeedbackText, isValidEmail } from '../utils/securityUtils';
 
 const FeedbackModal = ({ user, onClose, showAlert }) => {
     const [text, setText] = useState('');
@@ -12,7 +13,14 @@ const FeedbackModal = ({ user, onClose, showAlert }) => {
 
         setIsSending(true);
         try {
-            let waText = `*New Feedback for Chethan in Cardland*\n\n*From:* ${user.name} (${user.email})\n\n*Feedback:* ${text}`;
+            // SECURITY FIX (VULN-009): Sanitize feedback text to prevent markdown injection
+            const sanitizedText = sanitizeFeedbackText(text);
+
+            // SECURITY FIX (VULN-009): Validate email before including in message
+            const userEmail = isValidEmail(user.email) ? user.email : 'Unknown';
+            const userName = user.name || 'Anonymous';
+
+            let waText = `*New Feedback for Chethan in Cardland*\n\n*From:* ${userName} (${userEmail})\n\n*Feedback:* ${sanitizedText}`;
 
             const waUrl = `https://wa.me/919497449115?text=${encodeURIComponent(waText)}`;
             window.open(waUrl, '_blank');
@@ -20,7 +28,7 @@ const FeedbackModal = ({ user, onClose, showAlert }) => {
             showAlert('Thank you! Redirecting to WhatsApp to send your feedback.');
             onClose();
         } catch (error) {
-            console.error('Error sending feedback:', error);
+            // SECURITY FIX (VULN-006): Don't log error details
             showAlert('Failed to open WhatsApp. Please try again.');
         } finally {
             setIsSending(false);

@@ -8,6 +8,8 @@ const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapi
 
 let tokenClient;
 let accessToken = null;
+let tokenExpiresAt = null;
+let userProfile = null;
 
 export const initGoogleAuth = (onAuthUpdate) => {
     if (!window.google) return;
@@ -20,27 +22,16 @@ export const initGoogleAuth = (onAuthUpdate) => {
             if (response.error !== undefined) {
                 throw response;
             }
+            // SECURITY FIX (VULN-001): Store token only in memory, not localStorage
             accessToken = response.access_token;
-            const expiresAt = Date.now() + (response.expires_in * 1000);
-            localStorage.setItem('google_access_token', accessToken);
-            localStorage.setItem('google_token_expires_at', expiresAt);
+            tokenExpiresAt = Date.now() + (response.expires_in * 1000);
             fetchUserProfile(accessToken, onAuthUpdate);
         },
     });
 
-    // Check for existing token
-    const storedToken = localStorage.getItem('google_access_token');
-    const expiresAt = localStorage.getItem('google_token_expires_at');
-    const storedProfile = localStorage.getItem('google_user_profile');
-
-    if (storedToken && expiresAt && Date.now() < parseInt(expiresAt)) {
-        accessToken = storedToken;
-        if (storedProfile) {
-            onAuthUpdate({ ...JSON.parse(storedProfile), token: accessToken });
-        } else {
-            fetchUserProfile(accessToken, onAuthUpdate);
-        }
-    }
+    // SECURITY FIX (VULN-001, VULN-002): Removed localStorage token/profile restoration
+    // Users must re-authenticate on page refresh for maximum security
+    // This prevents XSS attacks from stealing tokens
 };
 
 const fetchUserProfile = async (token, onAuthUpdate) => {
@@ -49,25 +40,27 @@ const fetchUserProfile = async (token, onAuthUpdate) => {
             headers: { Authorization: `Bearer ${token}` },
         });
         const profile = await response.json();
-        localStorage.setItem('google_user_profile', JSON.stringify(profile));
+        // SECURITY FIX (VULN-002): Store profile in memory only, not localStorage
+        userProfile = profile;
         onAuthUpdate({ ...profile, token });
     } catch (error) {
-        console.error('Error fetching user profile:', error);
+        // SECURITY FIX (VULN-006): Don't log error details to console
         // If token is invalid, clear it
         signOut(onAuthUpdate);
     }
 };
 
 export const isTokenExpired = () => {
-    const expiresAt = localStorage.getItem('google_token_expires_at');
-    if (!expiresAt) return true;
+    // SECURITY FIX (VULN-001): Use memory-based expiry
+    if (!tokenExpiresAt) return true;
     // Buffer of 5 minutes before actual expiration
-    return Date.now() > (parseInt(expiresAt) - 5 * 60 * 1000);
+    return Date.now() > (tokenExpiresAt - 5 * 60 * 1000);
 };
 
 export const getAccessToken = () => {
+    // SECURITY FIX (VULN-001): Return token from memory only
     if (isTokenExpired()) return null;
-    return accessToken || localStorage.getItem('google_access_token');
+    return accessToken;
 };
 
 export const signIn = (prompt = 'consent') => {
@@ -77,17 +70,29 @@ export const signIn = (prompt = 'consent') => {
 };
 
 export const signOut = (onAuthUpdate) => {
-    localStorage.removeItem('google_access_token');
-    localStorage.removeItem('google_token_expires_at');
-    localStorage.removeItem('google_user_profile');
+    // SECURITY FIX (VULN-001, VULN-002): No localStorage to clean up
 
+    // SECURITY FIX (VULN-007): Add error handling for token revocation
     if (accessToken && window.google) {
-        window.google.accounts.oauth2.revoke(accessToken, () => {
+        try {
+            window.google.accounts.oauth2.revoke(accessToken, (response) => {
+                // Token revoked successfully or revocation attempted
+                accessToken = null;
+                tokenExpiresAt = null;
+                userProfile = null;
+                onAuthUpdate(null);
+            });
+        } catch (error) {
+            // Even if revocation fails, clear local state
             accessToken = null;
+            tokenExpiresAt = null;
+            userProfile = null;
             onAuthUpdate(null);
-        });
+        }
     } else {
         accessToken = null;
+        tokenExpiresAt = null;
+        userProfile = null;
         onAuthUpdate(null);
     }
 };
