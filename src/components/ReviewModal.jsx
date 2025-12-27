@@ -181,7 +181,7 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
             recorder.start();
             setIsRecording(true);
         } catch (err) {
-            console.error('Error starting recording:', err);
+            // SECURITY FIX (VULN-006): Don't log error details
             showAlert('Microphone access denied or not available.');
         }
     };
@@ -264,7 +264,7 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                         onUpdate(updatedStack);
                     })
                     .catch((error) => {
-                        console.error('Failed to update stack rating:', error);
+                        // SECURITY FIX (VULN-006): Don't log error details
                         showAlert('Save failed, but your session is complete.');
                     });
             } else {
@@ -303,7 +303,7 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
             await downloadStackAsZip(stack);
             showAlert('Stack downloaded successfully!');
         } catch (error) {
-            console.error('Error downloading stack:', error);
+            // SECURITY FIX (VULN-006): Don't log error details
             showAlert('Failed to download stack.');
         }
     };

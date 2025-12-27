@@ -68,9 +68,8 @@ const App = () => {
         } catch (error) {
             if (error.message === 'REAUTH_NEEDED') {
                 signIn(); // Prompt for re-auth
-            } else {
-                console.error('Failed to fetch stacks:', error);
             }
+            // SECURITY FIX (VULN-006): Don't log error details
         } finally {
             setLoading(false);
         }
@@ -205,7 +204,7 @@ const App = () => {
             if (error.message === 'REAUTH_NEEDED') {
                 signIn();
             } else {
-                console.error('Failed to duplicate stack:', error);
+                // SECURITY FIX (VULN-006): Don't log error details
                 setNotification({ type: 'alert', message: 'Failed to duplicate stack.' });
             }
         } finally {
@@ -218,7 +217,8 @@ const App = () => {
     const toggleFullscreen = () => {
         if (!document.fullscreenElement) {
             document.documentElement.requestFullscreen().catch(err => {
-                console.error(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`);
+                // SECURITY FIX (VULN-006): Don't log error details
+                // Silently fail if fullscreen is not supported
             });
             setIsFullscreen(true);
         } else {

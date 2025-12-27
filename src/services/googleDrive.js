@@ -70,7 +70,7 @@ export const listStacks = async (token) => {
                     isAccepted: file.ownedByMe || file.starred
                 };
             } catch (error) {
-                console.warn(`Failed to fetch content for file ${file.id}:`, error);
+                // SECURITY FIX (VULN-006): Don't log error details
                 return {
                     id: file.id,
                     title: file.name.replace('flashcard_stack_', '').replace('.json', '') || 'Shared Stack',
@@ -152,7 +152,7 @@ export const saveFile = async (token, name, content, fileId = null, mimeType = '
 
         if (!response.ok) {
             const errorData = await response.json();
-            console.error('Google Drive API Error:', errorData);
+            // SECURITY FIX (VULN-006): Don't log API error responses
             throw new Error(errorData.error?.message || 'Failed to save to Google Drive');
         }
 
@@ -166,7 +166,7 @@ export const saveFile = async (token, name, content, fileId = null, mimeType = '
 
         return result;
     } catch (error) {
-        console.error('saveFile Error:', error);
+        // SECURITY FIX (VULN-006): Don't log error details
         throw error;
     }
 };
@@ -200,7 +200,7 @@ export const shareStack = async (token, fileId, email, role = 'reader', message 
 
     if (!response.ok) {
         const errorData = await response.json();
-        console.error('Google Drive Share Error:', errorData);
+        // SECURITY FIX (VULN-006): Don't log API error responses
         throw new Error(errorData.error?.message || 'Failed to share file');
     }
 

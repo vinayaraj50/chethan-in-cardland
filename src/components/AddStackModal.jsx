@@ -3,6 +3,7 @@ import { X, Mic, Image as ImageIcon, Plus, Trash2, Copy, Save, Check, Play, Squa
 import { signIn } from '../services/googleAuth';
 import { saveStack, deleteStack } from '../services/googleDrive';
 import { downloadStackAsZip, uploadStackFromZip } from '../utils/zipUtils';
+import { validateDataURI, sanitizeText } from '../utils/securityUtils';
 import ImageViewer from './ImageViewer';
 import { AnimatePresence } from 'framer-motion';
 
@@ -166,12 +167,20 @@ const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, sh
         setCards(cards.map(c => c.id === id ? { ...c, [field]: value } : c));
     };
 
-    const handleFileUpload = (e, callback) => {
+    // SECURITY FIX (VULN-004): Validate data URIs before accepting uploads
+    const handleFileUpload = (e, callback, fileType = 'image') => {
         const file = e.target.files[0];
         if (!file) return;
         const reader = new FileReader();
         reader.onloadend = () => {
-            callback(reader.result);
+            const dataURI = reader.result;
+            // Validate the data URI based on file type
+            const allowedTypes = fileType === 'image' ? ['image/'] : ['audio/'];
+            if (!validateDataURI(dataURI, allowedTypes)) {
+                showAlert(`Invalid ${fileType} file. Only ${fileType} files are allowed.`);
+                return;
+            }
+            callback(dataURI);
         };
         reader.readAsDataURL(file);
     };
@@ -216,7 +225,7 @@ const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, sh
                 setRecordingTime(prev => prev + 1);
             }, 1000);
         } catch (err) {
-            console.error('Error accessing microphone:', err);
+            // SECURITY FIX (VULN-006): Don't log error details
             showAlert('Could not access microphone.');
             // Clear recording state on error
             setRecording(null);
@@ -281,7 +290,7 @@ const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, sh
             if (error.message === 'REAUTH_NEEDED') {
                 signIn();
             } else {
-                console.error('Error saving stack:', error);
+                // SECURITY FIX (VULN-006): Don't log error details
                 showAlert('Failed to save stack.');
             }
         }
@@ -303,7 +312,7 @@ const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, sh
             await downloadStackAsZip(stackToDownload);
             showAlert('Stack downloaded successfully!');
         } catch (error) {
-            console.error('Error downloading stack:', error);
+            // SECURITY FIX (VULN-006): Don't log error details
             showAlert('Failed to download stack.');
         }
     };
@@ -323,7 +332,7 @@ const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, sh
 
             showAlert('Stack imported successfully! Review and save.');
         } catch (error) {
-            console.error('Error uploading stack:', error);
+            // SECURITY FIX (VULN-006): Don't log error details
             showAlert(error.message || 'Failed to import stack.');
         }
     };
@@ -373,7 +382,7 @@ const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, sh
                 if (error.message === 'REAUTH_NEEDED') {
                     signIn();
                 } else {
-                    console.error('Error splitting stack:', error);
+                    // SECURITY FIX (VULN-006): Don't log error details
                     showAlert('Failed to split stack.');
                 }
             }
@@ -410,12 +419,12 @@ const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, sh
 
                 showAlert(`Stacks merged successfully into "${targetStack.title}"!`);
                 onClose();
-                window.location.reload(); // Refresh to show updated stacks
+                // SECURITY FIX (VULN-008): Parent component will refresh stacks automatically
             } catch (error) {
                 if (error.message === 'REAUTH_NEEDED') {
                     signIn();
                 } else {
-                    console.error('Error merging stacks:', error);
+                    // SECURITY FIX (VULN-006): Don't log error details
                     showAlert('Failed to merge stacks.');
                 }
             }

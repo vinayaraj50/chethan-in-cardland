@@ -1,9 +1,22 @@
 import React from 'react';
 import { Layers, Calendar, Star, MoreVertical } from 'lucide-react';
+import { sanitizeStackTitle, validateDataURI } from '../utils/securityUtils';
 
 const StackCard = ({ stack, onReview, onEdit }) => {
-    // Use user-uploaded title image or first card's image or colorful placeholder
-    const titleImage = stack.titleImage || stack.cards?.[0]?.question?.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(stack.title)}&background=random&color=fff&size=128`;
+    // SECURITY FIX (VULN-005): Sanitize stack title before using in URL
+    // SECURITY FIX (VULN-004): Validate titleImage and card images before using
+    const safeTitleForUrl = sanitizeStackTitle(stack.title);
+
+    // Validate titleImage if it exists
+    let titleImage = null;
+    if (stack.titleImage && validateDataURI(stack.titleImage, ['image/'])) {
+        titleImage = stack.titleImage;
+    } else if (stack.cards?.[0]?.question?.image && validateDataURI(stack.cards[0].question.image, ['image/'])) {
+        titleImage = stack.cards[0].question.image;
+    } else {
+        // Use external avatar service as fallback with sanitized title
+        titleImage = `https://ui-avatars.com/api/?name=${encodeURIComponent(safeTitleForUrl)}&background=random&color=fff&size=128`;
+    }
 
     return (
         <div
