@@ -11,6 +11,27 @@
 
     gtag('config', 'G-YMJ6EY380G');
   </script>
+
+  <!-- SECURITY FIX (VULN-003): Content Security Policy -->
+  <!-- Prevents XSS attacks by controlling which resources can be loaded -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' 'unsafe-inline' https://accounts.google.com https://apis.google.com https://www.googletagmanager.com https://www.google-analytics.com;
+    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+    font-src 'self' https://fonts.gstatic.com;
+    img-src 'self' data: https: blob:;
+    media-src 'self' data: blob:;
+    connect-src 'self' https://accounts.google.com https://www.googleapis.com https://www.google-analytics.com https://analytics.google.com;
+    frame-src https://accounts.google.com;
+    frame-ancestors 'none';
+    base-uri 'self';
+    form-action 'self';
+  ">
+
+  <!-- SECURITY FIX (VULN-010): Referrer Policy -->
+  <!-- Prevents leaking URL information to external sites -->
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+
   <meta charset="UTF-8" />
   <link rel="icon" type="image/png" href="/chethan-in-cardland/logo.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -44,7 +65,7 @@
   <!-- Google Identity Services -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="https://apis.google.com/js/api.js" async defer></script>
-  <script type="module" crossorigin src="/chethan-in-cardland/assets/index-86152cd1.js"></script>
+  <script type="module" crossorigin src="/chethan-in-cardland/assets/index-8f9231d4.js"></script>
   <link rel="stylesheet" href="/chethan-in-cardland/assets/index-63f93cb8.css">
 </head>
 
