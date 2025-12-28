@@ -516,19 +516,8 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                         </div>
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
-                            <div className="neo-inset" style={{ padding: '0.6rem 1.2rem', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                <p style={{ opacity: 0.8, fontSize: '0.9rem', fontWeight: 'bold', margin: 0 }}>Rate your answer to show next.</p>
-                                {recordedAudio && (
-                                    <button
-                                        className="neo-button icon-btn"
-                                        onClick={toggleRecordedPlayback}
-                                        style={{ width: '32px', height: '32px', background: 'var(--accent-soft)', color: 'var(--accent-color)', borderRadius: '50%' }}
-                                    >
-                                        {isPlayingRecorded ? <Square size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
-                                    </button>
-                                )}
-                            </div>
-                            <div style={{ display: 'flex', gap: '10px' }}>
+                            <p style={{ fontSize: '1rem', fontWeight: '600', margin: 0, opacity: 0.8 }}>Rate your answer to show next.</p>
+                            <div style={{ display: 'flex', gap: '10px', position: 'relative' }}>
                                 {[1, 2, 3, 4, 5].map((star) => (
                                     <button
                                         key={star}
@@ -540,10 +529,47 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                                     </button>
                                 ))}
                             </div>
+
+                            {/* Instruction Bubble from Bottom */}
+                            <div className="neo-flat" style={{
+                                padding: '0.8rem 1.2rem',
+                                borderRadius: '12px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '10px',
+                                background: 'var(--bg-color)',
+                                border: '1px solid var(--accent-color)',
+                                position: 'relative',
+                                marginTop: '10px'
+                            }}>
+                                {/* Up Arrow */}
+                                <div style={{
+                                    position: 'absolute',
+                                    top: '-6px',
+                                    left: '50%',
+                                    transform: 'translateX(-50%) rotate(45deg)',
+                                    width: '10px',
+                                    height: '10px',
+                                    background: 'var(--bg-color)',
+                                    borderLeft: '1px solid var(--accent-color)',
+                                    borderTop: '1px solid var(--accent-color)'
+                                }}></div>
+
+                                <p style={{ opacity: 0.9, fontSize: '0.9rem', fontWeight: '500', margin: 0, color: 'var(--accent-color)' }}>
+                                    Rating tells the app what you found difficult. Be honest. This helps you revise better.
+                                </p>
+                                {recordedAudio && (
+                                    <button
+                                        className="neo-button icon-btn"
+                                        onClick={toggleRecordedPlayback}
+                                        style={{ width: '28px', height: '28px', background: 'var(--accent-soft)', color: 'var(--accent-color)', borderRadius: '50%', flexShrink: 0 }}
+                                    >
+                                        {isPlayingRecorded ? <Square size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" />}
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     )}
-
-
                 </div>
             )}
 

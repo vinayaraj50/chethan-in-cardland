@@ -12,6 +12,7 @@
     "deploy": "gh-pages -d dist"
   },
   "dependencies": {
+    "@fontsource/chilanka": "^5.2.7",
     "canvas-confetti": "^1.9.4",
     "framer-motion": "^10.12.16",
     "jszip": "^3.10.1",
