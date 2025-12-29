@@ -10,6 +10,8 @@
   --shadow-dark: #bebebe;
   --accent-rgb: 99, 102, 241;
   --accent-color: #6366f1;
+  --primary-color: #6366f1;
+  /* Added primary color */
   --accent-soft: rgba(var(--accent-rgb), 0.1);
   --error-color: #ef4444;
   --star-color: #FFD700;
@@ -22,6 +24,8 @@
   --shadow-dark: #1c1c1c;
   --accent-rgb: 129, 140, 248;
   --accent-color: #818cf8;
+  --primary-color: #818cf8;
+  /* Added primary color */
   --accent-soft: rgba(var(--accent-rgb), 0.1);
   --star-color: #FFD700;
 }

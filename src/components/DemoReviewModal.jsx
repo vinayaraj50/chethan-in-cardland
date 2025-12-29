@@ -410,44 +410,52 @@ const DemoReviewModal = ({ onClose, onLogin }) => {
                                 ))}
                             </div>
 
-                            {/* Tooltip for rating - Always show, matches ReviewModal style */}
-                            <div className="neo-flat" style={{
-                                padding: '0.8rem 1.2rem',
-                                borderRadius: '12px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '10px',
-                                background: 'var(--bg-color)',
-                                border: '1px solid var(--accent-color)',
-                                position: 'relative',
-                                marginTop: '10px'
-                            }}>
-                                {/* Up Arrow */}
-                                <div style={{
-                                    position: 'absolute',
-                                    top: '-6px',
-                                    left: '50%',
-                                    transform: 'translateX(-50%) rotate(45deg)',
-                                    width: '10px',
-                                    height: '10px',
+                            {/* Tooltip for rating - Only show instruction for first card in demo */}
+                            {(isFirstCard || recordedAudio) && (
+                                <div className="neo-flat" style={{
+                                    padding: '0.8rem 1.2rem',
+                                    borderRadius: '12px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: isFirstCard ? 'flex-start' : 'center',
+                                    gap: '10px',
                                     background: 'var(--bg-color)',
-                                    borderLeft: '1px solid var(--accent-color)',
-                                    borderTop: '1px solid var(--accent-color)'
-                                }}></div>
+                                    border: '1px solid var(--accent-color)',
+                                    position: 'relative',
+                                    marginTop: '10px'
+                                }}>
+                                    {/* Up Arrow */}
+                                    {isFirstCard && (
+                                        <div style={{
+                                            position: 'absolute',
+                                            top: '-6px',
+                                            left: '50%',
+                                            transform: 'translateX(-50%) rotate(45deg)',
+                                            width: '10px',
+                                            height: '10px',
+                                            background: 'var(--bg-color)',
+                                            borderLeft: '1px solid var(--accent-color)',
+                                            borderTop: '1px solid var(--accent-color)'
+                                        }}></div>
+                                    )}
 
-                                <p style={{ opacity: 0.9, fontSize: '0.9rem', fontWeight: '500', margin: 0, color: 'var(--accent-color)' }}>
-                                    Rating tells the app what you found difficult. Be honest. This helps you revise better.
-                                </p>
-                                {recordedAudio && (
-                                    <button
-                                        className="neo-button icon-btn"
-                                        onClick={toggleRecordedPlayback}
-                                        style={{ width: '28px', height: '28px', background: 'var(--accent-soft)', color: 'var(--accent-color)', borderRadius: '50%', flexShrink: 0 }}
-                                    >
-                                        {isPlayingRecorded ? <Square size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" />}
-                                    </button>
-                                )}
-                            </div>
+                                    {isFirstCard && (
+                                        <p style={{ opacity: 0.9, fontSize: '0.9rem', fontWeight: '500', margin: 0, color: 'var(--accent-color)' }}>
+                                            Rating tells the app what you found difficult. Be honest. This helps you revise better.
+                                        </p>
+                                    )}
+
+                                    {recordedAudio && (
+                                        <button
+                                            className="neo-button icon-btn"
+                                            onClick={toggleRecordedPlayback}
+                                            style={{ width: '28px', height: '28px', background: 'var(--accent-soft)', color: 'var(--accent-color)', borderRadius: '50%', flexShrink: 0 }}
+                                        >
+                                            {isPlayingRecorded ? <Square size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" />}
+                                        </button>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

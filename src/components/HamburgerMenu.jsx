@@ -1,41 +1,99 @@
 import React, { useState } from 'react';
-import { Sun, Moon, LogOut, Trash2, X, User, ChevronDown, Volume2, VolumeX, MessageSquare } from 'lucide-react';
+import { X, LogOut, Trash2, Sun, Moon, Volume2, VolumeX, MessageCircle, Settings, User, ChevronDown, MessageSquare, ExternalLink } from 'lucide-react';
 
-const HamburgerMenu = ({ user, theme, onToggleTheme, soundsEnabled, onToggleSounds, onShowFeedback, onClose, onLogout, onDeleteData, onDeleteAndLogout, sortBy, onSortChange, filterLabel, onLabelChange, availableLabels }) => {
+const HamburgerMenu = ({ user, theme, onToggleTheme, soundsEnabled, onToggleSounds, onShowFeedback, onClose, onLogout,
+    onDeleteData,
+    onDeleteAndLogout,
+    sortBy,
+    onSortChange,
+    filterLabel,
+    onLabelChange,
+    availableLabels,
+    onShowAdSettings,
+    onShowAd
+}) => {
     const [isSortOpen, setIsSortOpen] = useState(false);
     const [isLabelOpen, setIsLabelOpen] = useState(false);
 
     const sortOptions = ['Creation Date', 'Number of Cards', 'Average Rating', 'Last Reviewed'];
+    const sortedLabels = ['No label', ...availableLabels.filter(l => l !== 'No label')];
 
     return (
-        <div className="menu-overlay" style={{
-            position: 'fixed', top: 0, right: 0, bottom: 0, left: 0,
-            backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', background: 'rgba(255,255,255,0.01)', zIndex: 1000
-        }} onClick={onClose}>
+        <div className="fixed inset-0 z-50 flex justify-end" style={{ position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, zIndex: 2000, pointerEvents: 'none', display: 'flex', justifyContent: 'flex-end' }}>
+            {/* Backdrop */}
             <div
-                className="menu-content neo-flat"
+                className="absolute inset-0 bg-black/20 backdrop-blur-sm"
+                style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(4px)', pointerEvents: 'auto' }}
+                onClick={onClose}
+            />
+
+            {/* Menu Panel */}
+            <div
+                className="relative w-80 h-full bg-white dark:bg-gray-800 shadow-2xl p-6 flex flex-col gap-6 overflow-y-auto"
                 style={{
-                    position: 'absolute', top: 0, right: 0, width: '300px', height: '100%', padding: '2rem',
-                    display: 'flex', flexDirection: 'column', gap: '2rem', animation: 'slideIn 0.3s ease-out', overflowY: 'auto'
+                    position: 'relative',
+                    width: '320px',
+                    height: '100%',
+                    background: 'var(--bg-color)',
+                    boxShadow: '-5px 0 25px rgba(0,0,0,0.1)',
+                    padding: '2rem',
+                    paddingBottom: '4rem', // Extra padding for scroll
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '1.5rem',
+                    pointerEvents: 'auto',
+                    borderLeft: '1px solid var(--border-color)',
+                    animation: 'slideIn 0.3s ease-out',
+                    overflowY: 'auto',
+                    WebkitOverflowScrolling: 'touch',
+                    overscrollBehavior: 'contain',
+                    touchAction: 'pan-y'
                 }}
                 onClick={(e) => e.stopPropagation()}
             >
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                    <button className="neo-button icon-btn" onClick={onClose}><X size={20} /></button>
+                {/* Header */}
+                <div className="flex justify-between items-center" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h2 style={{ fontSize: '1.5rem', fontWeight: '700', margin: 0 }}>Menu</h2>
+                    <button className="neo-button icon-btn" onClick={onClose}>
+                        <X size={24} />
+                    </button>
                 </div>
 
-                {/* User Section */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', borderRadius: '12px' }} className="neo-inset">
+                {/* User Info */}
+                <div className="neo-card flex items-center gap-3 p-3" style={{ padding: '1rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
                     {user.picture ? (
-                        <img src={user.picture} alt="profile" style={{ width: '50px', height: '50px', borderRadius: '50%' }} />
+                        <img src={user.picture} alt={user.name} style={{ width: '48px', height: '48px', borderRadius: '50%' }} />
                     ) : (
                         <div className="neo-button icon-btn" style={{ borderRadius: '50%' }}><User size={24} /></div>
                     )}
                     <div style={{ overflow: 'hidden' }}>
-                        <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{user.name}</div>
-                        <div style={{ fontSize: '0.8rem', opacity: 0.7, textOverflow: 'ellipsis', overflow: 'hidden' }}>{user.email}</div>
+                        <div style={{ fontWeight: '600', truncate: true }}>{user.name}</div>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.email}</div>
                     </div>
                 </div>
+
+                {/* Admin Actions */}
+                {user.email === 'vinayarajh1@gmail.com' && (
+                    <div style={{ paddingBottom: '1rem', borderBottom: '1px solid var(--border-color)' }}>
+                        <div style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Admin</div>
+                        <button
+                            className="neo-button w-full justify-start gap-3"
+                            onClick={onShowAdSettings}
+                            style={{ width: '100%', display: 'flex', justifyContent: 'flex-start', gap: '0.75rem', padding: '12px' }}
+                        >
+                            <Settings size={20} /> Ad Settings
+                        </button>
+                    </div>
+                )}
+
+                {/* Sponsor Button */}
+                <button
+                    className="neo-button w-full justify-start gap-3"
+                    onClick={() => { onClose(); onShowAd(); }}
+                    style={{ width: '100%', display: 'flex', justifyContent: 'flex-start', gap: '0.75rem', padding: '12px' }}
+                >
+                    <ExternalLink size={20} /> View Sponsor
+                </button>
 
                 {/* Theme Toggle */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -155,11 +213,11 @@ const HamburgerMenu = ({ user, theme, onToggleTheme, soundsEnabled, onToggleSoun
                 </div>
             </div>
             <style>{`
-        @keyframes slideIn {
-          from { transform: translateX(100%); }
-          to { transform: translateX(0); }
-        }
-      `}</style>
+            @keyframes slideIn {
+                from { transform: translateX(100%); }
+                to { transform: translateX(0); }
+            }
+            `}</style>
         </div>
     );
 };

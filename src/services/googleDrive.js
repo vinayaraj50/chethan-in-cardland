@@ -179,6 +179,45 @@ export const saveStack = async (token, stack, fileId = null) => {
 };
 
 /**
+ * Save Global Ad Config (Admin only)
+ */
+export const saveGlobalAdConfig = async (token, config, fileId = null) => {
+    const result = await saveFile(token, 'app_global_ad_config.json', config, fileId);
+
+    // After saving, ensure it's shared with "anyone" as a reader
+    try {
+        await fetch(`${DRIVE_API_URL}/${result.id}/permissions`, {
+            method: 'POST',
+            headers: getHeaders(token),
+            body: JSON.stringify({
+                role: 'reader',
+                type: 'anyone',
+            }),
+        });
+    } catch (e) {
+        console.warn('Failed to set global permissions:', e);
+    }
+
+    return result;
+};
+
+/**
+ * Search for the global ad config file.
+ */
+export const findGlobalAdConfig = async (token) => {
+    const query = "name = 'app_global_ad_config.json' and trashed = false";
+    const url = `${DRIVE_API_URL}?q=${encodeURIComponent(query)}&fields=files(id, name, modifiedTime)&supportsAllDrives=true&includeItemsFromAllDrives=true`;
+
+    const response = await fetch(url, {
+        headers: getHeaders(token),
+    });
+
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data.files?.[0] || null;
+};
+
+/**
  * Share a file with another user (used for feedback).
  */
 export const shareStack = async (token, fileId, email, role = 'reader', message = '') => {
