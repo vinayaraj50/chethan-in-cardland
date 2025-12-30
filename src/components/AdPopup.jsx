@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, ExternalLink, MessageCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const AdPopup = ({ isOpen, onClose, adConfig, isInitialAd }) => {
+const AdPopup = ({ isOpen, onClose, adConfig, isInitialAd, authIssue, user }) => {
     const [canClose, setCanClose] = useState(false);
     const [timeLeft, setTimeLeft] = useState(3);
 
@@ -73,7 +73,7 @@ const AdPopup = ({ isOpen, onClose, adConfig, isInitialAd }) => {
                                     textShadow: '0 1px 2px rgba(0,0,0,0.2)'
                                 }}
                             >
-                                Loading the stacks from your Google Drive
+                                {user ? `Welcome back, ${user.name || 'Student'}!` : "Welcome to Cardland!"}
                             </div>
                         )}
 
@@ -120,23 +120,65 @@ const AdPopup = ({ isOpen, onClose, adConfig, isInitialAd }) => {
                         </div>
 
                         {/* Content Area */}
-                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0', overflow: 'hidden', background: '#f5f5f5' }}>
-                            {adConfig.mediaType === 'video' ? (
-                                <video
-                                    src={adConfig.mediaData}
-                                    autoPlay
-                                    muted
-                                    loop
-                                    playsInline
-                                    style={{ width: '100%', height: 'auto', maxHeight: '60vh', objectFit: 'contain' }}
-                                />
-                            ) : (
-                                <img
-                                    src={adConfig.mediaData}
-                                    alt="Promotional Content"
-                                    style={{ width: '100%', height: 'auto', maxHeight: '60vh', objectFit: 'contain', display: 'block' }}
-                                />
-                            )}
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#f5f5f5' }}>
+                            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                                {adConfig.mediaType === 'video' ? (
+                                    <video
+                                        src={adConfig.mediaData}
+                                        autoPlay
+                                        muted
+                                        loop
+                                        playsInline
+                                        style={{ width: '100%', height: 'auto', maxHeight: '55vh', objectFit: 'contain' }}
+                                    />
+                                ) : (
+                                    <img
+                                        src={adConfig.mediaData}
+                                        alt="Promotional Content"
+                                        style={{ width: '100%', height: 'auto', maxHeight: '55vh', objectFit: 'contain', display: 'block' }}
+                                    />
+                                )}
+                            </div>
+
+                            {/* Authentication/Storage Warnings */}
+                            <AnimatePresence>
+                                {authIssue && (
+                                    <motion.div
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: 'auto', opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                        style={{
+                                            padding: '1rem',
+                                            background: authIssue.type === 'permission' ? '#fff1f2' : '#fffbeb',
+                                            borderTop: '1px solid rgba(0,0,0,0.05)',
+                                            color: authIssue.type === 'permission' ? '#e11d48' : '#d97706',
+                                            fontSize: '0.9rem',
+                                            fontWeight: '500'
+                                        }}
+                                    >
+                                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
+                                            <div style={{ marginTop: '0.1rem' }}>
+                                                {authIssue.type === 'permission' ? (
+                                                    <span style={{ fontSize: '1.2rem' }}>⚠️</span>
+                                                ) : (
+                                                    <span style={{ fontSize: '1.2rem' }}>💾</span>
+                                                )}
+                                            </div>
+                                            <div>
+                                                <div style={{ fontWeight: '600', marginBottom: '4px' }}>
+                                                    {authIssue.type === 'permission' ? 'Missing Permission' : 'Low Storage'}
+                                                </div>
+                                                {authIssue.message}
+                                                {authIssue.type === 'permission' && (
+                                                    <div style={{ marginTop: '8px', fontSize: '0.85rem', opacity: 0.9 }}>
+                                                        <strong>How to fix:</strong> Log out, then sign in again. Make sure to check the box for "See, edit, create, and delete only the specific Google Drive files you use with this app".
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
                         </div>
 
                         {/* Footer Action */}

@@ -440,7 +440,7 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                     >
                         <h2 style={{ fontSize: '1.8rem' }}>Study Summary</h2>
 
-                        <div className="neo-flat neo-glow-blue" style={{ padding: '1.5rem', borderRadius: '24px' }}>
+                        <div className="neo-flat" style={{ padding: '1.5rem', borderRadius: '24px' }}>
                             <div style={{ fontSize: '0.9rem', opacity: 0.6, marginBottom: '0.5rem', fontWeight: 'bold' }}>SESSION SCORE</div>
                             <div style={{ fontSize: '3rem', fontWeight: 'bold', color: 'var(--accent-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
                                 <Star size={40} fill="var(--star-color)" color="var(--star-color)" /> {sessionResult.avg}
@@ -628,7 +628,7 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                                     {[1, 2, 3, 4, 5].map((star) => (
                                         <button
                                             key={star}
-                                            className={`neo-button icon-btn ${(star <= rating && rating >= 4) ? 'neo-glow-blue' : ''}`}
+                                            className={`neo-button icon-btn`}
                                             style={{ width: '50px', height: '50px' }}
                                             onClick={(e) => { e.stopPropagation(); handleRating(star); }}
                                         >

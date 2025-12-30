@@ -1,25 +1,14 @@
 import React, { useState } from 'react';
 import { X, LogOut, Trash2, Sun, Moon, Volume2, VolumeX, MessageCircle, Settings, User, ChevronDown, MessageSquare, ExternalLink } from 'lucide-react';
 
-const HamburgerMenu = ({ user, theme, onToggleTheme, soundsEnabled, onToggleSounds, onShowFeedback, onClose, onLogout,
+const HamburgerMenu = ({ user, theme, onToggleTheme, soundsEnabled, onToggleSounds, onShowFeedback, onClose, onLogout, onLogin,
     onDeleteData,
     onDeleteAndLogout,
-    sortBy,
-    onSortChange,
-    filterLabel,
-    onLabelChange,
-    availableLabels,
-    onShowAdSettings,
     onShowAd
 }) => {
-    const [isSortOpen, setIsSortOpen] = useState(false);
-    const [isLabelOpen, setIsLabelOpen] = useState(false);
-
-    const sortOptions = ['Creation Date', 'Number of Cards', 'Average Rating', 'Last Reviewed'];
-    const sortedLabels = ['No label', ...availableLabels.filter(l => l !== 'No label')];
 
     return (
-        <div className="fixed inset-0 z-50 flex justify-end" style={{ position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, zIndex: 2000, pointerEvents: 'none', display: 'flex', justifyContent: 'flex-end' }}>
+        <div className="fixed inset-0" style={{ position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, zIndex: 5000, pointerEvents: 'none', display: 'flex', justifyContent: 'flex-end' }}>
             {/* Backdrop */}
             <div
                 className="absolute inset-0 bg-black/20 backdrop-blur-sm"
@@ -61,30 +50,17 @@ const HamburgerMenu = ({ user, theme, onToggleTheme, soundsEnabled, onToggleSoun
 
                 {/* User Info */}
                 <div className="neo-card flex items-center gap-3 p-3" style={{ padding: '1rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    {user.picture ? (
+                    {user?.picture ? (
                         <img src={user.picture} alt={user.name} style={{ width: '48px', height: '48px', borderRadius: '50%' }} />
                     ) : (
                         <div className="neo-button icon-btn" style={{ borderRadius: '50%' }}><User size={24} /></div>
                     )}
                     <div style={{ overflow: 'hidden' }}>
-                        <div style={{ fontWeight: '600', truncate: true }}>{user.name}</div>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.email}</div>
+                        <div style={{ fontWeight: '600', truncate: true }}>{user?.name || 'Guest User'}</div>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.email || 'Not signed in'}</div>
                     </div>
                 </div>
 
-                {/* Admin Actions */}
-                {user.email === 'vinayarajh1@gmail.com' && (
-                    <div style={{ paddingBottom: '1rem', borderBottom: '1px solid var(--border-color)' }}>
-                        <div style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Admin</div>
-                        <button
-                            className="neo-button w-full justify-start gap-3"
-                            onClick={onShowAdSettings}
-                            style={{ width: '100%', display: 'flex', justifyContent: 'flex-start', gap: '0.75rem', padding: '12px' }}
-                        >
-                            <Settings size={20} /> Ad Settings
-                        </button>
-                    </div>
-                )}
 
                 {/* Sponsor Button */}
                 <button
@@ -111,89 +87,6 @@ const HamburgerMenu = ({ user, theme, onToggleTheme, soundsEnabled, onToggleSoun
                     </button>
                 </div>
 
-                {/* Custom Sort Dropdown */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', position: 'relative' }}>
-                    <span style={{ fontSize: '0.9rem', opacity: 0.6 }}>Sort by</span>
-                    <button
-                        className="neo-select"
-                        style={{ textAlign: 'left', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-                        onClick={() => setIsSortOpen(!isSortOpen)}
-                    >
-                        {sortBy}
-                        <ChevronDown size={18} style={{ transform: isSortOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.3s' }} />
-                    </button>
-
-                    {isSortOpen && (
-                        <div className="neo-flat" style={{
-                            marginTop: '10px', width: '100%',
-                            padding: '10px', display: 'flex', flexDirection: 'column', gap: '5px'
-                        }}>
-                            {sortOptions.map(opt => (
-                                <div
-                                    key={opt}
-                                    className={`neo-button ${sortBy === opt ? 'neo-inset' : ''}`}
-                                    style={{
-                                        padding: '10px', fontSize: '0.9rem', cursor: 'pointer', boxShadow: sortBy === opt ? 'inset 2px 2px 5px var(--shadow-dark), inset -2px -2px 5px var(--shadow-light)' : 'none',
-                                        background: sortBy === opt ? 'var(--accent-soft)' : 'transparent',
-                                        border: 'none', borderRadius: '8px', width: '100%', textAlign: 'left'
-                                    }}
-                                    onClick={() => { onSortChange(opt); setIsSortOpen(false); }}
-                                >
-                                    {opt}
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-
-                {/* Label Filter Dropdown */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', position: 'relative' }}>
-                    <span style={{ fontSize: '0.9rem', opacity: 0.6 }}>Filter by Label</span>
-                    <button
-                        className="neo-select"
-                        style={{ textAlign: 'left', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-                        onClick={() => setIsLabelOpen(!isLabelOpen)}
-                    >
-                        {filterLabel || 'All Labels'}
-                        <ChevronDown size={18} style={{ transform: isLabelOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.3s' }} />
-                    </button>
-
-                    {isLabelOpen && (
-                        <div className="neo-flat" style={{
-                            marginTop: '10px', width: '100%',
-                            padding: '10px', display: 'flex', flexDirection: 'column', gap: '5px'
-                        }}>
-                            <div
-                                className={`neo-button ${!filterLabel ? 'neo-inset' : ''}`}
-                                style={{
-                                    padding: '10px', fontSize: '0.9rem', cursor: 'pointer',
-                                    boxShadow: !filterLabel ? 'inset 2px 2px 5px var(--shadow-dark), inset -2px -2px 5px var(--shadow-light)' : 'none',
-                                    background: !filterLabel ? 'var(--accent-soft)' : 'transparent',
-                                    border: 'none', borderRadius: '8px', width: '100%', textAlign: 'left'
-                                }}
-                                onClick={() => { onLabelChange(null); setIsLabelOpen(false); }}
-                            >
-                                All Labels
-                            </div>
-                            {availableLabels.map(lbl => (
-                                <div
-                                    key={lbl}
-                                    className={`neo-button ${filterLabel === lbl ? 'neo-inset' : ''}`}
-                                    style={{
-                                        padding: '10px', fontSize: '0.9rem', cursor: 'pointer',
-                                        boxShadow: filterLabel === lbl ? 'inset 2px 2px 5px var(--shadow-dark), inset -2px -2px 5px var(--shadow-light)' : 'none',
-                                        background: filterLabel === lbl ? 'var(--accent-soft)' : 'transparent',
-                                        border: 'none', borderRadius: '8px', width: '100%', textAlign: 'left'
-                                    }}
-                                    onClick={() => { onLabelChange(lbl); setIsLabelOpen(false); }}
-                                >
-                                    {lbl}
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-
                 <div style={{ flex: 1 }}></div>
 
                 {/* Actions */}
@@ -201,15 +94,23 @@ const HamburgerMenu = ({ user, theme, onToggleTheme, soundsEnabled, onToggleSoun
                     <button className="neo-button" style={{ width: '100%', color: 'var(--accent-color)' }} onClick={onShowFeedback}>
                         <MessageSquare size={18} /> Feedback
                     </button>
-                    <button className="neo-button" style={{ width: '100%' }} onClick={onLogout}>
-                        <LogOut size={18} /> Logout
-                    </button>
-                    <button className="neo-button neo-glow-red" style={{ width: '100%', color: 'var(--error-color)' }} onClick={onDeleteData}>
-                        <Trash2 size={18} /> Delete Data
-                    </button>
-                    <button className="neo-button neo-glow-red" style={{ width: '100%', color: 'var(--error-color)', fontWeight: 'bold' }} onClick={onDeleteAndLogout}>
-                        <Trash2 size={18} /> Wipe & Logout
-                    </button>
+                    {user ? (
+                        <>
+                            <button className="neo-button" style={{ width: '100%' }} onClick={onLogout}>
+                                <LogOut size={18} /> Logout
+                            </button>
+                            <button className="neo-button neo-glow-red" style={{ width: '100%', color: 'var(--error-color)' }} onClick={onDeleteData}>
+                                <Trash2 size={18} /> Delete Data
+                            </button>
+                            <button className="neo-button neo-glow-red" style={{ width: '100%', color: 'var(--error-color)', fontWeight: 'bold' }} onClick={onDeleteAndLogout}>
+                                <Trash2 size={18} /> Wipe & Logout
+                            </button>
+                        </>
+                    ) : (
+                        <button className="neo-button neo-glow-blue" style={{ width: '100%' }} onClick={() => { onClose(); onLogin(); }}>
+                            <User size={18} /> Sign in
+                        </button>
+                    )}
                 </div>
             </div>
             <style>{`

@@ -25,7 +25,13 @@ export const initGoogleAuth = (onAuthUpdate) => {
             // SECURITY FIX (VULN-001): Store token only in memory, not localStorage
             accessToken = response.access_token;
             tokenExpiresAt = Date.now() + (response.expires_in * 1000);
-            fetchUserProfile(accessToken, onAuthUpdate);
+
+            // Check if drive.file scope was actually granted
+            const hasDrivePermission = response.scope.includes('https://www.googleapis.com/auth/drive.file');
+
+            fetchUserProfile(accessToken, (profile) => {
+                onAuthUpdate({ ...profile, token: accessToken, hasDrivePermission });
+            });
         },
     });
 

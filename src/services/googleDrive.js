@@ -112,11 +112,15 @@ export const getFileContent = async (token, fileId) => {
 /**
  * Generic function to Save a File to Google Drive.
  */
-export const saveFile = async (token, name, content, fileId = null, mimeType = 'application/json') => {
+export const saveFile = async (token, name, content, fileId = null, mimeType = 'application/json', folderId = null) => {
     const metadata = {
         name: name,
         mimeType: mimeType,
     };
+
+    if (folderId && !fileId) {
+        metadata.parents = [folderId];
+    }
 
     const url = fileId
         ? `${UPLOAD_API_URL}/${fileId}?uploadType=multipart`
@@ -174,48 +178,12 @@ export const saveFile = async (token, name, content, fileId = null, mimeType = '
 /**
  * Create or Update a Flashcard Stack.
  */
-export const saveStack = async (token, stack, fileId = null) => {
-    return saveFile(token, `flashcard_stack_${stack.id}.json`, stack, fileId);
+export const saveStack = async (token, stack, fileId = null, folderId = null) => {
+    return saveFile(token, `flashcard_stack_${stack.id}.json`, stack, fileId, 'application/json', folderId);
 };
 
-/**
- * Save Global Ad Config (Admin only)
- */
-export const saveGlobalAdConfig = async (token, config, fileId = null) => {
-    const result = await saveFile(token, 'app_global_ad_config.json', config, fileId);
 
-    // After saving, ensure it's shared with "anyone" as a reader
-    try {
-        await fetch(`${DRIVE_API_URL}/${result.id}/permissions`, {
-            method: 'POST',
-            headers: getHeaders(token),
-            body: JSON.stringify({
-                role: 'reader',
-                type: 'anyone',
-            }),
-        });
-    } catch (e) {
-        console.warn('Failed to set global permissions:', e);
-    }
 
-    return result;
-};
-
-/**
- * Search for the global ad config file.
- */
-export const findGlobalAdConfig = async (token) => {
-    const query = "name = 'app_global_ad_config.json' and trashed = false";
-    const url = `${DRIVE_API_URL}?q=${encodeURIComponent(query)}&fields=files(id, name, modifiedTime)&supportsAllDrives=true&includeItemsFromAllDrives=true`;
-
-    const response = await fetch(url, {
-        headers: getHeaders(token),
-    });
-
-    if (!response.ok) return null;
-    const data = await response.json();
-    return data.files?.[0] || null;
-};
 
 /**
  * Share a file with another user (used for feedback).
@@ -279,4 +247,24 @@ export const deleteAllData = async (token) => {
             })
         )
     );
+};
+/**
+ * Get storage quota information.
+ */
+export const getStorageQuota = async (token) => {
+    const url = 'https://www.googleapis.com/drive/v3/about?fields=storageQuota';
+    const response = await fetch(url, {
+        headers: getHeaders(token),
+    });
+
+    if (response.status === 401) {
+        throw new Error('REAUTH_NEEDED');
+    }
+
+    if (!response.ok) {
+        throw new Error('Failed to fetch storage quota');
+    }
+
+    const data = await response.json();
+    return data.storageQuota;
 };

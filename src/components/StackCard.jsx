@@ -1,8 +1,8 @@
 import React from 'react';
-import { Layers, Calendar, Star, MoreVertical } from 'lucide-react';
+import { Layers, Calendar, Star, Download } from 'lucide-react';
 import { sanitizeStackTitle, validateDataURI } from '../utils/securityUtils';
 
-const StackCard = ({ stack, onReview, onEdit }) => {
+const StackCard = ({ stack, onReview, onEdit, onImport }) => {
     // SECURITY FIX (VULN-005): Sanitize stack title before using in URL
     // SECURITY FIX (VULN-004): Validate titleImage and card images before using
     const safeTitleForUrl = sanitizeStackTitle(stack.title);
@@ -47,15 +47,28 @@ const StackCard = ({ stack, onReview, onEdit }) => {
                 </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto' }}>
-                <div className="neo-flat neo-glow-blue" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.9rem', color: 'var(--accent-color)', padding: '6px 12px', borderRadius: '20px' }}>
-                    <Star size={16} fill="var(--star-color)" color="var(--star-color)" />
-                    <span style={{ fontWeight: '600' }}>{stack.avgRating || '—'}</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', opacity: 0.5 }}>
-                    <Calendar size={14} />
-                    <span>{stack.lastReviewed || 'Never'}</span>
-                </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', gap: '1rem' }}>
+                {!stack.isPublic && (
+                    <div className="neo-flat" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.9rem', color: 'var(--accent-color)', padding: '6px 12px', borderRadius: '20px' }}>
+                        <Star size={16} fill="var(--star-color)" color="var(--star-color)" />
+                        <span style={{ fontWeight: '600' }}>{stack.avgRating || '—'}</span>
+                    </div>
+                )}
+
+                {stack.isPublic ? (
+                    <button
+                        className="neo-button"
+                        onClick={(e) => { e.stopPropagation(); onImport(stack); }}
+                        style={{ padding: '6px 12px', fontSize: '0.8rem', gap: '4px', background: 'var(--accent-color)', color: 'white' }}
+                    >
+                        <Download size={14} /> Add to my stacks
+                    </button>
+                ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', opacity: 0.5 }}>
+                        <Calendar size={14} />
+                        <span>{stack.lastReviewed || 'Never'}</span>
+                    </div>
+                )}
             </div>
 
 

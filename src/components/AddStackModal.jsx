@@ -6,6 +6,7 @@ import { downloadStackAsZip, uploadStackFromZip } from '../utils/zipUtils';
 import { validateDataURI, sanitizeText } from '../utils/securityUtils';
 import ImageViewer from './ImageViewer';
 import { AnimatePresence } from 'framer-motion';
+import NeoDropdown from './NeoDropdown';
 
 const AudioPlayer = ({ audioData }) => {
     const [isPlaying, setIsPlaying] = useState(false);
@@ -129,13 +130,21 @@ const AudioPlayer = ({ audioData }) => {
     );
 };
 
-const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, showAlert, showConfirm, availableLabels, allStacks }) => {
+const AddStackModal = ({
+    user, stack, onClose, onSave, onDuplicate, onDelete,
+    showAlert, showConfirm, availableLabels, allStacks,
+    publicFolderId, activeTab, defaultMetadata
+}) => {
     const [title, setTitle] = useState(stack?.title || '');
     const [titleImage, setTitleImage] = useState(stack?.titleImage || '');
     const [label, setLabel] = useState(stack?.label || 'No label');
-    const [isLabelDropdownOpen, setIsLabelDropdownOpen] = useState(false);
     const [newLabelInput, setNewLabelInput] = useState('');
     const [cards, setCards] = useState(stack?.cards || [{ id: Date.now(), question: { text: '', image: '', audio: '' }, answer: { text: '', image: '', audio: '' } }]);
+    const [standard, setStandard] = useState(stack?.standard || (stack ? '' : (defaultMetadata?.standard || '')));
+    const [syllabus, setSyllabus] = useState(stack?.syllabus || (stack ? '' : (defaultMetadata?.syllabus || '')));
+    const [medium, setMedium] = useState(stack?.medium || (stack ? '' : (defaultMetadata?.medium || '')));
+    const [subject, setSubject] = useState(stack?.subject || (stack ? '' : (defaultMetadata?.subject || '')));
+    const [isPublishing, setIsPublishing] = useState(activeTab === 'discover' && user?.email === 'chethanincardland@gmail.com');
     const [viewingImage, setViewingImage] = useState(null);
     const uploadInputRef = useRef(null);
 
@@ -144,7 +153,7 @@ const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, sh
     const [selectedCards, setSelectedCards] = useState(new Set());
     const [showMergeUI, setShowMergeUI] = useState(false);
     const [mergeTargetId, setMergeTargetId] = useState('');
-    const [isMergeDropdownOpen, setIsMergeDropdownOpen] = useState(false);
+    const modalRef = useRef(null);
 
 
     // Recording state
@@ -155,6 +164,15 @@ const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, sh
 
     const handleAddCard = () => {
         setCards([...cards, { id: Date.now(), question: { text: '', image: '', audio: '' }, answer: { text: '', image: '', audio: '' } }]);
+        // Scroll to bottom after state update
+        setTimeout(() => {
+            if (modalRef.current) {
+                modalRef.current.scrollTo({
+                    top: modalRef.current.scrollHeight,
+                    behavior: 'smooth'
+                });
+            }
+        }, 100);
     };
 
     const handleRemoveCard = (id) => {
@@ -276,6 +294,10 @@ const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, sh
             title,
             titleImage,
             label,
+            standard,
+            syllabus,
+            medium,
+            subject,
             cards,
             owner: user.email,
             avgRating: stack?.avgRating || null,
@@ -283,9 +305,10 @@ const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, sh
         };
 
         try {
-            const result = await saveStack(user.token, newStack, stack?.driveFileId);
+            const folderId = isPublishing ? publicFolderId : null;
+            const result = await saveStack(user.token, newStack, stack?.driveFileId, folderId);
             // Passing back the stack with the possibly new driveFileId
-            onSave({ ...newStack, driveFileId: result.id });
+            onSave({ ...newStack, driveFileId: result.id }, true, isPublishing);
         } catch (error) {
             if (error.message === 'REAUTH_NEEDED') {
                 signIn();
@@ -449,10 +472,12 @@ const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, sh
             backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', background: 'rgba(255,255,255,0.01)', zIndex: 2000,
             display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
         }}>
-            <div className="modal-content neo-flat" style={{
-                width: '100%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto', padding: '2rem',
-                display: 'flex', flexDirection: 'column', gap: '1.5rem', position: 'relative'
-            }}>
+            <div
+                ref={modalRef}
+                className="modal-content neo-flat" style={{
+                    width: '100%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto', padding: '2rem',
+                    display: 'flex', flexDirection: 'column', gap: '1.5rem', position: 'relative'
+                }}>
                 {/* Header Icons */}
                 <div style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', display: 'flex', gap: '0.5rem' }}>
                     {stack && <button className="neo-button icon-btn" title="Download Stack" onClick={handleDownload}><Download size={18} /></button>}
@@ -502,88 +527,96 @@ const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, sh
                         </div>
 
 
-                        {/* Custom Label Dropdown */}
-                        <div style={{ position: 'relative' }}>
-                            <button
-                                className="neo-select"
-                                style={{ textAlign: 'left', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}
-                                onClick={() => setIsLabelDropdownOpen(!isLabelDropdownOpen)}
-                            >
-                                <span style={{ fontSize: '0.9rem', opacity: label === 'No label' ? 0.5 : 1 }}>{label}</span>
-                                <ChevronDown size={16} style={{ transform: isLabelDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.3s' }} />
-                            </button>
-
-                            {isLabelDropdownOpen && (
-                                <div className="neo-flat" style={{
-                                    position: 'absolute', top: '100%', left: 0, width: '100%', marginTop: '8px',
-                                    zIndex: 100, padding: '10px', display: 'flex', flexDirection: 'column', gap: '8px',
-                                    maxHeight: '250px', overflowY: 'auto'
-                                }}>
-                                    {/* Add New Label Input */}
-                                    <div style={{ display: 'flex', gap: '8px', paddingBottom: '8px', borderBottom: '1px solid var(--shadow-dark)' }}>
-                                        <input
-                                            className="neo-input"
-                                            placeholder="Create new label..."
-                                            value={newLabelInput}
-                                            onChange={(e) => setNewLabelInput(e.target.value)}
-                                            onKeyPress={(e) => {
-                                                if (e.key === 'Enter' && newLabelInput.trim()) {
-                                                    setLabel(newLabelInput.trim());
-                                                    setNewLabelInput('');
-                                                    setIsLabelDropdownOpen(false);
-                                                }
-                                            }}
-                                            style={{ flex: 1, fontSize: '0.85rem', padding: '8px 12px' }}
-                                        />
-                                        <button
-                                            className="neo-button"
-                                            style={{ padding: '8px 12px', fontSize: '0.85rem' }}
-                                            onClick={() => {
-                                                if (newLabelInput.trim()) {
-                                                    setLabel(newLabelInput.trim());
-                                                    setNewLabelInput('');
-                                                    setIsLabelDropdownOpen(false);
-                                                }
-                                            }}
-                                        >
-                                            <Plus size={14} />
-                                        </button>
-                                    </div>
-
-                                    {/* No Label Option */}
-                                    <div
-                                        className={`neo-button ${label === 'No label' ? 'neo-inset' : ''}`}
-                                        style={{
-                                            padding: '10px', fontSize: '0.9rem', cursor: 'pointer',
-                                            boxShadow: label === 'No label' ? 'inset 2px 2px 5px var(--shadow-dark), inset -2px -2px 5px var(--shadow-light)' : 'none',
-                                            background: label === 'No label' ? 'var(--accent-soft)' : 'transparent',
-                                            border: 'none', borderRadius: '8px', width: '100%', textAlign: 'left'
-                                        }}
-                                        onClick={() => { setLabel('No label'); setIsLabelDropdownOpen(false); }}
-                                    >
-                                        No label
-                                    </div>
-
-                                    {/* Existing Labels */}
-                                    {availableLabels.map(lbl => (
-                                        <div
-                                            key={lbl}
-                                            className={`neo-button ${label === lbl ? 'neo-inset' : ''}`}
-                                            style={{
-                                                padding: '10px', fontSize: '0.9rem', cursor: 'pointer',
-                                                boxShadow: label === lbl ? 'inset 2px 2px 5px var(--shadow-dark), inset -2px -2px 5px var(--shadow-light)' : 'none',
-                                                background: label === lbl ? 'var(--accent-soft)' : 'transparent',
-                                                border: 'none', borderRadius: '8px', width: '100%', textAlign: 'left'
-                                            }}
-                                            onClick={() => { setLabel(lbl); setIsLabelDropdownOpen(false); }}
-                                        >
-                                            {lbl}
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
+                        {/* Neo Dropdown for Labels */}
+                        <NeoDropdown
+                            label="Label"
+                            value={label}
+                            options={[
+                                { label: 'No label', value: 'No label' },
+                                ...availableLabels.filter(lbl => lbl !== 'No label').map(lbl => ({ label: lbl, value: lbl }))
+                            ]}
+                            onChange={setLabel}
+                            placeholder="Select label..."
+                        >
+                            {/* Add New Label Input inside Dropdown */}
+                            <div style={{ display: 'flex', gap: '8px', padding: '8px', borderBottom: '1px solid var(--shadow-dark)', marginBottom: '4px' }}>
+                                <input
+                                    className="neo-input"
+                                    placeholder="Create new label..."
+                                    value={newLabelInput}
+                                    onChange={(e) => setNewLabelInput(e.target.value)}
+                                    onKeyPress={(e) => {
+                                        if (e.key === 'Enter' && newLabelInput.trim()) {
+                                            setLabel(newLabelInput.trim());
+                                            setNewLabelInput('');
+                                        }
+                                    }}
+                                    style={{ flex: 1, fontSize: '0.85rem', padding: '8px 12px', height: '36px' }}
+                                />
+                                <button
+                                    className="neo-button"
+                                    style={{ padding: '8px 12px', fontSize: '0.85rem', height: '36px' }}
+                                    onClick={() => {
+                                        if (newLabelInput.trim()) {
+                                            setLabel(newLabelInput.trim());
+                                            setNewLabelInput('');
+                                        }
+                                    }}
+                                >
+                                    <Plus size={14} />
+                                </button>
+                            </div>
+                        </NeoDropdown>
                     </div>
+                </div>
+
+                {/* Community Metadata & Publishing (Admin only) */}
+                <div className="neo-inset" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', borderRadius: '16px' }}>
+                    <h3 style={{ fontSize: '0.9rem', fontWeight: 'bold', opacity: 0.6 }}>COMMUNITY METADATA</h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+                        <NeoDropdown
+                            label="Standard"
+                            value={standard}
+                            options={['V', 'VI', 'VII', 'VIII', 'IX', 'X'].map(s => ({ label: `Standard ${s}`, value: s }))}
+                            onChange={setStandard}
+                            placeholder="Select Standard"
+                        />
+                        <NeoDropdown
+                            label="Syllabus"
+                            value={syllabus}
+                            options={['NCERT', 'Kerala'].map(s => ({ label: s, value: s }))}
+                            onChange={setSyllabus}
+                            placeholder="Select Syllabus"
+                        />
+                        <NeoDropdown
+                            label="Medium"
+                            value={medium}
+                            options={['Malayalam', 'English'].map(s => ({ label: s, value: s }))}
+                            onChange={setMedium}
+                            placeholder="Select Medium"
+                        />
+                        <NeoDropdown
+                            label="Subject"
+                            value={subject}
+                            options={['Maths', 'Social Science', 'Science', 'English', 'Malayalam', 'Hindi'].map(s => ({ label: s, value: s }))}
+                            onChange={setSubject}
+                            placeholder="Select Subject"
+                        />
+                    </div>
+
+                    {user?.email === 'chethanincardland@gmail.com' && (
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '1rem', cursor: 'pointer', padding: '0.5rem', borderRadius: '8px', background: isPublishing ? 'var(--accent-soft)' : 'transparent' }}>
+                            <input
+                                type="checkbox"
+                                checked={isPublishing}
+                                onChange={(e) => setIsPublishing(e.target.checked)}
+                                style={{ width: '18px', height: '18px' }}
+                            />
+                            <span style={{ fontSize: '0.9rem', fontWeight: '600', color: isPublishing ? 'var(--accent-color)' : 'inherit' }}>
+                                Publish to Community Pool
+                            </span>
+                        </label>
+                    )}
                 </div>
 
                 {/* Cards List */}
@@ -670,11 +703,11 @@ const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, sh
                                 <div style={{ position: 'relative' }}>
                                     <textarea
                                         className="neo-input"
-                                        rows="1"
+                                        rows="3"
                                         placeholder="The question... "
                                         value={card.question.text}
                                         onChange={(e) => handleUpdateCard(card.id, 'question', { ...card.question, text: e.target.value })}
-                                        style={{ paddingRight: '30px' }}
+                                        style={{ paddingRight: '30px', resize: 'vertical' }}
                                     />
                                     <span style={{
                                         position: 'absolute',
@@ -751,11 +784,11 @@ const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, sh
                                 <div style={{ position: 'relative' }}>
                                     <textarea
                                         className="neo-input"
-                                        rows="1"
+                                        rows="3"
                                         placeholder="The answer... "
                                         value={card.answer.text}
                                         onChange={(e) => handleUpdateCard(card.id, 'answer', { ...card.answer, text: e.target.value })}
-                                        style={{ paddingRight: '30px' }}
+                                        style={{ paddingRight: '30px', resize: 'vertical' }}
                                     />
                                     <span style={{
                                         position: 'absolute',
@@ -819,42 +852,16 @@ const AddStackModal = ({ user, stack, onClose, onSave, onDuplicate, onDelete, sh
                             <div className="neo-inset" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                 <p style={{ fontSize: '0.9rem', opacity: 0.7 }}>Select stack to merge into:</p>
 
-                                <div style={{ position: 'relative' }}>
-                                    <button
-                                        className="neo-select"
-                                        style={{ textAlign: 'left', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}
-                                        onClick={() => setIsMergeDropdownOpen(!isMergeDropdownOpen)}
-                                    >
-                                        <span style={{ fontSize: '0.9rem', opacity: mergeTargetId ? 1 : 0.5 }}>
-                                            {mergeTargetId ? allStacks.find(s => s.id === mergeTargetId)?.title : '-- Select Stack --'}
-                                        </span>
-                                        <ChevronDown size={16} style={{ transform: isMergeDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.3s' }} />
-                                    </button>
-
-                                    {isMergeDropdownOpen && (
-                                        <div className="neo-flat" style={{
-                                            position: 'absolute', top: '100%', left: 0, width: '100%', marginTop: '8px',
-                                            zIndex: 100, padding: '10px', display: 'flex', flexDirection: 'column', gap: '8px',
-                                            maxHeight: '200px', overflowY: 'auto'
-                                        }}>
-                                            {allStacks?.filter(s => s.id !== stack?.id).map(s => (
-                                                <div
-                                                    key={s.id}
-                                                    className={`neo-button ${mergeTargetId === s.id ? 'neo-inset' : ''}`}
-                                                    style={{
-                                                        padding: '10px', fontSize: '0.9rem', cursor: 'pointer',
-                                                        boxShadow: mergeTargetId === s.id ? 'inset 2px 2px 5px var(--shadow-dark), inset -2px -2px 5px var(--shadow-light)' : 'none',
-                                                        background: mergeTargetId === s.id ? 'var(--accent-soft)' : 'transparent',
-                                                        border: 'none', borderRadius: '8px', width: '100%', textAlign: 'left'
-                                                    }}
-                                                    onClick={() => { setMergeTargetId(s.id); setIsMergeDropdownOpen(false); }}
-                                                >
-                                                    {s.title} ({s.cards?.length || 0} cards)
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
+                                <NeoDropdown
+                                    value={mergeTargetId}
+                                    options={allStacks?.filter(s => s.id !== stack?.id).map(s => ({
+                                        label: `${s.title} (${s.cards?.length || 0} cards)`,
+                                        value: s.id
+                                    }))}
+                                    onChange={setMergeTargetId}
+                                    placeholder="-- Select Stack --"
+                                    displayValue={(id) => allStacks.find(s => s.id === id)?.title}
+                                />
 
                                 <button
                                     className="neo-button neo-glow-blue"

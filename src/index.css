@@ -52,6 +52,8 @@ body {
 }
 
 .main-header {
+  position: sticky;
+  top: 0;
   height: 80px;
   flex-shrink: 0;
   padding: 0.5rem 1.5rem;
@@ -79,6 +81,16 @@ body {
 #root {
   width: 100%;
   height: 100%;
+}
+
+.main-content {
+  padding: 1.5rem 2rem 2rem;
+}
+
+@media (max-width: 500px) {
+  .main-content {
+    padding: 1rem;
+  }
 }
 
 /* Neomorphic Utility Classes */
@@ -135,6 +147,58 @@ body {
 
 .neo-button:active {
   box-shadow: inset 4px 4px 8px var(--shadow-dark), inset -4px -4px 8px var(--shadow-light);
+}
+
+.neo-tabs-container {
+  display: flex;
+  background: var(--bg-color);
+  padding: 8px;
+  border-radius: 16px;
+  box-shadow: inset 4px 4px 8px var(--shadow-dark), inset -4px -4px 8px var(--shadow-light);
+  gap: 8px;
+  width: fit-content;
+  min-width: 280px;
+  max-width: 100%;
+}
+
+@media (max-width: 360px) {
+  .neo-tabs-container {
+    min-width: 100%;
+    gap: 4px;
+    padding: 4px;
+  }
+}
+
+.neo-tab-item {
+  flex: 1;
+  padding: 10px 20px;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  color: var(--text-color);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+@media (max-width: 400px) {
+  .neo-tab-item {
+    padding: 10px 12px;
+    font-size: 0.9rem;
+  }
+}
+
+.neo-tab-item:hover:not(.active) {
+  background: var(--shadow-light);
+  opacity: 0.8;
+}
+
+.neo-tab-item.active {
+  background: var(--bg-color);
+  box-shadow: 4px 4px 8px var(--shadow-dark), -4px -4px 8px var(--shadow-light);
+  color: var(--accent-color);
+  font-weight: 700;
 }
 
 .neo-input,
