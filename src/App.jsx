@@ -12,11 +12,15 @@ import ReviewModal from './components/ReviewModal';
 import NotificationModal from './components/NotificationModal';
 import Home from './pages/Home';
 import FeedbackModal from './components/FeedbackModal';
+import KnowMoreModal from './components/KnowMoreModal';
 import { loadPicker, showPicker } from './services/googlePicker';
 import LandingPage from './components/LandingPage';
 import AdPopup from './components/AdPopup';
 import defaultAdImage from './assets/default_ad.png';
 import { DEMO_STACK } from './constants/demoData';
+// Environment Variables
+const PUBLIC_FOLDER_ID = import.meta.env.VITE_PUBLIC_FOLDER_ID;
+const PUBLIC_API_KEY = import.meta.env.VITE_PUBLIC_API_KEY || import.meta.env.VITE_GOOGLE_API_KEY;
 
 const App = () => {
     const [user, setUser] = useState(null);
@@ -36,9 +40,6 @@ const App = () => {
         subject: ''
     });
 
-    const PUBLIC_FOLDER_ID = import.meta.env.VITE_PUBLIC_FOLDER_ID;
-    const PUBLIC_API_KEY = import.meta.env.VITE_PUBLIC_API_KEY;
-
     // Modal States
     const [showMenu, setShowMenu] = useState(false);
     const [showAddModal, setShowAddModal] = useState(false);
@@ -48,6 +49,7 @@ const App = () => {
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [soundsEnabled, setSoundsEnabled] = useState(localStorage.getItem('soundsEnabled') !== 'false');
     const [showFeedback, setShowFeedback] = useState(false);
+    const [showKnowMore, setShowKnowMore] = useState(false);
 
     // Ad System States
     const [showAdPopup, setShowAdPopup] = useState(false);
@@ -184,6 +186,14 @@ const App = () => {
 
 
     const fetchPublicStacks = async () => {
+        if (!PUBLIC_API_KEY || !PUBLIC_FOLDER_ID) {
+            console.error('Missing Public Drive Config:', { PUBLIC_API_KEY, PUBLIC_FOLDER_ID });
+            setNotification({
+                type: 'alert',
+                message: 'Community flashcards configuration is incomplete. Please check your environment variables.'
+            });
+            return;
+        }
         setPublicLoading(true);
         try {
             const { listPublicStacks, getPublicFileContent } = await import('./services/publicDrive');
@@ -211,7 +221,7 @@ const App = () => {
     };
 
     useEffect(() => {
-        if (activeTab === 'discover' && publicStacks.length === 0) {
+        if (activeTab === 'ready-made' && publicStacks.length === 0) {
             fetchPublicStacks();
         }
     }, [activeTab]);
@@ -432,8 +442,8 @@ const App = () => {
         return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
     }, []);
 
-    // LandingPage logic is removed as we now land directly on the Community (discover) tab.
-    // Guests see community stacks and a demo stack in 'My Stacks'.
+    // LandingPage logic is removed as we now land directly on the Community (ready-made) tab.
+    // Guests see community stacks and a demo stack in 'My Cards'.
 
     return (
         <div className="app-layout">
@@ -486,6 +496,7 @@ const App = () => {
                         filterLabel={filterLabel}
                         onLabelChange={setFilterLabel}
                         availableLabels={getAvailableLabels()}
+                        onShowKnowMore={() => setShowKnowMore(true)}
                     />
                 </main>
 
@@ -577,6 +588,14 @@ const App = () => {
                     showAlert={(msg) => setNotification({ type: 'alert', message: msg })}
                 />
             )}
+            <KnowMoreModal
+                isOpen={showKnowMore}
+                onClose={() => setShowKnowMore(false)}
+                onLogin={() => {
+                    setShowKnowMore(false);
+                    signIn();
+                }}
+            />
 
             {/* Ad System */}
             <AdPopup

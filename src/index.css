@@ -481,3 +481,46 @@ button {
 .landing-demo-btn:active {
   transform: translateY(-1px) scale(0.98);
 }
+
+/* Hero Section CTA Buttons */
+.hero-cta-container {
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.hero-btn {
+  flex: 1;
+  padding: 1rem 2rem;
+  border-radius: 50px;
+  font-size: 1rem;
+  justify-content: center;
+  min-width: 0;
+  /* Allow shrinking */
+  white-space: nowrap;
+}
+
+.hero-btn.primary-btn {
+  background: var(--accent-color);
+  color: white;
+  font-weight: bold;
+}
+
+.hero-btn.secondary-btn {
+  font-weight: 600;
+}
+
+@media (max-width: 480px) {
+  .hero-cta-container {
+    gap: 0.8rem;
+  }
+
+  .hero-btn {
+    padding: 0.8rem 1rem;
+    font-size: 0.9rem;
+  }
+}

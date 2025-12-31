@@ -15,7 +15,8 @@ const Home = ({
     user, onLogin,
     sortBy, onSortChange,
     filterLabel, onLabelChange,
-    availableLabels
+    availableLabels,
+    onShowKnowMore
 }) => {
     const standards = ['V', 'VI', 'VII', 'VIII', 'IX', 'X'];
     const syllabuses = ['NCERT', 'Kerala'];
@@ -41,20 +42,20 @@ const Home = ({
                 <button
                     className={`neo-tab-item ${activeTab === 'my' ? 'active' : ''}`}
                     onClick={() => {
-                        console.log('Switching to My Stacks');
+                        console.log('Switching to My Cards');
                         setActiveTab('my');
                     }}
                 >
-                    My Stacks
+                    My Cards
                 </button>
                 <button
-                    className={`neo-tab-item ${activeTab === 'discover' ? 'active' : ''}`}
+                    className={`neo-tab-item ${activeTab === 'ready-made' ? 'active' : ''}`}
                     onClick={() => {
-                        console.log('Switching to Flashcards (Discover)');
-                        setActiveTab('discover');
+                        console.log('Switching to Ready-made Section');
+                        setActiveTab('ready-made');
                     }}
                 >
-                    Flashcards
+                    Ready-made
                 </button>
             </div>
         </div>
@@ -65,7 +66,7 @@ const Home = ({
             <Search size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }} />
             <input
                 className="neo-input"
-                placeholder={`Search ${activeTab === 'my' ? 'my' : 'community'} stacks...`}
+                placeholder={`Search ${activeTab === 'my' ? 'my' : 'ready-made'} stacks...`}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={{ width: '100%', paddingLeft: '45px' }}
@@ -112,7 +113,7 @@ const Home = ({
         );
     };
 
-    const renderDiscoverFilters = () => (
+    const renderReadyMadeFilters = () => (
         <div className="filter-bar neo-inset" style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
@@ -159,18 +160,18 @@ const Home = ({
     const currentLoading = activeTab === 'my' ? loading : publicLoading;
     const currentStacks = activeTab === 'my' ? stacks : filteredPublicStacks;
 
-    const showIntro = activeTab === 'my' && (!user || stacks.length === 0 || (stacks.length === 1 && stacks[0].id === 'demo-stack'));
+    const showIntro = activeTab === 'my' && !loading && (!user || stacks.length === 0 || (stacks.length === 1 && stacks[0].id === 'demo-stack'));
 
     // We no longer return early here to keep tabs and search bar visible
     // if (currentLoading) { ... }
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {renderTabs()}
-            {renderSearchBar()}
+            {(!showIntro || currentLoading) && renderTabs()}
+            {(!showIntro || currentLoading) && renderSearchBar()}
 
             {activeTab === 'my' && !showIntro && renderMyStacksFilters()}
-            {activeTab === 'discover' && renderDiscoverFilters()}
+            {activeTab === 'ready-made' && renderReadyMadeFilters()}
 
             {showIntro && (
                 <div style={{
@@ -179,10 +180,10 @@ const Home = ({
                 }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', marginBottom: '2.5rem' }}>
                         <h1 style={{
-                            fontSize: '3.2rem',
+                            fontSize: 'clamp(2.5rem, 8vw, 3.5rem)',
                             fontWeight: '800',
                             lineHeight: '1.1',
-                            color: '#4f46e5', // Deep indigo/blue
+                            color: '#4f46e5',
                             margin: 0
                         }}>
                             Study smarter.<br />Remember longer.
@@ -192,74 +193,28 @@ const Home = ({
                             fontWeight: '500',
                             opacity: 0.8,
                             marginTop: '1.5rem',
-                            maxWidth: '400px',
+                            maxWidth: '450px',
                             margin: '1.5rem auto 0 auto'
                         }}>
-                            Flashcards train your brain to recall—so exams feel easier.
+                            Free flashcards made from previous exam questions and patterns.
                         </p>
                     </div>
 
-                    <div className="neo-inset" style={{
-                        padding: '3rem 2rem',
-                        borderRadius: '40px',
-                        maxWidth: '450px',
-                        width: '100%',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        gap: '2rem',
-                        marginBottom: '2rem'
-                    }}>
-                        {[
-                            "Make your own flashcards.",
-                            "Review in minutes.",
-                            "Save hours of revision."
-                        ].map((item, i) => (
-                            <p key={i} style={{
-                                fontSize: '1.4rem',
-                                color: 'var(--accent-color)',
-                                margin: 0,
-                                fontWeight: '700'
-                            }}>
-                                {item}
-                            </p>
-                        ))}
-                    </div>
-
-                    <p style={{
-                        fontSize: '1.2rem',
-                        color: 'var(--accent-color)',
-                        fontWeight: '600',
-                        marginTop: '1rem'
-                    }}>
-                        Free flashcard maker for Kerala State & NCERT exams.
-                    </p>
-
-                    <p style={{ fontSize: '0.9rem', opacity: 0.6, marginTop: '0.5rem', maxWidth: '400px' }}>
-                        A portfolio project by Vinayaraj (Kottakkal). Study previous question papers in Malayalam & English.
-                    </p>
-
-                    <p style={{ fontSize: '0.9rem', opacity: 0.5, marginTop: '1rem', maxWidth: '400px' }}>
-                        Click the '+' button to create your first flashcard stack or add some from the 'flashcards' tab
-                    </p>
-
-                    {!user && (
+                    <div className="hero-cta-container">
                         <button
-                            className="neo-button neo-glow-blue"
-                            onClick={onLogin}
-                            style={{
-                                padding: '1rem 2.5rem',
-                                borderRadius: '50px',
-                                fontSize: '1.1rem',
-                                marginTop: '2.5rem',
-                                background: 'var(--accent-color)',
-                                color: 'white',
-                                fontWeight: 'bold'
-                            }}
+                            className="neo-button neo-glow-blue hero-btn primary-btn"
+                            onClick={() => setActiveTab('ready-made')}
                         >
-                            Get Started for Free
+                            Ready-made cards
                         </button>
-                    )}
+
+                        <button
+                            className="neo-button hero-btn secondary-btn"
+                            onClick={onShowKnowMore}
+                        >
+                            Know more
+                        </button>
+                    </div>
 
                 </div>
             )}
@@ -270,7 +225,7 @@ const Home = ({
                 </div>
             ) : (
                 <>
-                    {currentStacks.length === 0 && activeTab === 'discover' && (
+                    {currentStacks.length === 0 && activeTab === 'ready-made' && (
                         <div style={{
                             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
                             padding: '4rem 2rem', textAlign: 'center', gap: '2rem'

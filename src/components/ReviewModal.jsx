@@ -494,9 +494,13 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                                 {currentIndex + 1} / {studyCards.length}
                             </div>
                             <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                <button className="neo-button icon-btn" onClick={onEdit}><Edit2 size={18} /></button>
-                                <button className="neo-button icon-btn" title="Download Stack" onClick={handleDownload}><Download size={18} /></button>
-                                <button className="neo-button icon-btn" title="Duplicate" onClick={() => onDuplicate(stack)}><Copy size={18} /></button>
+                                {!stack.isPublic && (
+                                    <>
+                                        <button className="neo-button icon-btn" onClick={onEdit}><Edit2 size={18} /></button>
+                                        <button className="neo-button icon-btn" title="Download Stack" onClick={handleDownload}><Download size={18} /></button>
+                                        <button className="neo-button icon-btn" title="Duplicate" onClick={() => onDuplicate(stack)}><Copy size={18} /></button>
+                                    </>
+                                )}
                                 <button className="neo-button icon-btn" onClick={onClose}><X size={18} /></button>
                             </div>
                         </div>

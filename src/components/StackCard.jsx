@@ -39,11 +39,6 @@ const StackCard = ({ stack, onReview, onEdit, onImport }) => {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', opacity: 0.6, fontSize: '0.85rem' }}>
                         <Layers size={14} /> {stack.cards?.length || 0} Flashcards
                     </div>
-                    {!stack.ownedByMe && (
-                        <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: 'bold', color: 'var(--accent-color)' }}>
-                            Shared By: {stack.ownerName || stack.sharingUser?.displayName || 'Partner'}
-                        </div>
-                    )}
                 </div>
             </div>
 
@@ -55,20 +50,10 @@ const StackCard = ({ stack, onReview, onEdit, onImport }) => {
                     </div>
                 )}
 
-                {stack.isPublic ? (
-                    <button
-                        className="neo-button"
-                        onClick={(e) => { e.stopPropagation(); onImport(stack); }}
-                        style={{ padding: '6px 12px', fontSize: '0.8rem', gap: '4px', background: 'var(--accent-color)', color: 'white' }}
-                    >
-                        <Download size={14} /> Add to my stacks
-                    </button>
-                ) : (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', opacity: 0.5 }}>
-                        <Calendar size={14} />
-                        <span>{stack.lastReviewed || 'Never'}</span>
-                    </div>
-                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', opacity: 0.5 }}>
+                    <Calendar size={14} />
+                    <span>{stack.lastReviewed || 'Never'}</span>
+                </div>
             </div>
 
 

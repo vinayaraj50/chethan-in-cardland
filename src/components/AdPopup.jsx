@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { X, ExternalLink, MessageCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, MessageCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const AdPopup = ({ isOpen, onClose, adConfig, isInitialAd, authIssue, user }) => {
     const [canClose, setCanClose] = useState(false);
     const [timeLeft, setTimeLeft] = useState(3);
+    const [aspectRatio, setAspectRatio] = useState(1);
+    const mediaRef = useRef(null);
 
     useEffect(() => {
         if (isOpen) {
@@ -30,7 +32,18 @@ const AdPopup = ({ isOpen, onClose, adConfig, isInitialAd, authIssue, user }) =>
         }
     }, [isOpen, isInitialAd]);
 
+    const handleMediaLoad = (e) => {
+        const target = e.target;
+        const width = target.naturalWidth || target.videoWidth;
+        const height = target.naturalHeight || target.videoHeight;
+        if (width && height) {
+            setAspectRatio(width / height);
+        }
+    };
+
     if (!isOpen || !adConfig) return null;
+
+    const isVertical = aspectRatio < 0.8;
 
     return (
         <AnimatePresence>
@@ -39,190 +52,231 @@ const AdPopup = ({ isOpen, onClose, adConfig, isInitialAd, authIssue, user }) =>
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
-                    style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(5px)' }}
+                    style={{
+                        position: 'fixed',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        zIndex: 20000,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: 'rgba(0,0,0,0.6)', // Darker overlay for better contrast
+                        backdropFilter: 'blur(10px)',
+                        WebkitBackdropFilter: 'blur(10px)',
+                        padding: '20px'
+                    }}
+                    onClick={(e) => canClose && e.target === e.currentTarget && onClose()}
                 >
                     <motion.div
-                        initial={{ scale: 0.9, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        exit={{ scale: 0.9, opacity: 0 }}
-                        className="bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-2xl relative flex flex-col"
+                        initial={{ scale: 0.9, opacity: 0, y: 30 }}
+                        animate={{ scale: 1, opacity: 1, y: 0 }}
+                        exit={{ scale: 0.9, opacity: 0, y: 30 }}
+                        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                        className="neo-flat"
                         style={{
-                            width: '90%',
-                            maxWidth: '450px',
-                            maxHeight: '85vh',
-                            background: 'transparent',
-                            borderRadius: '24px',
-                            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+                            width: '100%',
+                            maxWidth: isVertical ? '400px' : '520px',
+                            maxHeight: '90vh',
+                            padding: '16px',
                             display: 'flex',
                             flexDirection: 'column',
-                            overflow: 'hidden'
+                            gap: '16px',
+                            position: 'relative',
+                            overflow: 'hidden',
+                            boxShadow: '0 20px 50px rgba(0,0,0,0.3)', // Sharp outer edge, no white shadow
+                            border: '1px solid rgba(0,0,0,0.1)',
+                            borderRadius: '24px'
                         }}
+                        onClick={(e) => e.stopPropagation()}
                     >
-                        {/* Header Banner */}
-                        {isInitialAd && (
-                            <div
-                                style={{
-                                    padding: '1rem',
-                                    background: 'linear-gradient(135deg, var(--accent-color), var(--primary-color))',
-                                    color: 'white',
-                                    textAlign: 'center',
-                                    fontWeight: '600',
-                                    fontSize: '1.1rem',
-                                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                                    textShadow: '0 1px 2px rgba(0,0,0,0.2)'
-                                }}
-                            >
-                                {user ? `Welcome back, ${user.name || 'Student'}!` : "Welcome to Cardland!"}
-                            </div>
-                        )}
-
-                        {/* Close Button / Timer */}
-                        <div style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 10 }}>
+                        {/* Close Button / Timer Overlay - Top Right Corner */}
+                        <div style={{ position: 'absolute', top: '12px', right: '12px', zIndex: 100 }}>
                             {!canClose ? (
-                                <div style={{ width: '30px', height: '30px', position: 'relative' }}>
-                                    <svg viewBox="0 0 36 36" style={{ width: '100%', height: '100%', transform: 'rotate(-90deg)' }}>
+                                <div
+                                    className="neo-inset"
+                                    style={{
+                                        width: '40px',
+                                        height: '40px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        borderRadius: '50%',
+                                        background: 'var(--bg-color)',
+                                    }}
+                                >
+                                    <svg viewBox="0 0 36 36" style={{ width: '32px', height: '32px', transform: 'rotate(-90deg)' }}>
                                         <path
                                             d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                                             fill="none"
-                                            stroke="rgba(0,0,0,0.2)"
+                                            stroke="var(--shadow-dark)"
                                             strokeWidth="4"
                                         />
                                         <path
                                             d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                                             fill="none"
-                                            stroke="white"
+                                            stroke="var(--accent-color)"
                                             strokeWidth="4"
                                             strokeDasharray={`${(100 * (3 - timeLeft)) / 3}, 100`}
+                                            strokeLinecap="round"
                                         />
                                     </svg>
+                                    <span style={{ position: 'absolute', fontSize: '13px', fontWeight: '800', color: 'var(--text-color)' }}>
+                                        {timeLeft}
+                                    </span>
                                 </div>
                             ) : (
                                 <button
                                     onClick={onClose}
                                     style={{
-                                        width: '32px',
-                                        height: '32px',
+                                        width: '36px',
+                                        height: '36px',
+                                        background: '#333', // High contrast background
+                                        color: '#fff',      // White icon for visibility
                                         borderRadius: '50%',
-                                        background: 'rgba(255,255,255,0.9)',
-                                        color: '#333',
-                                        border: '1px solid rgba(0,0,0,0.1)',
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center',
+                                        border: 'none',
                                         cursor: 'pointer',
-                                        boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
+                                        boxShadow: '0 4px 10px rgba(0,0,0,0.3)',
+                                        transition: 'transform 0.2s'
                                     }}
+                                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+                                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
                                 >
-                                    <X size={18} />
+                                    <X size={20} strokeWidth={3} />
                                 </button>
                             )}
                         </div>
 
-                        {/* Content Area */}
-                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#f5f5f5' }}>
-                            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                                {adConfig.mediaType === 'video' ? (
-                                    <video
-                                        src={adConfig.mediaData}
-                                        autoPlay
-                                        muted
-                                        loop
-                                        playsInline
-                                        style={{ width: '100%', height: 'auto', maxHeight: '55vh', objectFit: 'contain' }}
-                                    />
-                                ) : (
-                                    <img
-                                        src={adConfig.mediaData}
-                                        alt="Promotional Content"
-                                        style={{ width: '100%', height: 'auto', maxHeight: '55vh', objectFit: 'contain', display: 'block' }}
-                                    />
-                                )}
+                        {/* Status/Header Banner */}
+                        {isInitialAd && (
+                            <div
+                                className="neo-inset"
+                                style={{
+                                    padding: '0.8rem 1rem',
+                                    textAlign: 'center',
+                                    fontWeight: '700',
+                                    fontSize: '1rem',
+                                    color: 'var(--accent-color)',
+                                    borderRadius: '16px',
+                                    marginTop: '8px' // Space for close button if needed
+                                }}
+                            >
+                                {user ? `Welcome back, ${user.name?.split(' ')[0] || 'Student'}!` : "Welcome to Cardland!"}
                             </div>
+                        )}
 
-                            {/* Authentication/Storage Warnings */}
-                            <AnimatePresence>
-                                {authIssue && (
-                                    <motion.div
-                                        initial={{ height: 0, opacity: 0 }}
-                                        animate={{ height: 'auto', opacity: 1 }}
-                                        exit={{ height: 0, opacity: 0 }}
-                                        style={{
-                                            padding: '1rem',
-                                            background: authIssue.type === 'permission' ? '#fff1f2' : '#fffbeb',
-                                            borderTop: '1px solid rgba(0,0,0,0.05)',
-                                            color: authIssue.type === 'permission' ? '#e11d48' : '#d97706',
-                                            fontSize: '0.9rem',
-                                            fontWeight: '500'
-                                        }}
-                                    >
-                                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
-                                            <div style={{ marginTop: '0.1rem' }}>
-                                                {authIssue.type === 'permission' ? (
-                                                    <span style={{ fontSize: '1.2rem' }}>⚠️</span>
-                                                ) : (
-                                                    <span style={{ fontSize: '1.2rem' }}>💾</span>
-                                                )}
-                                            </div>
-                                            <div>
-                                                <div style={{ fontWeight: '600', marginBottom: '4px' }}>
-                                                    {authIssue.type === 'permission' ? 'Missing Permission' : 'Low Storage'}
-                                                </div>
-                                                {authIssue.message}
-                                                {authIssue.type === 'permission' && (
-                                                    <div style={{ marginTop: '8px', fontSize: '0.85rem', opacity: 0.9 }}>
-                                                        <strong>How to fix:</strong> Log out, then sign in again. Make sure to check the box for "See, edit, create, and delete only the specific Google Drive files you use with this app".
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
+                        {/* Media Content */}
+                        <div
+                            className="neo-inset"
+                            style={{
+                                flex: 1,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                overflow: 'hidden',
+                                minHeight: '320px',
+                                background: 'var(--bg-color)',
+                                padding: '12px',
+                                borderRadius: '20px'
+                            }}
+                        >
+                            {adConfig.mediaType === 'video' ? (
+                                <video
+                                    ref={mediaRef}
+                                    src={adConfig.mediaData}
+                                    autoPlay
+                                    muted
+                                    loop
+                                    playsInline
+                                    onLoadedMetadata={handleMediaLoad}
+                                    style={{
+                                        width: '100%',
+                                        height: '100%',
+                                        objectFit: 'contain',
+                                        borderRadius: '12px'
+                                    }}
+                                />
+                            ) : (
+                                <img
+                                    ref={mediaRef}
+                                    src={adConfig.mediaData}
+                                    alt="Promotional Content"
+                                    onLoad={handleMediaLoad}
+                                    style={{
+                                        width: '100%',
+                                        height: '100%',
+                                        objectFit: 'contain',
+                                        borderRadius: '12px',
+                                        display: 'block'
+                                    }}
+                                />
+                            )}
                         </div>
 
-                        {/* Footer Action */}
-                        {/* Always show if whatsappNumber exists, even for initial ad if desired, but user kept logic !isInitialAd before. 
-                        User wants "Show Your Ad Here" (which is initial default fallback) to have the button? 
-                        The screenshot showed the button on the second image. 
-                        Let's enable it nicely. */}
-                        {adConfig.whatsappNumber && (
-                            <div style={{ padding: '1rem', display: 'flex', justifyContent: 'center', background: 'white' }}>
-                                <a
-                                    href={`https://wa.me/${adConfig.whatsappNumber}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="neo-button"
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '0.8rem',
-                                        background: '#25D366',
-                                        color: 'white',
-                                        border: 'none',
-                                        padding: '12px 24px',
-                                        borderRadius: '50px', // Pill shape
-                                        textDecoration: 'none',
-                                        fontWeight: '600',
-                                        fontSize: '1rem',
-                                        boxShadow: '0 4px 15px rgba(37, 211, 102, 0.4)',
-                                        transition: 'transform 0.2s, box-shadow 0.2s',
-                                        width: '100%',
-                                        justifyContent: 'center'
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        e.currentTarget.style.transform = 'translateY(-2px)';
-                                        e.currentTarget.style.boxShadow = '0 6px 20px rgba(37, 211, 102, 0.6)';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.currentTarget.style.transform = 'translateY(0)';
-                                        e.currentTarget.style.boxShadow = '0 4px 15px rgba(37, 211, 102, 0.4)';
-                                    }}
+                        {/* Authentication/Storage Warnings */}
+                        <AnimatePresence>
+                            {authIssue && (
+                                <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: 'auto', opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
                                 >
-                                    <MessageCircle size={20} fill="white" />
-                                    Contact via WhatsApp
-                                </a>
-                            </div>
+                                    <div
+                                        className="neo-inset"
+                                        style={{
+                                            padding: '1rem',
+                                            background: authIssue.type === 'permission' ? 'rgba(239, 68, 68, 0.05)' : 'rgba(245, 158, 11, 0.05)',
+                                            color: authIssue.type === 'permission' ? 'var(--error-color)' : '#d97706',
+                                            fontSize: '0.9rem',
+                                            borderRadius: '16px',
+                                            display: 'flex',
+                                            gap: '1rem',
+                                            alignItems: 'center'
+                                        }}
+                                    >
+                                        <div style={{ fontSize: '1.5rem', flexShrink: 0 }}>
+                                            {authIssue.type === 'permission' ? '⚠️' : '💾'}
+                                        </div>
+                                        <div>
+                                            <div style={{ fontWeight: '800', marginBottom: '2px' }}>
+                                                {authIssue.type === 'permission' ? 'Permission Required' : 'Storage Warning'}
+                                            </div>
+                                            <div style={{ lineHeight: '1.4', opacity: 0.9 }}>
+                                                {authIssue.message}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+
+                        {/* Footer Action */}
+                        {adConfig.whatsappNumber && (
+                            <a
+                                href={`https://wa.me/${adConfig.whatsappNumber}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="neo-button"
+                                style={{
+                                    gap: '1rem',
+                                    background: 'var(--bg-color)',
+                                    color: '#25D366',
+                                    border: '1px solid rgba(37, 211, 102, 0.2)',
+                                    width: '100%',
+                                    justifyContent: 'center',
+                                    padding: '18px',
+                                    fontSize: '1.1rem',
+                                    borderRadius: '18px',
+                                    boxShadow: '0 10px 20px rgba(0,0,0,0.1)'
+                                }}
+                            >
+                                <MessageCircle size={26} fill="currentColor" stroke="none" />
+                                <span style={{ fontWeight: '800' }}>Contact on WhatsApp</span>
+                            </a>
                         )}
                     </motion.div>
                 </motion.div>

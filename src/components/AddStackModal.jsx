@@ -144,7 +144,7 @@ const AddStackModal = ({
     const [syllabus, setSyllabus] = useState(stack?.syllabus || (stack ? '' : (defaultMetadata?.syllabus || '')));
     const [medium, setMedium] = useState(stack?.medium || (stack ? '' : (defaultMetadata?.medium || '')));
     const [subject, setSubject] = useState(stack?.subject || (stack ? '' : (defaultMetadata?.subject || '')));
-    const [isPublishing, setIsPublishing] = useState(activeTab === 'discover' && user?.email === 'chethanincardland@gmail.com');
+    const [isPublishing, setIsPublishing] = useState(activeTab === 'ready-made' && user?.email === 'chethanincardland@gmail.com');
     const [viewingImage, setViewingImage] = useState(null);
     const uploadInputRef = useRef(null);
 
