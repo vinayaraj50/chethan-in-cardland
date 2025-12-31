@@ -3,6 +3,7 @@ import { X, Mic, Image as ImageIcon, Plus, Trash2, Copy, Save, Check, Play, Squa
 import { signIn } from '../services/googleAuth';
 import { saveStack, deleteStack } from '../services/googleDrive';
 import { downloadStackAsZip, uploadStackFromZip } from '../utils/zipUtils';
+import { parseGeminiOutput } from '../utils/importUtils';
 import { validateDataURI, sanitizeText } from '../utils/securityUtils';
 import ImageViewer from './ImageViewer';
 import { AnimatePresence } from 'framer-motion';
@@ -138,6 +139,7 @@ const AddStackModal = ({
     const [title, setTitle] = useState(stack?.title || '');
     const [titleImage, setTitleImage] = useState(stack?.titleImage || '');
     const [label, setLabel] = useState(stack?.label || 'No label');
+    const [importantNote, setImportantNote] = useState(stack?.importantNote || '');
     const [newLabelInput, setNewLabelInput] = useState('');
     const [cards, setCards] = useState(stack?.cards || [{ id: Date.now(), question: { text: '', image: '', audio: '' }, answer: { text: '', image: '', audio: '' } }]);
     const [standard, setStandard] = useState(stack?.standard || (stack ? '' : (defaultMetadata?.standard || '')));
@@ -145,6 +147,8 @@ const AddStackModal = ({
     const [medium, setMedium] = useState(stack?.medium || (stack ? '' : (defaultMetadata?.medium || '')));
     const [subject, setSubject] = useState(stack?.subject || (stack ? '' : (defaultMetadata?.subject || '')));
     const [isPublishing, setIsPublishing] = useState(activeTab === 'ready-made' && user?.email === 'chethanincardland@gmail.com');
+    const [isSmartPasteOpen, setIsSmartPasteOpen] = useState(false);
+    const [smartPasteText, setSmartPasteText] = useState('');
     const [viewingImage, setViewingImage] = useState(null);
     const uploadInputRef = useRef(null);
 
@@ -298,6 +302,7 @@ const AddStackModal = ({
             syllabus,
             medium,
             subject,
+            importantNote,
             cards,
             owner: user.email,
             avgRating: stack?.avgRating || null,
@@ -351,6 +356,7 @@ const AddStackModal = ({
             setTitle(importedStack.title);
             setTitleImage(importedStack.titleImage || '');
             setLabel(importedStack.label || 'No label');
+            setImportantNote(importedStack.importantNote || '');
             setCards(importedStack.cards);
 
             showAlert('Stack imported successfully! Review and save.');
@@ -410,6 +416,42 @@ const AddStackModal = ({
                 }
             }
         });
+    };
+
+    const handleApplySmartPaste = () => {
+        if (!smartPasteText.trim()) return showAlert('Please paste some text first');
+
+        try {
+            const result = parseGeminiOutput(smartPasteText);
+            const { title: parsedTitle, label: parsedLabel, importantNote: parsedNote, cards: parsedCards } = result;
+
+            if (parsedCards.length === 0) {
+                return showAlert('No valid cards found in the pasted text. Try a different format.');
+            }
+
+            const message = `Found ${parsedCards.length} cards${parsedTitle ? `, Title: "${parsedTitle}"` : ''}. Apply these to the form?`;
+
+            showConfirm(message, () => {
+                if (parsedTitle) setTitle(parsedTitle);
+                if (parsedLabel) setLabel(parsedLabel);
+                if (parsedNote) setImportantNote(parsedNote);
+
+                setCards(prev => {
+                    // If the only card is empty, replace it. Otherwise append.
+                    const firstCard = prev[0];
+                    const isEmpty = prev.length === 1 &&
+                        !firstCard.question.text && !firstCard.question.image && !firstCard.question.audio &&
+                        !firstCard.answer.text && !firstCard.answer.image && !firstCard.answer.audio;
+
+                    return isEmpty ? parsedCards : [...prev, ...parsedCards];
+                });
+                setIsSmartPasteOpen(false);
+                setSmartPasteText('');
+                showAlert(`Successfully applied ${parsedCards.length} cards!`);
+            });
+        } catch (error) {
+            showAlert('Failed to parse text. Please check the format.');
+        }
     };
 
     const handleMergeStack = async () => {
@@ -480,12 +522,47 @@ const AddStackModal = ({
                 }}>
                 {/* Header Icons */}
                 <div style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', display: 'flex', gap: '0.5rem' }}>
+                    <button
+                        className={`neo-button icon-btn ${isSmartPasteOpen ? 'active-accent' : ''}`}
+                        title="Smart Paste from Gemini"
+                        onClick={() => setIsSmartPasteOpen(!isSmartPasteOpen)}
+                        style={{ color: isSmartPasteOpen ? 'var(--accent-color)' : 'inherit' }}
+                    >
+                        <Upload size={18} />
+                    </button>
                     {stack && <button className="neo-button icon-btn" title="Download Stack" onClick={handleDownload}><Download size={18} /></button>}
                     {stack && <button className="neo-button icon-btn" title="Duplicate" onClick={() => onDuplicate(stack)}><Copy size={18} /></button>}
                     <button className="neo-button icon-btn" onClick={onClose}><X size={18} /></button>
                 </div>
 
                 <h2 style={{ fontSize: '1.5rem' }}>{stack ? 'Edit Stack' : 'New Flashcard Stack'}</h2>
+
+                {/* Smart Paste UI */}
+                <AnimatePresence>
+                    {isSmartPasteOpen && (
+                        <div className="neo-inset" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', borderRadius: '16px', background: 'var(--accent-soft)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <h3 style={{ fontSize: '1rem', fontWeight: 'bold', color: 'var(--accent-color)' }}>SMART PASTE FROM GEMINI</h3>
+                                <button className="neo-button icon-btn" onClick={() => setIsSmartPasteOpen(false)}><X size={14} /></button>
+                            </div>
+                            <p style={{ fontSize: '0.85rem', opacity: 0.7 }}>Paste JSON or plain text (Q: ... A: ...) from Gemini below. </p>
+                            <textarea
+                                className="neo-input"
+                                rows="8"
+                                placeholder={`Example JSON: [{"question": "What is React?", "answer": "A library"}]\n\nExample Text:\nQ: What is React?\nA: A library`}
+                                value={smartPasteText}
+                                onChange={(e) => setSmartPasteText(e.target.value)}
+                                style={{ background: 'var(--bg-color)', fontSize: '0.9rem' }}
+                            />
+                            <div style={{ display: 'flex', gap: '10px' }}>
+                                <button className="neo-button primary" onClick={handleApplySmartPaste} style={{ flex: 1 }}>
+                                    Apply & Create Cards
+                                </button>
+                                <button className="neo-button" onClick={() => setSmartPasteText('')} style={{ width: '100px' }}>Clear</button>
+                            </div>
+                        </div>
+                    )}
+                </AnimatePresence>
 
 
 
@@ -567,6 +644,18 @@ const AddStackModal = ({
                                 </button>
                             </div>
                         </NeoDropdown>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', marginTop: '0.5rem' }}>
+                            <label style={{ fontWeight: '600', opacity: 0.7 }}>Important Note (Optional)</label>
+                            <textarea
+                                className="neo-input"
+                                rows="3"
+                                placeholder="Add an important note to be shown before review..."
+                                value={importantNote}
+                                onChange={(e) => setImportantNote(e.target.value)}
+                                style={{ resize: 'vertical' }}
+                            />
+                        </div>
                     </div>
                 </div>
 

@@ -76,6 +76,7 @@ body {
   flex-direction: column;
   scrollbar-gutter: stable;
   -webkit-overflow-scrolling: touch;
+  position: relative;
 }
 
 #root {

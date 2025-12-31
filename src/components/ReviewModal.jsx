@@ -494,7 +494,7 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                                 {currentIndex + 1} / {studyCards.length}
                             </div>
                             <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                {!stack.isPublic && (
+                                {(!stack.isPublic || user?.email === 'chethanincardland@gmail.com') && (
                                     <>
                                         <button className="neo-button icon-btn" onClick={onEdit}><Edit2 size={18} /></button>
                                         <button className="neo-button icon-btn" title="Download Stack" onClick={handleDownload}><Download size={18} /></button>

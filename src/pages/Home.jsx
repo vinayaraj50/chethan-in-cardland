@@ -256,6 +256,7 @@ const Home = ({
                                     onReview={onReview}
                                     onEdit={onEdit}
                                     onImport={onImport}
+                                    user={user}
                                 />
                             ))}
                         </div>

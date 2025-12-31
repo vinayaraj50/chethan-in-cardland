@@ -16,6 +16,7 @@ import KnowMoreModal from './components/KnowMoreModal';
 import { loadPicker, showPicker } from './services/googlePicker';
 import LandingPage from './components/LandingPage';
 import AdPopup from './components/AdPopup';
+import ImportantNotePopup from './components/ImportantNotePopup';
 import defaultAdImage from './assets/default_ad.png';
 import { DEMO_STACK } from './constants/demoData';
 // Environment Variables
@@ -50,6 +51,7 @@ const App = () => {
     const [soundsEnabled, setSoundsEnabled] = useState(localStorage.getItem('soundsEnabled') !== 'false');
     const [showFeedback, setShowFeedback] = useState(false);
     const [showKnowMore, setShowKnowMore] = useState(false);
+    const [noteStack, setNoteStack] = useState(null);
 
     // Ad System States
     const [showAdPopup, setShowAdPopup] = useState(false);
@@ -483,7 +485,13 @@ const App = () => {
                         onLogin={() => signIn()}
                         loading={loading}
                         publicLoading={publicLoading}
-                        onReview={(stack) => setReviewStack(stack)}
+                        onReview={(stack) => {
+                            if (stack.importantNote) {
+                                setNoteStack(stack);
+                            } else {
+                                setReviewStack(stack);
+                            }
+                        }}
                         onEdit={(stack) => { setActiveStack(stack); setShowAddModal(true); }}
                         onImport={handleImportStack}
                         searchQuery={searchQuery}
@@ -519,6 +527,19 @@ const App = () => {
                 >
                     <Plus size={32} />
                 </button>
+
+                <AnimatePresence>
+                    {noteStack && (
+                        <ImportantNotePopup
+                            stack={noteStack}
+                            onStart={() => {
+                                setReviewStack(noteStack);
+                                setNoteStack(null);
+                            }}
+                            onClose={() => setNoteStack(null)}
+                        />
+                    )}
+                </AnimatePresence>
             </div>
 
             {/* Modals & Overlays */}

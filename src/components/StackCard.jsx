@@ -1,11 +1,13 @@
 import React from 'react';
-import { Layers, Calendar, Star, Download } from 'lucide-react';
+import { Layers, Calendar, Star, Plus, Edit2 } from 'lucide-react';
 import { sanitizeStackTitle, validateDataURI } from '../utils/securityUtils';
 
-const StackCard = ({ stack, onReview, onEdit, onImport }) => {
+const StackCard = ({ stack, onReview, onEdit, onImport, user }) => {
     // SECURITY FIX (VULN-005): Sanitize stack title before using in URL
     // SECURITY FIX (VULN-004): Validate titleImage and card images before using
     const safeTitleForUrl = sanitizeStackTitle(stack.title);
+
+    const isAdmin = user?.email === 'chethanincardland@gmail.com';
 
     // Validate titleImage if it exists
     let titleImage = null;
@@ -27,6 +29,26 @@ const StackCard = ({ stack, onReview, onEdit, onImport }) => {
                 transition: 'transform 0.2s ease', position: 'relative'
             }}
         >
+            {isAdmin && (
+                <button
+                    className="neo-button icon-btn"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onEdit(stack);
+                    }}
+                    style={{
+                        position: 'absolute',
+                        top: '10px',
+                        right: '10px',
+                        zIndex: 2,
+                        background: 'var(--bg-color)',
+                        opacity: 0.8
+                    }}
+                    title="Edit Stack"
+                >
+                    <Edit2 size={18} color="var(--accent-color)" />
+                </button>
+            )}
             <img
                 src={titleImage}
                 alt={stack.title}
@@ -43,7 +65,29 @@ const StackCard = ({ stack, onReview, onEdit, onImport }) => {
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', gap: '1rem' }}>
-                {!stack.isPublic && (
+                {stack.isPublic ? (
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button
+                            className="neo-button neo-glow-blue"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onImport(stack);
+                            }}
+                            title="Add to My Cards"
+                            style={{
+                                padding: '6px 12px',
+                                fontSize: '0.8rem',
+                                background: 'var(--accent-color)',
+                                color: 'white',
+                                borderRadius: '12px',
+                                fontWeight: '600',
+                                border: 'none',
+                            }}
+                        >
+                            <Plus size={14} /> Add to My Cards
+                        </button>
+                    </div>
+                ) : (
                     <div className="neo-flat" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.9rem', color: 'var(--accent-color)', padding: '6px 12px', borderRadius: '20px' }}>
                         <Star size={16} fill="var(--star-color)" color="var(--star-color)" />
                         <span style={{ fontWeight: '600' }}>{stack.avgRating || '—'}</span>
