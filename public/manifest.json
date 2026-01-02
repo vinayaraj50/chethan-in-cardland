@@ -3,7 +3,7 @@
     "name": "Chethan in Cardland",
     "icons": [
         {
-            "src": "/logo.png",
+            "src": "logo.png",
             "sizes": "512x512",
             "type": "image/png",
             "purpose": "any maskable"
@@ -15,14 +15,14 @@
     "background_color": "#ffffff",
     "screenshots": [
         {
-            "src": "/screenshot-my-stacks.png",
+            "src": "screenshot-my-stacks.png",
             "sizes": "1080x1920",
             "type": "image/png",
             "form_factor": "narrow",
             "label": "My Stacks"
         },
         {
-            "src": "/screenshot-discover.png",
+            "src": "screenshot-discover.png",
             "sizes": "1080x1920",
             "type": "image/png",
             "form_factor": "narrow",

@@ -147,8 +147,6 @@ const AddStackModal = ({
     const [medium, setMedium] = useState(stack?.medium || (stack ? '' : (defaultMetadata?.medium || '')));
     const [subject, setSubject] = useState(stack?.subject || (stack ? '' : (defaultMetadata?.subject || '')));
     const [isPublishing, setIsPublishing] = useState(activeTab === 'ready-made' && user?.email === 'chethanincardland@gmail.com');
-    const [isSmartPasteOpen, setIsSmartPasteOpen] = useState(false);
-    const [smartPasteText, setSmartPasteText] = useState('');
     const [viewingImage, setViewingImage] = useState(null);
     const uploadInputRef = useRef(null);
 
@@ -418,41 +416,7 @@ const AddStackModal = ({
         });
     };
 
-    const handleApplySmartPaste = () => {
-        if (!smartPasteText.trim()) return showAlert('Please paste some text first');
 
-        try {
-            const result = parseGeminiOutput(smartPasteText);
-            const { title: parsedTitle, label: parsedLabel, importantNote: parsedNote, cards: parsedCards } = result;
-
-            if (parsedCards.length === 0) {
-                return showAlert('No valid cards found in the pasted text. Try a different format.');
-            }
-
-            const message = `Found ${parsedCards.length} cards${parsedTitle ? `, Title: "${parsedTitle}"` : ''}. Apply these to the form?`;
-
-            showConfirm(message, () => {
-                if (parsedTitle) setTitle(parsedTitle);
-                if (parsedLabel) setLabel(parsedLabel);
-                if (parsedNote) setImportantNote(parsedNote);
-
-                setCards(prev => {
-                    // If the only card is empty, replace it. Otherwise append.
-                    const firstCard = prev[0];
-                    const isEmpty = prev.length === 1 &&
-                        !firstCard.question.text && !firstCard.question.image && !firstCard.question.audio &&
-                        !firstCard.answer.text && !firstCard.answer.image && !firstCard.answer.audio;
-
-                    return isEmpty ? parsedCards : [...prev, ...parsedCards];
-                });
-                setIsSmartPasteOpen(false);
-                setSmartPasteText('');
-                showAlert(`Successfully applied ${parsedCards.length} cards!`);
-            });
-        } catch (error) {
-            showAlert('Failed to parse text. Please check the format.');
-        }
-    };
 
     const handleMergeStack = async () => {
         if (!mergeTargetId) {
@@ -522,14 +486,6 @@ const AddStackModal = ({
                 }}>
                 {/* Header Icons */}
                 <div style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', display: 'flex', gap: '0.5rem' }}>
-                    <button
-                        className={`neo-button icon-btn ${isSmartPasteOpen ? 'active-accent' : ''}`}
-                        title="Smart Paste from Gemini"
-                        onClick={() => setIsSmartPasteOpen(!isSmartPasteOpen)}
-                        style={{ color: isSmartPasteOpen ? 'var(--accent-color)' : 'inherit' }}
-                    >
-                        <Upload size={18} />
-                    </button>
                     {stack && <button className="neo-button icon-btn" title="Download Stack" onClick={handleDownload}><Download size={18} /></button>}
                     {stack && <button className="neo-button icon-btn" title="Duplicate" onClick={() => onDuplicate(stack)}><Copy size={18} /></button>}
                     <button className="neo-button icon-btn" onClick={onClose}><X size={18} /></button>
@@ -537,32 +493,7 @@ const AddStackModal = ({
 
                 <h2 style={{ fontSize: '1.5rem' }}>{stack ? 'Edit Stack' : 'New Flashcard Stack'}</h2>
 
-                {/* Smart Paste UI */}
-                <AnimatePresence>
-                    {isSmartPasteOpen && (
-                        <div className="neo-inset" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', borderRadius: '16px', background: 'var(--accent-soft)' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <h3 style={{ fontSize: '1rem', fontWeight: 'bold', color: 'var(--accent-color)' }}>SMART PASTE FROM GEMINI</h3>
-                                <button className="neo-button icon-btn" onClick={() => setIsSmartPasteOpen(false)}><X size={14} /></button>
-                            </div>
-                            <p style={{ fontSize: '0.85rem', opacity: 0.7 }}>Paste JSON or plain text (Q: ... A: ...) from Gemini below. </p>
-                            <textarea
-                                className="neo-input"
-                                rows="8"
-                                placeholder={`Example JSON: [{"question": "What is React?", "answer": "A library"}]\n\nExample Text:\nQ: What is React?\nA: A library`}
-                                value={smartPasteText}
-                                onChange={(e) => setSmartPasteText(e.target.value)}
-                                style={{ background: 'var(--bg-color)', fontSize: '0.9rem' }}
-                            />
-                            <div style={{ display: 'flex', gap: '10px' }}>
-                                <button className="neo-button primary" onClick={handleApplySmartPaste} style={{ flex: 1 }}>
-                                    Apply & Create Cards
-                                </button>
-                                <button className="neo-button" onClick={() => setSmartPasteText('')} style={{ width: '100px' }}>Clear</button>
-                            </div>
-                        </div>
-                    )}
-                </AnimatePresence>
+
 
 
 
@@ -660,40 +591,40 @@ const AddStackModal = ({
                 </div>
 
                 {/* Community Metadata & Publishing (Admin only) */}
-                <div className="neo-inset" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', borderRadius: '16px' }}>
-                    <h3 style={{ fontSize: '0.9rem', fontWeight: 'bold', opacity: 0.6 }}>COMMUNITY METADATA</h3>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
-                        <NeoDropdown
-                            label="Standard"
-                            value={standard}
-                            options={['V', 'VI', 'VII', 'VIII', 'IX', 'X'].map(s => ({ label: `Standard ${s}`, value: s }))}
-                            onChange={setStandard}
-                            placeholder="Select Standard"
-                        />
-                        <NeoDropdown
-                            label="Syllabus"
-                            value={syllabus}
-                            options={['NCERT', 'Kerala'].map(s => ({ label: s, value: s }))}
-                            onChange={setSyllabus}
-                            placeholder="Select Syllabus"
-                        />
-                        <NeoDropdown
-                            label="Medium"
-                            value={medium}
-                            options={['Malayalam', 'English'].map(s => ({ label: s, value: s }))}
-                            onChange={setMedium}
-                            placeholder="Select Medium"
-                        />
-                        <NeoDropdown
-                            label="Subject"
-                            value={subject}
-                            options={['Maths', 'Social Science', 'Science', 'English', 'Malayalam', 'Hindi'].map(s => ({ label: s, value: s }))}
-                            onChange={setSubject}
-                            placeholder="Select Subject"
-                        />
-                    </div>
+                {user?.email === 'chethanincardland@gmail.com' && (
+                    <div className="neo-inset" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', borderRadius: '16px' }}>
+                        <h3 style={{ fontSize: '0.9rem', fontWeight: 'bold', opacity: 0.6 }}>COMMUNITY METADATA</h3>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+                            <NeoDropdown
+                                label="Standard"
+                                value={standard}
+                                options={['V', 'VI', 'VII', 'VIII', 'IX', 'X'].map(s => ({ label: `Standard ${s}`, value: s }))}
+                                onChange={setStandard}
+                                placeholder="Select Standard"
+                            />
+                            <NeoDropdown
+                                label="Syllabus"
+                                value={syllabus}
+                                options={['NCERT', 'Kerala'].map(s => ({ label: s, value: s }))}
+                                onChange={setSyllabus}
+                                placeholder="Select Syllabus"
+                            />
+                            <NeoDropdown
+                                label="Medium"
+                                value={medium}
+                                options={['Malayalam', 'English'].map(s => ({ label: s, value: s }))}
+                                onChange={setMedium}
+                                placeholder="Select Medium"
+                            />
+                            <NeoDropdown
+                                label="Subject"
+                                value={subject}
+                                options={['Maths', 'Social Science', 'Science', 'English', 'Malayalam', 'Hindi'].map(s => ({ label: s, value: s }))}
+                                onChange={setSubject}
+                                placeholder="Select Subject"
+                            />
+                        </div>
 
-                    {user?.email === 'chethanincardland@gmail.com' && (
                         <label style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '1rem', cursor: 'pointer', padding: '0.5rem', borderRadius: '8px', background: isPublishing ? 'var(--accent-soft)' : 'transparent' }}>
                             <input
                                 type="checkbox"
@@ -705,8 +636,8 @@ const AddStackModal = ({
                                 Publish to Community Pool
                             </span>
                         </label>
-                    )}
-                </div>
+                    </div>
+                )}
 
                 {/* Cards List */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>

@@ -1,0 +1,535 @@
+{
+    "id": "1767109115980",
+    "title": "Oceans and Continents",
+    "titleImage": "",
+    "label": "Social",
+    "standard": "VI",
+    "syllabus": "NCERT",
+    "medium": "English",
+    "subject": "Social Science",
+    "cards": [
+        {
+            "id": 1767108220759,
+            "question": {
+                "text": "Which planet is known as the \"blue planet\"? (Previous Year Paper 2023)",
+                "image": "",
+                "audio": ""
+            },
+            "answer": {
+                "text": "The Earth",
+                "image": "",
+                "audio": ""
+            }
+        },
+        {
+            "id": 1767108316684,
+            "question": {
+                "text": "What is a very large continuous expanse of land called? (Previous Year Paper 2022)",
+                "image": "",
+                "audio": ""
+            },
+            "answer": {
+                "text": "Continent",
+                "image": "",
+                "audio": ""
+            }
+        },
+        {
+            "id": 1767108325997,
+            "question": {
+                "text": "What is the largest ocean on Earth?",
+                "image": "",
+                "audio": ""
+            },
+            "answer": {
+                "text": "Pacific Ocean (ശാന്തസമുദ്രം)",
+                "image": "",
+                "audio": ""
+            }
+        },
+        {
+            "id": 1767108346981,
+            "question": {
+                "text": "Which continent is the largest by land area?",
+                "image": "",
+                "audio": ""
+            },
+            "answer": {
+                "text": "Asia",
+                "image": "",
+                "audio": ""
+            }
+        },
+        {
+            "id": 1767108360813,
+            "question": {
+                "text": "What is the smallest continent in the world? (Previous Year Paper 2021)",
+                "image": "",
+                "audio": ""
+            },
+            "answer": {
+                "text": "Australia",
+                "image": "",
+                "audio": ""
+            }
+        },
+        {
+            "id": 1767108373237,
+            "question": {
+                "text": "What is the smallest ocean in the world?",
+                "image": "",
+                "audio": ""
+            },
+            "answer": {
+                "text": "Arctic Ocean",
+                "image": "",
+                "audio": ""
+            }
+        },
+        {
+            "id": 1767108382988,
+            "question": {
+                "text": "What name is given to the single landmass formed by Europe and Asia? (Previous Year Paper 2022)",
+                "image": "",
+                "audio": ""
+            },
+            "answer": {
+                "text": "Eurasia",
+                "image": "",
+                "audio": ""
+            }
+        },
+        {
+            "id": 1767108394981,
+            "question": {
+                "text": "On what date is World Oceans Day celebrated?",
+                "image": "",
+                "audio": ""
+            },
+            "answer": {
+                "text": "June 8",
+                "image": "",
+                "audio": ""
+            }
+        },
+        {
+            "id": 1767108407980,
+            "question": {
+                "text": "What are the large masses of water that cover three-fourths of the Earth called?",
+                "image": "",
+                "audio": ""
+            },
+            "answer": {
+                "text": "Oceans",
+                "image": "",
+                "audio": ""
+            }
+        },
+        {
+            "id": 1767108416950,
+            "question": {
+                "text": "What is a piece of land completely surrounded by water on all sides called?",
+                "image": "",
+                "audio": ""
+            },
+            "answer": {
+                "text": "Island",
+                "image": "",
+                "audio": ""
+            }
+        },
+        {
+            "id": 1767108427100,
+            "question": {
+                "text": "Which continent is also known as the \"white continent\" because it is covered in ice?",
+                "image": "",
+                "audio": ""
+            },
+            "answer": {
+                "text": "Antarctica",
+                "image": "",
+                "audio": ""
+            }
+        },
+        {
+            "id": 1767108436981,
+            "question": {
+                "text": "Which ocean is named after a country? (Previous Year Paper 2023)",
+                "image": "",
+                "audio": ""
+            },
+            "answer": {
+                "text": "Indian Ocean (ഇന്ത്യൻ മഹാസമുദ്രം)",
+                "image": "",
+                "audio": ""
+            }
+        },
+        {
+            "id": 1767108453780,
+            "question": {
+                "text": "What is the motto of the Indian Navy's emblem?",
+                "image": "",
+                "audio": ""
+            },
+            "answer": {
+                "text": "\"Sam noh Varunah\" (ശന്നോ വരുണഃ - വരുണൻ നമുക്ക് മംഗളകരമാകട്ടെ എന്നർത്ഥം).",
+                "image": "",
+                "audio": ""
+            }
+        },
+        {
+            "id": 1767108481228,
+            "question": {
+                "text": "What is the largest island on Earth?",
+                "image": "",
+                "audio": ""
+            },
+            "answer": {
+                "text": "Greenland",
+                "image": "",
+                "audio": ""
+            }
+        },
+        {
+            "id": 1767108489525,
+            "question": {
+                "text": "What are the huge waves caused by underwater earthquakes called?",
+                "image": "",
+                "audio": ""
+            },
+            "answer": {
+                "text": "Tsunamis (സുനാമി - കടലിനടിയിലുണ്ടാകുന്ന ഭൂകമ്പം മൂലമുണ്ടാകുന്ന കൂറ്റൻ തിരമാലകൾ).",
+                "image": "",
+                "audio": ""
+            }
+        },
+        {
+            "id": 1767108500644,
+            "question": {
+                "text": "Why is Earth referred to as the 'blue planet'? (Previous Year Paper 2023)",
+                "image": "",
+                "audio": ""
+            },
+            "answer": {
+                "text": "Earth is called the 'blue planet' because almost three-fourths (മുക്കാൽ ഭാഗം - mukkal bhagam) of its surface is covered with water, mostly in the form of oceans. From space, the abundance of water makes the planet appear blue.",
+                "image": "",
+                "audio": ""
+            }
+        },
+        {
+            "id": 1767108511348,
+            "question": {
+                "text": "What are the five major oceans of the world?",
+                "image": "",
+                "audio": ""
+            },
+            "answer": {
+                "text": "The five major oceans are the Pacific Ocean, Atlantic Ocean, Indian Ocean, Southern (Antarctic) Ocean, and Arctic Ocean.",
+                "image": "",
+                "audio": ""
+            }
+        },
+        {
+            "id": 1767108528748,
+            "question": {
+                "text": "Name the seven continents of the world.",
+                "image": "",
+                "audio": ""
+            },
+            "answer": {
+                "text": "The seven continents are Asia, Africa, North America, South America, Antarctica, Europe, and Australia.",
+                "image": "",
+                "audio": ""
+            }
+        },
+        {
+            "id": 1767108534525,
+            "question": {
+                "text": "Explain the term 'Eurasia'.",
+                "image": "",
+                "audio": ""
+            },
+            "answer": {
+                "text": "'Eurasia' is the term geologists use to describe Europe and Asia when they are regarded (കരുതപ്പെടുന്നു ) as a single, continuous continent, as they are not physically separated by a sea.",
+                "image": "",
+                "audio": ""
+            }
+        },
+        {
+            "id": 1767108554252,
+            "question": {
+                "text": "How are oceans and continents distributed between the Northern and Southern Hemispheres? (Previous Year Paper 2022)",
+                "image": "",
+                "audio": ""
+            },
+            "answer": {
+                "text": "The distribution is unequal. The Northern Hemisphere has more land (landmasses), while the Southern Hemisphere is covered by more water (oceans).",
+                "image": "",
+                "audio": ""
+            }
+        },
+        {
+            "id": 1767108587540,
+            "question": {
+                "text": "What is the difference between a continent and an island?",
+                "image": "",
+                "audio": ""
+            },
+            "answer": {
+                "text": "A continent is a very large and continuous landmass (വിശാലമായ ഭൂപ്രദേശം ), while an island is a smaller piece of land completely surrounded by water.",
+                "image": "",
+                "audio": ""
+            }
+        },
+        {
+            "id": 1767108615356,
+            "question": {
+                "text": "Why is seawater salty and unfit for drinking?",
+                "image": "",
+                "audio": ""
+            },
+            "answer": {
+                "text": "Seawater is salty because rivers and rain wash minerals and salts from the land into the oceans over millions of years. This high salt content (ലവണാംശം) makes it unfit for human consumption (ഉപയോഗം)",
+                "image": "",
+                "audio": ""
+            }
+        },
+        {
+            "id": 1767108634788,
+            "question": {
+                "text": "What role do oceans play in the Earth’s water cycle?",
+                "image": "",
+                "audio": ""
+            },
+            "answer": {
+                "text": "Oceans act as a vast reservoir (സംഭരണി). Water evaporates from the oceans to form clouds, which eventually bring rain to the continents, supporting all life forms.",
+                "image": "",
+                "audio": ""
+            }
+        },
+        {
+            "id": 1767108655820,
+            "question": {
+                "text": "Briefly describe the Pacific Ocean.",
+                "image": "",
+                "audio": ""
+            },
+            "answer": {
+                "text": "The Pacific Ocean is the largest and deepest ocean on Earth. It is circular in shape and separates Asia and Australia from the Americas.",
+                "image": "",
+                "audio": ""
+            }
+        },
+        {
+            "id": 1767108701852,
+            "question": {
+                "text": "What are the main features of the continent of Antarctica? (Previous Year Paper 2021)",
+                "image": "",
+                "audio": ""
+            },
+            "answer": {
+                "text": "Antarctica is the coldest continent and is covered by a thick layer of ice throughout the year. It has no permanent human settlements (സ്ഥിരതാമസം) but houses many research stations.",
+                "image": "",
+                "audio": ""
+            }
+        },
+        {
+            "id": 1767108718492,
+            "question": {
+                "text": "Name the two major groups of islands belonging to India and their locations.",
+                "image": "",
+                "audio": ""
+            },
+            "answer": {
+                "text": "The two groups are the Andaman and Nicobar Islands in the Bay of Bengal (ബംഗാൾ ഉൾക്കടൽ) and the Lakshadweep Islands in the Arabian Sea.",
+                "image": "",
+                "audio": ""
+            }
+        },
+        {
+            "id": 1767108743196,
+            "question": {
+                "text": "What is an 'Isthmus'? Give an example.",
+                "image": "",
+                "audio": ""
+            },
+            "answer": {
+                "text": "An Isthmus is a narrow strip of land joining two larger landmasses. An example is the Isthmus of Panama, which joins North and South America.",
+                "image": "",
+                "audio": ""
+            }
+        },
+        {
+            "id": 1767108764596,
+            "question": {
+                "text": "How does human activity affect the health of our oceans?",
+                "image": "",
+                "audio": ""
+            },
+            "answer": {
+                "text": "Human activity causes pollution through plastic waste, oil spills (എണ്ണച്ചോർച്ച), and industrial chemicals. Overfishing also depletes (കുറയ്ക്കുന്നു) marine life, threatening the ocean ecosystem.",
+                "image": "",
+                "audio": ""
+            }
+        },
+        {
+            "id": 1767108792116,
+            "question": {
+                "text": "Which continent is known as the \"island continent\" and why?",
+                "image": "",
+                "audio": ""
+            },
+            "answer": {
+                "text": "Australia is called the \"island continent\" because it is a relatively small continent that is completely surrounded by oceans and seas on all sides.",
+                "image": "",
+                "audio": ""
+            }
+        },
+        {
+            "id": 1767108804532,
+            "question": {
+                "text": "Why are oceans called the \"lungs of the planet\"?",
+                "image": "",
+                "audio": ""
+            },
+            "answer": {
+                "text": "Oceans are called the \"lungs of the planet\" because marine plants like algae and phytoplankton produce over half of the world's oxygen (പ്രാണവായു) through photosynthesis.",
+                "image": "",
+                "audio": ""
+            }
+        },
+        {
+            "id": 1767108823109,
+            "question": {
+                "text": "Explain the significance of oceans to life on Earth. (Previous Year Paper 2023)",
+                "image": "",
+                "audio": ""
+            },
+            "answer": {
+                "text": "Oceans are vital for several reasons: they regulate the world's climate by absorbing heat and distributing it through currents; they provide a huge amount of food through fishing; they produce more than 50% of the Earth's oxygen; and they act as major routes for international trade and transport (അന്താരാഷ്ട്ര വ്യാപാരം).",
+                "image": "",
+                "audio": ""
+            }
+        },
+        {
+            "id": 1767108862171,
+            "question": {
+                "text": "Describe the distribution and characteristics of the seven continents.",
+                "image": "",
+                "audio": ""
+            },
+            "answer": {
+                "text": "The seven continents are Asia (largest), Africa (second largest, crossed by the Equator), North America, South America, Antarctica (frozen desert), Europe, and Australia (smallest). They are separated by large water bodies and each has unique geographical features, climates, and ecosystems.",
+                "image": "",
+                "audio": ""
+            }
+        },
+        {
+            "id": 1767108885651,
+            "question": {
+                "text": "What is water scarcity, and why is it a concern despite the Earth being covered in water? (Previous Year Paper 2022)",
+                "image": "",
+                "audio": ""
+            },
+            "answer": {
+                "text": "Water scarcity (ജലക്ഷാമം is the lack of sufficient freshwater resources. Although 71% of Earth is water, 97% of it is salty ocean water. Freshwater is only a tiny fraction (ചെറിയൊരു ഭാഗം) found in glaciers, rivers, and underground. Growing populations and pollution make this limited freshwater even harder to access.",
+                "image": "",
+                "audio": ""
+            }
+        },
+        {
+            "id": 1767108909420,
+            "question": {
+                "text": "How are oceans interconnected, and why is this important?",
+                "image": "",
+                "audio": ""
+            },
+            "answer": {
+                "text": "All oceans are interconnected (പരസ്പരം ബന്ധിക്കപ്പെട്ടിരിക്കുന്നു) into one global system. Seawater flows freely between them, which allows ocean currents to circulate heat and nutrients around the globe. This interconnectedness is crucial for maintaining the Earth’s environmental balance and climate.",
+                "image": "",
+                "audio": ""
+            }
+        },
+        {
+            "id": 1767108937699,
+            "question": {
+                "text": "Explain how oceans and continents impact the world's climate.",
+                "image": "",
+                "audio": ""
+            },
+            "answer": {
+                "text": "Oceans and continents shape the climate by influencing wind patterns and precipitation (മഴ ). Oceans act as heat reservoirs, absorbing solar energy and releasing it slowly. Continents affect how air moves, creating land and sea breezes (കടൽക്കാറ്റ്, കരക്കാറ്റ് ) that impact local temperatures and rainfall.",
+                "image": "",
+                "audio": ""
+            }
+        },
+        {
+            "id": 1767108967165,
+            "question": {
+                "text": "Discuss the environmental challenges facing the oceans today. (Previous Year Paper 2021)",
+                "image": "",
+                "audio": ""
+            },
+            "answer": {
+                "text": "The main challenges include plastic pollution, which harms marine life; climate change, causing rising sea levels and ocean acidification (അമ്ലീകരണം); and overfishing, which disrupts food chains. Protecting the oceans requires collective global action to ensure their health for future generations.",
+                "image": "",
+                "audio": ""
+            }
+        },
+        {
+            "id": 1767108992971,
+            "question": {
+                "text": "What are the differences between oceans and seas?",
+                "image": "",
+                "audio": ""
+            },
+            "answer": {
+                "text": "Oceans are the largest water bodies on Earth, very deep and vast (വിശാലം). Seas are smaller water bodies that are often partially enclosed (ഭാഗികമായി ചുറ്റപ്പെട്ട ) by land, such as the Arabian Sea or the Mediterranean Sea. Seas are generally shallower than oceans.",
+                "image": "",
+                "audio": ""
+            }
+        },
+        {
+            "id": 1767109020796,
+            "question": {
+                "text": "Describe the unique features of the Indian Ocean.",
+                "image": "",
+                "audio": ""
+            },
+            "answer": {
+                "text": "The Indian Ocean is the only ocean named after a country. It is almost triangular (ത്രികോണാകൃതി ) in shape and is bounded by Asia to the north, Africa to the west, and Australia to the east. It contains two major arms near India—the Arabian Sea and the Bay of Bengal.",
+                "image": "",
+                "audio": ""
+            }
+        },
+        {
+            "id": 1767109034443,
+            "question": {
+                "text": "How do oceans facilitate global trade and culture?",
+                "image": "",
+                "audio": ""
+            },
+            "answer": {
+                "text": "Historically, oceans have been the main highways for trade (വ്യാപാരം), allowing countries to exchange goods like spices, textiles, and minerals. This interaction has also led to the exchange of ideas, languages, and cultures (സംസ്കാരം) between different civilizations along coastal regions.",
+                "image": "",
+                "audio": ""
+            }
+        },
+        {
+            "id": 1767109065147,
+            "question": {
+                "text": "Explain the impact of natural disasters originating in the ocean.",
+                "image": "",
+                "audio": ""
+            },
+            "answer": {
+                "text": "Oceans can be the source of powerful natural disasters (പ്രകൃതിക്ഷോഭങ്ങൾ) like tsunamis, hurricanes, and cyclones. These events are often triggered by underwater earthquakes or warm ocean temperatures and can cause massive destruction (വൻ നാശനഷ്ടങ്ങൾ) to life and property in coastal areas.",
+                "image": "",
+                "audio": ""
+            }
+        }
+    ],
+    "owner": "chethanincardland@gmail.com",
+    "avgRating": null,
+    "lastReviewed": null
+}

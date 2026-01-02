@@ -24,6 +24,9 @@ const Home = ({
     const subjects = ['Maths', 'Social Science', 'Science', 'English', 'Malayalam', 'Hindi'];
 
     const filteredPublicStacks = publicStacks.filter(stack => {
+        // Safety checks: ensure stack has required properties
+        if (!stack || !stack.title) return false;
+
         const matchesSearch = stack.title.toLowerCase().includes(searchQuery.toLowerCase());
         const matchesStandard = !filters.standard || stack.standard === filters.standard;
         const matchesSyllabus = !filters.syllabus || stack.syllabus === filters.syllabus;
@@ -220,8 +223,13 @@ const Home = ({
             )}
 
             {currentLoading ? (
-                <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
-                    <div className="loader">Loading stacks...</div>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '4rem' }}>
+                    <div className="card-loader-container">
+                        <div className="card-loader-item"></div>
+                        <div className="card-loader-item"></div>
+                        <div className="card-loader-item"></div>
+                    </div>
+                    <p style={{ marginTop: '1rem', opacity: 0.6, fontSize: '0.9rem', fontWeight: 500 }}>Loading stacks...</p>
                 </div>
             ) : (
                 <>

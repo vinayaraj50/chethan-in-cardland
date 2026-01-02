@@ -4,7 +4,8 @@ import { X, LogOut, Trash2, Sun, Moon, Volume2, VolumeX, MessageCircle, Settings
 const HamburgerMenu = ({ user, theme, onToggleTheme, soundsEnabled, onToggleSounds, onShowFeedback, onClose, onLogout, onLogin,
     onDeleteData,
     onDeleteAndLogout,
-    onShowAd
+    onShowAd,
+    onShowAdminPanel
 }) => {
 
     return (
@@ -91,6 +92,11 @@ const HamburgerMenu = ({ user, theme, onToggleTheme, soundsEnabled, onToggleSoun
 
                 {/* Actions */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {user?.email === 'chethanincardland@gmail.com' && (
+                        <button className="neo-button neo-glow-blue" style={{ width: '100%', color: 'var(--accent-color)', fontWeight: 'bold' }} onClick={() => { onClose(); onShowAdminPanel(); }}>
+                            <Settings size={18} /> Admin Panel
+                        </button>
+                    )}
                     <button className="neo-button" style={{ width: '100%', color: 'var(--accent-color)' }} onClick={onShowFeedback}>
                         <MessageSquare size={18} /> Feedback
                     </button>
