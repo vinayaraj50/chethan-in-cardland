@@ -92,48 +92,56 @@ const fetchFilesContent = async (files, token) => {
  * Uses the Apps Script Proxy to handle writes with Admin permissions
  */
 export const checkInUser = async (token, userEmail, publicFolderId) => {
-    if (!publicFolderId) return;
+    if (!publicFolderId || !userEmail) return;
 
     try {
-        const now = new Date().toISOString();
-        const payload = {
-            action: 'checkIn',
-            email: userEmail,
-            folderId: publicFolderId,
-            timestamp: now
-        };
-
-        // We use GET for simplicity and better CORS handling with Apps Script
-        const url = `${APPS_SCRIPT_URL}?payload=${encodeURIComponent(JSON.stringify(payload))}`;
-
-        const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error(`Check-in failed with status ${response.status}`);
-        }
-
-        const result = await response.json();
-        return result.userData;
-    } catch (error) {
-        // Fallback to direct GDrive write only if the script fails and the user IS the admin
+        // 1. Try Apps Script Proxy (Preferred - Handles Permissions)
+        await checkInViaProxy(userEmail, publicFolderId);
+    } catch (proxyError) {
+        // 2. Fallback: Direct Write (Only for Admin)
+        // This is a client-side check, but server-side permissions (Google Drive) 
+        // will ultimately enforce who can write to these files.
         if (userEmail === 'chethanincardland@gmail.com') {
-            try {
-                // Admin has direct write access
-                const fileName = `user_track_${userEmail}.json`;
-                const now = new Date().toISOString();
-                const userData = {
-                    email: userEmail,
-                    firstSeen: now,
-                    lastSeen: now,
-                    totalLogins: 1,
-                    loginHistory: [now]
-                };
-                await saveFile(token, fileName, userData, null, 'application/json', publicFolderId);
-            } catch (e) {
-                console.warn('Admin direct check-in also failed');
-            }
+            await checkInDirectly(token, userEmail, publicFolderId);
+        } else {
+            console.warn('User tracking unavailable for this user.');
         }
+    }
+};
 
-        console.warn('User check-in service unavailable:', error.message);
+const checkInViaProxy = async (email, folderId) => {
+    const timestamp = new Date().toISOString();
+    const payload = JSON.stringify({
+        action: 'checkIn',
+        email,
+        folderId,
+        timestamp
+    });
+
+    const url = `${APPS_SCRIPT_URL}?payload=${encodeURIComponent(payload)}`;
+    const response = await fetch(url);
+
+    if (!response.ok) {
+        throw new Error(`Proxy check-in failed: ${response.status}`);
+    }
+
+    return await response.json();
+};
+
+const checkInDirectly = async (token, email, folderId) => {
+    try {
+        const fileName = `user_track_${email}.json`;
+        const now = new Date().toISOString();
+        const userData = {
+            email,
+            firstSeen: now,
+            lastSeen: now,
+            totalLogins: 1,
+            loginHistory: [now]
+        };
+        await saveFile(token, fileName, userData, null, 'application/json', folderId);
+    } catch (e) {
+        console.warn('Direct admin check-in failed');
     }
 };
 

@@ -49,7 +49,7 @@ export const listPublicStacks = async (apiKey, folderId) => {
     try {
         await initGapiClient(apiKey);
 
-        // SECURITY FIX: Temporarily remove user token to ensure we access as "Public"
+        // Temporarily remove user token to ensure we access as "Public"
         // Logged in users with 'drive.file' scope CANNOT access public files via API if the token is attached.
         const userToken = window.gapi.client.getToken();
         if (userToken) window.gapi.client.setToken(null);

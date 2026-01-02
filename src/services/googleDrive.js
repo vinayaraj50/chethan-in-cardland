@@ -70,7 +70,7 @@ export const listStacks = async (token) => {
                     isAccepted: file.ownedByMe || file.starred
                 };
             } catch (error) {
-                // SECURITY FIX (VULN-006): Don't log error details
+                // Return error object instead of crashing
                 return {
                     id: file.id,
                     title: file.name.replace('flashcard_stack_', '').replace('.json', '') || 'Shared Stack',
@@ -156,7 +156,6 @@ export const saveFile = async (token, name, content, fileId = null, mimeType = '
 
         if (!response.ok) {
             const errorData = await response.json();
-            // SECURITY FIX (VULN-006): Don't log API error responses
             throw new Error(errorData.error?.message || 'Failed to save to Google Drive');
         }
 
@@ -170,7 +169,6 @@ export const saveFile = async (token, name, content, fileId = null, mimeType = '
 
         return result;
     } catch (error) {
-        // SECURITY FIX (VULN-006): Don't log error details
         throw error;
     }
 };
@@ -207,7 +205,6 @@ export const shareStack = async (token, fileId, email, role = 'reader', message 
 
     if (!response.ok) {
         const errorData = await response.json();
-        // SECURITY FIX (VULN-006): Don't log API error responses
         throw new Error(errorData.error?.message || 'Failed to share file');
     }
 

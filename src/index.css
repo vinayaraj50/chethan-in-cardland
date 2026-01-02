@@ -554,16 +554,65 @@ button {
 }
 
 @keyframes card-bounce {
-  0%, 80%, 100% {
+
+  0%,
+  80%,
+  100% {
     transform: translateY(0);
     border-color: transparent;
   }
+
   40% {
     transform: translateY(-20px);
     border-color: var(--accent-color);
-    box-shadow: 
-      5px 25px 30px rgba(0,0,0,0.1), /* Drop shadow when lifted */
-      inset 2px 2px 5px var(--shadow-dark), 
-      inset -2px -2px 5px var(--shadow-light); /* Inner shadow look */
+    box-shadow:
+      5px 25px 30px rgba(0, 0, 0, 0.1),
+      /* Drop shadow when lifted */
+      inset 2px 2px 5px var(--shadow-dark),
+      inset -2px -2px 5px var(--shadow-light);
+    /* Inner shadow look */
   }
+}
+
+/* Hygiene Actions */
+.app-logo {
+  height: 60px;
+  max-width: 200px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.fab-add-button {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  border-radius: 50%;
+  width: 60px;
+  height: 60px;
+  background: var(--accent-color);
+  color: white;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Modal Overlay consistent style */
+.modal-overlay-backdrop {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  background: rgba(255, 255, 255, 0.01);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
 }

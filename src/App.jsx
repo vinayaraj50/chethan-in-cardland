@@ -217,8 +217,8 @@ const App = () => {
     return (
         <div className="app-layout">
             <header className="main-header">
-                <img src={logo} alt="Chethan in Cardland" style={{ height: '60px', maxWidth: '200px' }} />
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <img src={logo} alt="Chethan in Cardland" className="app-logo" />
+                <div className="header-actions">
                     <button className="neo-button icon-btn" onClick={toggleFullscreen}>
                         {isFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
                     </button>
@@ -245,8 +245,7 @@ const App = () => {
                 </main>
 
                 <button
-                    className="neo-button neo-glow-blue"
-                    style={{ position: 'fixed', bottom: '2rem', right: '2rem', borderRadius: '50%', width: '60px', height: '60px', background: 'var(--accent-color)', color: 'white', zIndex: 100 }}
+                    className="neo-button neo-glow-blue fab-add-button"
                     onClick={() => { if (!user) { signIn(); return; } setActiveStack(null); setShowAddModal(true); }}
                 >
                     <Plus size={32} />
@@ -273,6 +272,8 @@ const App = () => {
                     showAlert={(msg) => setNotification({ type: 'alert', message: msg })}
                     showConfirm={(msg, cb) => setNotification({ type: 'confirm', message: msg, onConfirm: cb })}
                     publicFolderId={PUBLIC_FOLDER_ID}
+                    availableLabels={[...new Set(stacks.map(s => s.label).filter(l => l && l !== 'No label'))]}
+                    allStacks={stacks}
                 />
             )}
 

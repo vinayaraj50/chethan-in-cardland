@@ -20,9 +20,11 @@ export const initGoogleAuth = (onAuthUpdate) => {
         scope: SCOPES,
         callback: (response) => {
             if (response.error !== undefined) {
-                throw response;
+                console.error("Auth Error:", response);
+                return;
             }
-            // SECURITY FIX (VULN-001): Store token only in memory, not localStorage
+
+            // Store token only in memory for security (prevents XSS persistence)
             accessToken = response.access_token;
             tokenExpiresAt = Date.now() + (response.expires_in * 1000);
 
@@ -34,10 +36,6 @@ export const initGoogleAuth = (onAuthUpdate) => {
             });
         },
     });
-
-    // SECURITY FIX (VULN-001, VULN-002): Removed localStorage token/profile restoration
-    // Users must re-authenticate on page refresh for maximum security
-    // This prevents XSS attacks from stealing tokens
 };
 
 const fetchUserProfile = async (token, onAuthUpdate) => {
@@ -45,26 +43,24 @@ const fetchUserProfile = async (token, onAuthUpdate) => {
         const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
             headers: { Authorization: `Bearer ${token}` },
         });
+        if (!response.ok) throw new Error('Failed to fetch user profile');
+
         const profile = await response.json();
-        // SECURITY FIX (VULN-002): Store profile in memory only, not localStorage
         userProfile = profile;
         onAuthUpdate({ ...profile, token });
     } catch (error) {
-        // SECURITY FIX (VULN-006): Don't log error details to console
         // If token is invalid, clear it
         signOut(onAuthUpdate);
     }
 };
 
 export const isTokenExpired = () => {
-    // SECURITY FIX (VULN-001): Use memory-based expiry
     if (!tokenExpiresAt) return true;
     // Buffer of 5 minutes before actual expiration
     return Date.now() > (tokenExpiresAt - 5 * 60 * 1000);
 };
 
 export const getAccessToken = () => {
-    // SECURITY FIX (VULN-001): Return token from memory only
     if (isTokenExpired()) return null;
     return accessToken;
 };
@@ -76,29 +72,22 @@ export const signIn = (prompt = 'consent') => {
 };
 
 export const signOut = (onAuthUpdate) => {
-    // SECURITY FIX (VULN-001, VULN-002): No localStorage to clean up
-
-    // SECURITY FIX (VULN-007): Add error handling for token revocation
     if (accessToken && window.google) {
         try {
-            window.google.accounts.oauth2.revoke(accessToken, (response) => {
-                // Token revoked successfully or revocation attempted
-                accessToken = null;
-                tokenExpiresAt = null;
-                userProfile = null;
-                onAuthUpdate(null);
+            window.google.accounts.oauth2.revoke(accessToken, () => {
+                clearSession(onAuthUpdate);
             });
         } catch (error) {
-            // Even if revocation fails, clear local state
-            accessToken = null;
-            tokenExpiresAt = null;
-            userProfile = null;
-            onAuthUpdate(null);
+            clearSession(onAuthUpdate);
         }
     } else {
-        accessToken = null;
-        tokenExpiresAt = null;
-        userProfile = null;
-        onAuthUpdate(null);
+        clearSession(onAuthUpdate);
     }
+};
+
+const clearSession = (onAuthUpdate) => {
+    accessToken = null;
+    tokenExpiresAt = null;
+    userProfile = null;
+    if (onAuthUpdate) onAuthUpdate(null);
 };
