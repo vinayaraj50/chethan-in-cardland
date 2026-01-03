@@ -1,8 +1,79 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Brain, Repeat, FileText, BarChart3, ShieldCheck, LogIn } from 'lucide-react';
+import { X, Brain, Zap, Mic, Camera, BookOpen, TrendingUp, Sparkles, LogIn } from 'lucide-react';
 
 const KnowMoreModal = ({ isOpen, onClose, onLogin }) => {
+    const sections = [
+        {
+            icon: <Brain size={28} />,
+            text: "This is a science-based learning app designed around how the brain learns and stays motivated."
+        },
+        {
+            icon: <TrendingUp size={28} />,
+            text: "Instead of passive reading, the app adapts to your memory strength by tracking how well you answer and guiding you to focus more on what you find difficult. This helps you improve faster and retain information longer."
+        },
+        {
+            icon: <Sparkles size={28} />,
+            content: (
+                <div>
+                    <p style={{ margin: '0 0 1rem 0' }}>You can quickly create your own flashcards using your own questions and answers by:</p>
+                    <div style={{ display: 'flex', gap: '1.5rem', justifyContent: 'center', marginBottom: '1rem', marginTop: '0.5rem' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                            <div className="neo-inset" style={{
+                                width: '50px',
+                                height: '50px',
+                                borderRadius: '16px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: 'var(--accent-color)'
+                            }}>
+                                <Zap size={22} />
+                            </div>
+                            <span style={{ fontSize: '0.85rem', fontWeight: '500', opacity: 0.8 }}>Typing</span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                            <div className="neo-inset" style={{
+                                width: '50px',
+                                height: '50px',
+                                borderRadius: '16px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: 'var(--accent-color)'
+                            }}>
+                                <Mic size={22} />
+                            </div>
+                            <span style={{ fontSize: '0.85rem', fontWeight: '500', opacity: 0.8 }}>Voice</span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                            <div className="neo-inset" style={{
+                                width: '50px',
+                                height: '50px',
+                                borderRadius: '16px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: 'var(--accent-color)'
+                            }}>
+                                <Camera size={22} />
+                            </div>
+                            <span style={{ fontSize: '0.85rem', fontWeight: '500', opacity: 0.8 }}>Photo</span>
+                        </div>
+                    </div>
+                </div>
+            )
+        },
+        {
+            icon: <Zap size={28} />,
+            text: "The app then leads you through an optimal learning flow, helping you spend less time revising while getting better results."
+        },
+        {
+            icon: <BookOpen size={28} />,
+            text: "Prefer expert-prepared material? Explore the Ready-made section to study flashcard stacks built from real previous question papers and common exam patterns, curated by subject experts."
+        }
+    ];
+
     return (
         <AnimatePresence>
             {isOpen && (
@@ -13,110 +84,61 @@ const KnowMoreModal = ({ isOpen, onClose, onLogin }) => {
                     display: 'flex', alignItems: 'center', justifyContent: 'center'
                 }}>
                     <motion.div
-                        initial={{ y: 50, opacity: 0 }}
-                        animate={{ y: 0, opacity: 1 }}
-                        exit={{ y: 50, opacity: 0 }}
+                        initial={{ scale: 0.9, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0.9, opacity: 0 }}
                         className="neo-flat"
                         style={{
-                            width: '100vw', maxWidth: 'none', height: '100vh',
+                            width: '95vw', maxWidth: '600px', maxHeight: '90vh',
                             display: 'flex', flexDirection: 'column', position: 'relative',
-                            padding: 0, overflow: 'hidden', borderRadius: 0
+                            padding: 0, overflow: 'hidden', borderRadius: '32px'
                         }}
                     >
                         <div style={{
                             padding: '1.5rem', borderBottom: '1px solid rgba(0,0,0,0.05)',
                             display: 'flex', alignItems: 'center', justifyContent: 'space-between'
                         }}>
-                            <h2 style={{ margin: 0, fontSize: '1.5rem' }}>Know More</h2>
+                            <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: '800', color: 'var(--accent-color)' }}>How it Works</h2>
                             <button className="neo-button icon-btn neo-glow-red" onClick={onClose} style={{ color: 'var(--error-color)' }}>
                                 <X size={20} />
                             </button>
                         </div>
 
                         <div style={{
-                            padding: '1.5rem', overflowY: 'auto', flex: 1,
+                            padding: '2rem 1.5rem', overflowY: 'auto', flex: 1,
                             display: 'flex', flexDirection: 'column', gap: '2rem'
                         }}>
-                            {/* Definition */}
-                            <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
-                                <div className="neo-inset" style={{
-                                    padding: '0.8rem',
-                                    borderRadius: '12px',
-                                    color: 'var(--accent-color)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    width: '48px',
-                                    height: '48px',
-                                    flexShrink: 0
-                                }}>
-                                    <FileText size={32} />
+                            {sections.map((section, idx) => (
+                                <div key={idx} style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
+                                    <div className="neo-flat" style={{
+                                        padding: '0.8rem',
+                                        borderRadius: '16px',
+                                        color: 'var(--accent-color)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        flexShrink: 0
+                                    }}>
+                                        {section.icon}
+                                    </div>
+                                    <div style={{ flex: 1 }}>
+                                        {section.text && <p style={{ margin: 0, lineHeight: '1.6', fontSize: '1rem', fontWeight: '500', opacity: 0.9 }}>
+                                            {section.text}
+                                        </p>}
+                                        {section.content}
+                                    </div>
                                 </div>
-                                <p style={{ margin: 0, lineHeight: '1.6', fontSize: '1.05rem' }}>
-                                    A flashcard is a learning card with a question on the front and the answer on the back, ideal for quick revision.
-                                </p>
-                            </div>
-
-                            {/* Methods */}
-                            <div className="neo-inset" style={{ padding: '1.5rem', borderRadius: '24px', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                                <p style={{ margin: 0, lineHeight: '1.6' }}>
-                                    This is a free flashcard web app that helps students revise faster and remember longer using proven learning methods like:
-                                </p>
-
-                                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                                    <Brain size={28} color="var(--accent-color)" style={{ flexShrink: 0 }} />
-                                    <span style={{ fontSize: '1.05rem' }}>
-                                        <strong style={{ color: 'var(--accent-color)' }}>active recall</strong> (trying to answer before seeing the solution)
-                                    </span>
-                                </div>
-
-                                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                                    <Repeat size={28} color="var(--accent-color)" style={{ flexShrink: 0 }} />
-                                    <span style={{ fontSize: '1.05rem' }}>
-                                        <strong style={{ color: 'var(--accent-color)' }}>spaced repetition</strong> (reviewing at the right time)
-                                    </span>
-                                </div>
-                            </div>
-
-                            {/* Ready-made & Custom */}
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                <p style={{ margin: 0, lineHeight: '1.6' }}>
-                                    The Ready-made section contains free flashcards with real questions from
-                                    <strong style={{ color: 'var(--accent-color)' }}> previous question papers</strong> for the same chapter.
-                                </p>
-                                <p style={{ margin: 0, lineHeight: '1.6' }}>
-                                    Students can also create their own flashcards for topics they find difficult or often forget.
-                                </p>
-                            </div>
-
-
-
-                            {/* Support & Privacy */}
-                            <div className="neo-inset" style={{ padding: '1.2rem', borderRadius: '16px', fontSize: '0.9rem', opacity: 0.9 }}>
-                                <div style={{ display: 'flex', gap: '8px', marginBottom: '8px', color: 'var(--accent-color)', alignItems: 'center' }}>
-                                    <ShieldCheck size={20} />
-                                    <strong>Privacy First</strong>
-                                </div>
-                                <p style={{ margin: 0, lineHeight: '1.5' }}>
-                                    This free web app is supported only by student-safe ads.
-                                    <strong style={{ color: 'var(--accent-color)' }}> We don’t track</strong> users or sell personal data.
-                                </p>
-                            </div>
+                            ))}
                         </div>
 
-                        <div style={{ padding: '2rem', textAlign: 'center', borderTop: '1px solid rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
-                            <p style={{ margin: 0, fontSize: '1.1rem', color: 'var(--text-color)', opacity: 0.9 }}>
-                                Sign in with Google to start and track your learning progress
-                            </p>
+                        <div style={{ padding: '1.5rem', textAlign: 'center', borderTop: '1px solid rgba(0,0,0,0.05)' }}>
                             <button
                                 className="neo-button neo-glow-blue"
                                 onClick={onLogin}
-                                style={{ width: '100%', maxWidth: '400px', justifyContent: 'center', padding: '1rem', gap: '12px', background: 'var(--accent-color)', color: 'white' }}
+                                style={{ width: '100%', justifyContent: 'center', padding: '1rem', gap: '12px', background: 'var(--accent-color)', color: 'white' }}
                             >
                                 <LogIn size={20} />
-                                <span style={{ fontWeight: '600' }}>
-                                    Sign in with Google
-                                </span>
+                                <span style={{ fontWeight: '600' }}>Get Started with Google</span>
                             </button>
                         </div>
                     </motion.div>
@@ -127,3 +149,4 @@ const KnowMoreModal = ({ isOpen, onClose, onLogin }) => {
 };
 
 export default KnowMoreModal;
+

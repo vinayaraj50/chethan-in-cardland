@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layers, Calendar, Star, Plus, Edit2 } from 'lucide-react';
+import { Layers, Calendar, Star, Plus, Edit2, Coins } from 'lucide-react';
 import { sanitizeStackTitle, validateDataURI } from '../utils/securityUtils';
 
 const StackCard = ({ stack, onReview, onEdit, onImport, user }) => {
@@ -24,10 +24,7 @@ const StackCard = ({ stack, onReview, onEdit, onImport, user }) => {
         <div
             className="neo-flat stack-card"
             onClick={() => onReview(stack)}
-            style={{
-                padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', cursor: 'pointer',
-                transition: 'transform 0.2s ease', position: 'relative'
-            }}
+            style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%' }}
         >
             {isAdmin && (
                 <button
@@ -55,25 +52,45 @@ const StackCard = ({ stack, onReview, onEdit, onImport, user }) => {
                 style={{ width: '100%', height: '140px', objectFit: 'contain', borderRadius: '12px', background: 'var(--bg-color)' }}
             />
 
-            <div>
-                <h3 style={{ fontSize: '1.1rem', marginBottom: '0.2rem' }}>{stack.title}</h3>
+            <div style={{ marginTop: '0.8rem' }}>
+                <h3 style={{
+                    fontSize: '1.1rem',
+                    marginBottom: '0.2rem',
+                    display: '-webkit-box',
+                    WebkitLineClamp: 3,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    lineHeight: '1.4',
+                    height: '4.2em'
+                }} title={stack.title}>{stack.title}</h3>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', opacity: 0.6, fontSize: '0.85rem' }}>
                         <Layers size={14} /> {stack.cards?.length || 0} Flashcards
                     </div>
+                    {stack.id !== 'demo-stack' && !stack.isPublic && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.85rem', color: '#f59e0b', fontWeight: 'bold' }}>
+                            <Coins size={14} /> 5
+                        </div>
+                    )}
                 </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', gap: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', gap: '1rem', paddingTop: '1rem' }}>
                 {stack.isPublic ? (
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                         <button
                             className="neo-button neo-glow-blue"
                             onClick={(e) => {
                                 e.stopPropagation();
-                                onImport(stack);
+                                if (user) {
+                                    onImport(stack);
+                                } else {
+                                    // For non-logged-in users, clicking triggers review (preview mode)
+                                    onReview(stack);
+                                }
                             }}
-                            title="Add to My Cards"
+                            title={user ? "Add to My Cards" : "Preview this stack"}
                             style={{
                                 padding: '6px 12px',
                                 fontSize: '0.8rem',
@@ -84,27 +101,54 @@ const StackCard = ({ stack, onReview, onEdit, onImport, user }) => {
                                 border: 'none',
                             }}
                         >
-                            <Plus size={14} /> Add to My Cards
+                            <Plus size={14} /> {user ? 'Add to My Cards' : 'Preview'}
                         </button>
                     </div>
                 ) : (
                     <div className="neo-flat" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.9rem', color: 'var(--accent-color)', padding: '6px 12px', borderRadius: '20px' }}>
-                        <Star size={16} fill="var(--star-color)" color="var(--star-color)" />
-                        <span style={{ fontWeight: '600' }}>{stack.avgRating || '—'}</span>
+                        <Star size={16} fill="#FFD700" color="#FFD700" />
+                        <span style={{ fontWeight: '600' }}>Marks : {stack.lastMarks !== undefined ? stack.lastMarks : '—'}/{stack.cards ? stack.cards.length * 2 : 0}</span>
                     </div>
                 )}
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', opacity: 0.5 }}>
-                    <Calendar size={14} />
-                    <span>{stack.lastReviewed || 'Never'}</span>
-                </div>
+                {!stack.isPublic && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', opacity: 0.5 }}>
+                        <Calendar size={14} />
+                        <NextReviewDisplay nextReview={stack.nextReview} />
+                    </div>
+                )}
             </div>
-
 
             <style>{`
         .stack-card:hover { transform: translateY(-5px); }
       `}</style>
-        </div>
+        </div >
+    );
+};
+
+const NextReviewDisplay = ({ nextReview }) => {
+    if (!nextReview) return <span>New</span>;
+
+    const calculateTimeLeft = () => {
+        const diff = new Date(nextReview) - new Date();
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+
+        if (days < 0 || (days === 0 && hours < 0)) {
+            const absDays = Math.abs(days);
+            return { text: `Due: ${absDays} days ago`, isDue: true };
+        }
+
+        if (days === 0) return { text: `Next review in : ${hours} hours`, isDue: false };
+        return { text: `Next review in : ${days} days`, isDue: false };
+    };
+
+    const { text, isDue } = calculateTimeLeft();
+
+    return (
+        <span style={{ color: isDue ? '#ef4444' : 'inherit', fontWeight: isDue ? 'bold' : 'normal' }}>
+            {text}
+        </span>
     );
 };
 

@@ -1,9 +1,11 @@
 import React from 'react';
-import { Play, X } from 'lucide-react';
+import { Play, X, Edit2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-const ImportantNotePopup = ({ stack, onStart, onClose }) => {
+const ImportantNotePopup = ({ stack, user, onStart, onClose, onEdit }) => {
     if (!stack || !stack.importantNote) return null;
+
+    const canEdit = user && (stack.ownedByMe || user.email === 'chethanincardland@gmail.com');
 
     return (
         <motion.div
@@ -26,9 +28,16 @@ const ImportantNotePopup = ({ stack, onStart, onClose }) => {
         >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
                 <h2 style={{ fontSize: '1.8rem' }}>Important Note</h2>
-                <button className="neo-button icon-btn" onClick={onClose}>
-                    <X size={20} />
-                </button>
+                <div style={{ display: 'flex', gap: '1rem' }}>
+                    {canEdit && (
+                        <button className="neo-button icon-btn" onClick={onEdit} title="Edit Stack">
+                            <Edit2 size={20} />
+                        </button>
+                    )}
+                    <button className="neo-button icon-btn" onClick={onClose}>
+                        <X size={20} />
+                    </button>
+                </div>
             </div>
 
             <div className="neo-inset" style={{

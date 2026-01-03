@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { X, LogOut, Trash2, Sun, Moon, Volume2, VolumeX, MessageCircle, Settings, User, ChevronDown, MessageSquare, ExternalLink } from 'lucide-react';
+import { X, LogOut, Trash2, Sun, Moon, Volume2, VolumeX, MessageCircle, Settings, User, ChevronDown, MessageSquare, ExternalLink, Users } from 'lucide-react';
 
 const HamburgerMenu = ({ user, theme, onToggleTheme, soundsEnabled, onToggleSounds, onShowFeedback, onClose, onLogout, onLogin,
     onDeleteData,
     onDeleteAndLogout,
-    onShowAd,
-    onShowAdminPanel
+    onShowAdminPanel,
+    onShowReferral
 }) => {
 
     return (
@@ -54,7 +54,7 @@ const HamburgerMenu = ({ user, theme, onToggleTheme, soundsEnabled, onToggleSoun
                     {user?.picture ? (
                         <img src={user.picture} alt={user.name} style={{ width: '48px', height: '48px', borderRadius: '50%' }} />
                     ) : (
-                        <div className="neo-button icon-btn" style={{ borderRadius: '50%' }}><User size={24} /></div>
+                        <div className="neo-button icon-btn" style={{ borderRadius: '50%', cursor: 'pointer' }} onClick={() => onLogin()}><User size={24} /></div>
                     )}
                     <div style={{ overflow: 'hidden' }}>
                         <div style={{ fontWeight: '600', truncate: true }}>{user?.name || 'Guest User'}</div>
@@ -64,13 +64,7 @@ const HamburgerMenu = ({ user, theme, onToggleTheme, soundsEnabled, onToggleSoun
 
 
                 {/* Sponsor Button */}
-                <button
-                    className="neo-button w-full justify-start gap-3"
-                    onClick={() => { onClose(); onShowAd(); }}
-                    style={{ width: '100%', display: 'flex', justifyContent: 'flex-start', gap: '0.75rem', padding: '12px' }}
-                >
-                    <ExternalLink size={20} /> View Sponsor
-                </button>
+
 
                 {/* Theme Toggle */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -100,6 +94,11 @@ const HamburgerMenu = ({ user, theme, onToggleTheme, soundsEnabled, onToggleSoun
                     <button className="neo-button" style={{ width: '100%', color: 'var(--accent-color)' }} onClick={onShowFeedback}>
                         <MessageSquare size={18} /> Feedback
                     </button>
+                    {user && (
+                        <button className="neo-button" style={{ width: '100%', color: '#f59e0b' }} onClick={() => { onClose(); onShowReferral(); }}>
+                            <Users size={18} /> Refer a Friend
+                        </button>
+                    )}
                     {user ? (
                         <>
                             <button className="neo-button" style={{ width: '100%' }} onClick={onLogout}>
@@ -113,8 +112,8 @@ const HamburgerMenu = ({ user, theme, onToggleTheme, soundsEnabled, onToggleSoun
                             </button>
                         </>
                     ) : (
-                        <button className="neo-button neo-glow-blue" style={{ width: '100%' }} onClick={() => { onClose(); onLogin(); }}>
-                            <User size={18} /> Sign in
+                        <button className="neo-button neo-glow-blue" style={{ width: '100%', backgroundColor: 'var(--accent-color)', color: 'white' }} onClick={() => { onClose(); onLogin(); }}>
+                            <User size={18} /> Sign in with Google
                         </button>
                     )}
                 </div>

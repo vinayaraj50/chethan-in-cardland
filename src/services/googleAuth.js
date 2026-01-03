@@ -68,6 +68,16 @@ export const getAccessToken = () => {
 export const signIn = (prompt = 'consent') => {
     if (tokenClient) {
         tokenClient.requestAccessToken({ prompt });
+    } else {
+        console.warn('Google Auth not initialized yet. Retrying in 1 second...');
+        // Retry after a short delay if tokenClient is not ready
+        setTimeout(() => {
+            if (tokenClient) {
+                tokenClient.requestAccessToken({ prompt });
+            } else {
+                console.error('Google Auth initialization failed. Please refresh the page.');
+            }
+        }, 1000);
     }
 };
 

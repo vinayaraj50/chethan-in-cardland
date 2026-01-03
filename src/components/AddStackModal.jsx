@@ -508,7 +508,7 @@ const AddStackModal = ({
                                     className="neo-input"
                                     placeholder="Stack Title "
                                     value={title}
-                                    onChange={(e) => setTitle(e.target.value)}
+                                    onChange={(e) => setTitle(sanitizeText(e.target.value))}
                                     style={{ paddingRight: '30px' }}
                                 />
                                 <span style={{
@@ -552,7 +552,7 @@ const AddStackModal = ({
                                     className="neo-input"
                                     placeholder="Create new label..."
                                     value={newLabelInput}
-                                    onChange={(e) => setNewLabelInput(e.target.value)}
+                                    onChange={(e) => setNewLabelInput(sanitizeText(e.target.value))}
                                     onKeyPress={(e) => {
                                         if (e.key === 'Enter' && newLabelInput.trim()) {
                                             setLabel(newLabelInput.trim());
@@ -583,7 +583,7 @@ const AddStackModal = ({
                                 rows="3"
                                 placeholder="Add an important note to be shown before review..."
                                 value={importantNote}
-                                onChange={(e) => setImportantNote(e.target.value)}
+                                onChange={(e) => setImportantNote(sanitizeText(e.target.value))}
                                 style={{ resize: 'vertical' }}
                             />
                         </div>
@@ -726,7 +726,7 @@ const AddStackModal = ({
                                         rows="3"
                                         placeholder="The question... "
                                         value={card.question.text}
-                                        onChange={(e) => handleUpdateCard(card.id, 'question', { ...card.question, text: e.target.value })}
+                                        onChange={(e) => handleUpdateCard(card.id, 'question', { ...card.question, text: sanitizeText(e.target.value) })}
                                         style={{ paddingRight: '30px', resize: 'vertical' }}
                                     />
                                     <span style={{
@@ -807,7 +807,7 @@ const AddStackModal = ({
                                         rows="3"
                                         placeholder="The answer... "
                                         value={card.answer.text}
-                                        onChange={(e) => handleUpdateCard(card.id, 'answer', { ...card.answer, text: e.target.value })}
+                                        onChange={(e) => handleUpdateCard(card.id, 'answer', { ...card.answer, text: sanitizeText(e.target.value) })}
                                         style={{ paddingRight: '30px', resize: 'vertical' }}
                                     />
                                     <span style={{

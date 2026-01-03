@@ -143,10 +143,12 @@ const DemoReviewModal = ({ onClose, onLogin }) => {
 
     const calculateResults = (finalRatings) => {
         const ratingValues = Object.values(finalRatings);
-        const avg = (ratingValues.reduce((a, b) => a + b, 0) / ratingValues.length).toFixed(1);
-        const lowRatedCards = studyCards.filter(card => finalRatings[card.id] < 5);
+        const totalMarks = ratingValues.reduce((a, b) => a + b, 0);
+        const maxPossibleMarks = studyCards.length * 2;
+        const avg = (totalMarks / studyCards.length).toFixed(1);
+        const lowRatedCards = studyCards.filter(card => finalRatings[card.id] < 2);
 
-        setSessionResult({ avg, lowRatedCards });
+        setSessionResult({ avg, totalMarks, maxPossibleMarks, lowRatedCards });
         playCompletion();
 
         if (lowRatedCards.length === 0) {
@@ -202,9 +204,9 @@ const DemoReviewModal = ({ onClose, onLogin }) => {
                     <h2 style={{ fontSize: '1.8rem' }}>Study Summary</h2>
 
                     <div className="neo-flat" style={{ padding: '1.5rem', borderRadius: '24px' }}>
-                        <div style={{ fontSize: '0.9rem', opacity: 0.6, marginBottom: '0.5rem', fontWeight: 'bold' }}>SESSION SCORE</div>
+                        <div style={{ fontSize: '0.9rem', opacity: 0.6, marginBottom: '0.5rem', fontWeight: 'bold' }}>SESSION MARKS</div>
                         <div style={{ fontSize: '3rem', fontWeight: 'bold', color: 'var(--accent-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
-                            <Star size={40} fill="var(--star-color)" color="var(--star-color)" /> {sessionResult.avg}
+                            {sessionResult.totalMarks} <span style={{ fontSize: '1.5rem', opacity: 0.5 }}>/ {sessionResult.maxPossibleMarks}</span>
                         </div>
                     </div>
 
@@ -271,7 +273,7 @@ const DemoReviewModal = ({ onClose, onLogin }) => {
 
                     {/* Card Flip Content */}
                     <div
-                        style={{ perspective: '1000px', height: '320px', cursor: 'pointer', position: 'relative' }}
+                        style={{ perspective: '1000px', height: '380px', cursor: 'pointer', position: 'relative' }}
                         onClick={() => {
                             if (isFlipped) {
                                 setIsFlipped(false);
@@ -395,29 +397,84 @@ const DemoReviewModal = ({ onClose, onLogin }) => {
                         </div>
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', position: 'relative' }}>
-                            <p style={{ fontSize: '1rem', fontWeight: '600', margin: 0, opacity: 0.8 }}>Rate your answer to show next.</p>
+                            <div className="neo-flat" style={{ padding: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', borderRadius: '16px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+                                    <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'var(--accent-color)', opacity: 0.6 }} />
+                                    <span style={{ fontSize: '0.85rem', fontWeight: 'bold', opacity: 0.7 }}>
+                                        SELECT WHAT MATCHES YOUR ANSWER
+                                    </span>
+                                </div>
+                                <div style={{ display: 'flex', gap: '0.8rem' }}>
+                                    {recordedAudio && (
+                                        <button
+                                            className="neo-button icon-btn"
+                                            onClick={toggleRecordedPlayback}
+                                            style={{ color: 'var(--accent-color)', width: '32px', height: '32px' }}
+                                        >
+                                            {isPlayingRecorded ? <Square size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
 
-                            <div style={{ display: 'flex', gap: '8px', zIndex: 20 }}>
-                                {[1, 2, 3, 4, 5].map((star) => (
-                                    <button
-                                        key={star}
-                                        className={`neo-button icon-btn`}
-                                        style={{ width: '45px', height: '45px' }}
-                                        onClick={(e) => { e.stopPropagation(); handleRating(star); }}
-                                    >
-                                        <Star size={22} fill={star <= rating ? 'var(--star-color)' : 'none'} color={star <= rating ? 'var(--star-color)' : 'currentColor'} />
-                                    </button>
-                                ))}
+                            <div style={{ display: 'flex', flexDirection: 'row', gap: '8px', zIndex: 20, width: '100%', justifyContent: 'center', flexWrap: 'wrap' }}>
+                                <button
+                                    className="neo-button"
+                                    style={{
+                                        flex: 1, flexDirection: 'column', padding: '10px 5px',
+                                        background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca',
+                                        minWidth: '70px'
+                                    }}
+                                    onClick={(e) => { e.stopPropagation(); handleRating(-1); }}
+                                >
+                                    <span style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>Wrong</span>
+                                </button>
+
+                                <button
+                                    className="neo-button"
+                                    style={{
+                                        flex: 1, flexDirection: 'column', padding: '10px 5px',
+                                        background: '#f3f4f6', color: '#4b5563', border: '1px solid #e5e7eb',
+                                        minWidth: '70px'
+                                    }}
+                                    onClick={(e) => { e.stopPropagation(); handleRating(0); }}
+                                >
+                                    <span style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>Unsure</span>
+                                </button>
+
+                                <button
+                                    className="neo-button"
+                                    style={{
+                                        flex: 1, flexDirection: 'column', padding: '10px 5px',
+                                        background: '#e0f2fe', color: '#0284c7', border: '1px solid #bae6fd',
+                                        minWidth: '70px'
+                                    }}
+                                    onClick={(e) => { e.stopPropagation(); handleRating(1); }}
+                                >
+                                    <span style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>Partly</span>
+                                </button>
+
+                                <button
+                                    className="neo-button"
+                                    style={{
+                                        flex: 1, flexDirection: 'column', padding: '10px 5px',
+                                        background: '#dcfce7', color: '#16a34a', border: '1px solid #bbf7d0',
+                                        minWidth: '70px'
+                                    }}
+                                    onClick={(e) => { e.stopPropagation(); handleRating(2); }}
+                                >
+                                    <span style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>By heart</span>
+                                </button>
                             </div>
 
                             {/* Tooltip for rating - Only show instruction for first card in demo */}
-                            {(isFirstCard || recordedAudio) && (
+                            {isFirstCard && (
                                 <div className="neo-flat" style={{
                                     padding: '0.8rem 1.2rem',
                                     borderRadius: '12px',
                                     display: 'flex',
                                     alignItems: 'center',
-                                    justifyContent: isFirstCard ? 'flex-start' : 'center',
+                                    justifyContent: 'flex-start',
                                     gap: '10px',
                                     background: 'var(--bg-color)',
                                     border: '1px solid var(--accent-color)',
@@ -425,35 +482,21 @@ const DemoReviewModal = ({ onClose, onLogin }) => {
                                     marginTop: '10px'
                                 }}>
                                     {/* Up Arrow */}
-                                    {isFirstCard && (
-                                        <div style={{
-                                            position: 'absolute',
-                                            top: '-6px',
-                                            left: '50%',
-                                            transform: 'translateX(-50%) rotate(45deg)',
-                                            width: '10px',
-                                            height: '10px',
-                                            background: 'var(--bg-color)',
-                                            borderLeft: '1px solid var(--accent-color)',
-                                            borderTop: '1px solid var(--accent-color)'
-                                        }}></div>
-                                    )}
+                                    <div style={{
+                                        position: 'absolute',
+                                        top: '-6px',
+                                        left: '50%',
+                                        transform: 'translateX(-50%) rotate(45deg)',
+                                        width: '10px',
+                                        height: '10px',
+                                        background: 'var(--bg-color)',
+                                        borderLeft: '1px solid var(--accent-color)',
+                                        borderTop: '1px solid var(--accent-color)'
+                                    }}></div>
 
-                                    {isFirstCard && (
-                                        <p style={{ opacity: 0.9, fontSize: '0.9rem', fontWeight: '500', margin: 0, color: 'var(--accent-color)' }}>
-                                            Rating tells the app what you found difficult. Be honest. This helps you revise better.
-                                        </p>
-                                    )}
-
-                                    {recordedAudio && (
-                                        <button
-                                            className="neo-button icon-btn"
-                                            onClick={toggleRecordedPlayback}
-                                            style={{ width: '28px', height: '28px', background: 'var(--accent-soft)', color: 'var(--accent-color)', borderRadius: '50%', flexShrink: 0 }}
-                                        >
-                                            {isPlayingRecorded ? <Square size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" />}
-                                        </button>
-                                    )}
+                                    <p style={{ opacity: 0.9, fontSize: '0.9rem', fontWeight: '500', margin: 0, color: 'var(--accent-color)' }}>
+                                        Rating tells the app what you found difficult. Be honest. This helps you revise better.
+                                    </p>
                                 </div>
                             )}
                         </div>

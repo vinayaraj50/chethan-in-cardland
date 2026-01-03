@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { Home as HomeIcon, Plus, Menu, X, LogOut, Trash2, Sun, Moon, Share2, Copy, Github, Maximize, Minimize } from 'lucide-react';
+import { Home as HomeIcon, Plus, Menu, X, LogOut, Trash2, Sun, Moon, Share2, Copy, Maximize, Minimize } from 'lucide-react';
 import { initGoogleAuth, signIn, signOut } from './services/googleAuth';
 import { listStacks, saveStack, deleteStack, deleteAllData, getFileContent } from './services/googleDrive';
+import { getUserProfile, saveUserProfile, checkDailyLogin } from './services/userProfile';
 
 // Components
 import logo from './assets/logo.png';
@@ -15,11 +16,16 @@ import FeedbackModal from './components/FeedbackModal';
 import KnowMoreModal from './components/KnowMoreModal';
 import { loadPicker, showPicker } from './services/googlePicker';
 import LandingPage from './components/LandingPage';
-import AdPopup from './components/AdPopup';
 import ImportantNotePopup from './components/ImportantNotePopup';
-import defaultAdImage from './assets/default_ad.png';
-import { DEMO_STACK } from './constants/demoData';
+import CoinsDisplay from './components/CoinsDisplay';
+import ReferralModal from './components/ReferralModal';
 import AdminPanel from './components/AdminPanel';
+import CoinPurchaseModal from './components/CoinPurchaseModal';
+import LoginPromptModal from './components/LoginPromptModal';
+import { DEMO_STACK } from './constants/data';
+
+
+
 
 // Environment Variables
 const PUBLIC_FOLDER_ID = import.meta.env.VITE_PUBLIC_FOLDER_ID;
@@ -27,6 +33,7 @@ const PUBLIC_API_KEY = import.meta.env.VITE_PUBLIC_API_KEY || import.meta.env.VI
 
 const App = () => {
     const [user, setUser] = useState(null);
+    const [userProfile, setUserProfile] = useState(null); // { coins, lastLoginDate, driveFileId, ... }
     const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
     const [stacks, setStacks] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -50,12 +57,15 @@ const App = () => {
     const [showKnowMore, setShowKnowMore] = useState(false);
     const [noteStack, setNoteStack] = useState(null);
 
-    // Ad System States
-    const [showAdPopup, setShowAdPopup] = useState(false);
-    const [adConfig, setAdConfig] = useState(null);
-    const [isInitialAd, setIsInitialAd] = useState(false);
-    const [authIssue, setAuthIssue] = useState(null);
+    const [showReferralModal, setShowReferralModal] = useState(false);
     const [showAdminPanel, setShowAdminPanel] = useState(false);
+    const [showCoinModal, setShowCoinModal] = useState(false);
+
+    // Preview Mode State
+    const [previewSession, setPreviewSession] = useState(null);
+    const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+
+
 
     useEffect(() => {
         document.documentElement.setAttribute('data-theme', theme);
@@ -67,8 +77,16 @@ const App = () => {
         const handleAuthUpdate = (profile) => {
             setUser(profile);
             setShowMenu(false);
-            if (profile) fetchStacks(profile.token);
-            else setStacks([]);
+            setUser(profile);
+            setShowMenu(false);
+            if (profile) {
+                fetchStacks(profile.token);
+                loadUserProfile(profile.token);
+            }
+            else {
+                setStacks([]);
+                setUserProfile(null);
+            }
         };
 
         const interval = setInterval(() => {
@@ -91,6 +109,41 @@ const App = () => {
         }
     }, [user]);
 
+    // Handle Preview Session Resume After Login
+    useEffect(() => {
+        const resumePreviewSession = async () => {
+            if (user && previewSession) {
+                setLoading(true);
+                try {
+                    // Import the stack to user's collection
+                    const newStack = {
+                        ...previewSession.stack,
+                        id: Date.now().toString(),
+                        driveFileId: null,
+                        isPublic: false
+                    };
+                    const result = await saveStack(user.token, newStack);
+                    const importedStack = { ...newStack, driveFileId: result.id };
+                    handleUpdateLocalStack(importedStack);
+
+                    // Resume review with the imported stack
+                    setReviewStack(importedStack);
+
+                    // Clear preview session
+                    setPreviewSession(null);
+                    setNotification({ type: 'alert', message: `"${newStack.title}" added to My Cards!` });
+                } catch (error) {
+                    if (error.message === 'REAUTH_NEEDED') signIn();
+                    else setNotification({ type: 'alert', message: 'Import failed. Please try again.' });
+                    setPreviewSession(null);
+                } finally {
+                    setLoading(false);
+                }
+            }
+        };
+        resumePreviewSession();
+    }, [user]);
+
     // Navigation confirmation logic
     useEffect(() => {
         if (!user) return;
@@ -101,35 +154,59 @@ const App = () => {
                 return '';
             }
         };
-        const handlePopState = (e) => {
-            if (reviewStack || showAddModal) {
-                const message = reviewStack ? "Exit study session?" : "Discard changes?";
-                if (window.confirm(message)) {
-                    setReviewStack(null);
-                    setShowAddModal(false);
-                } else {
-                    window.history.pushState(null, '', window.location.pathname);
-                }
-            }
-        };
-        if (reviewStack || showAddModal) window.history.pushState(null, '', window.location.pathname);
+
         window.addEventListener('beforeunload', handleBeforeUnload);
-        window.addEventListener('popstate', handlePopState);
-        return () => {
-            window.removeEventListener('beforeunload', handleBeforeUnload);
-            window.removeEventListener('popstate', handlePopState);
-        };
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
     }, [user, reviewStack, showAddModal]);
 
-    // Other app logic
+    // Handle Back Button specifically for closing modals
     useEffect(() => {
-        const loadAds = () => {
-            setAdConfig({ mediaType: 'image', mediaData: defaultAdImage, whatsappNumber: '919497449115', maxViews: 9999, isDefault: true });
-            setIsInitialAd(true);
-            setShowAdPopup(true);
-        };
-        loadAds();
-    }, []);
+        if (reviewStack || showAddModal) {
+            // Push state only when a modal opens
+            window.history.pushState({ modal: true }, '', window.location.pathname);
+
+            const handlePopState = (e) => {
+                // User pressed back. Close the modal immediately like the close button.
+                if (reviewStack) {
+                    setReviewStack(null);
+                } else if (showAddModal) {
+                    setShowAddModal(false);
+                }
+            };
+
+            window.addEventListener('popstate', handlePopState);
+            return () => {
+                window.removeEventListener('popstate', handlePopState);
+                // Clean up history state if we close programmatically? 
+                // It's tricky to remove history items. 
+                // Mostly we just let the user navigate forward/back naturally.
+            };
+        }
+    }, [reviewStack !== null, showAddModal]); // Only re-run when open state changes boolean value
+
+    // Other app logic
+    // Other app logic
+    const loadUserProfile = async (token) => {
+        try {
+            let profile = await getUserProfile(token);
+            // Check Daily Login
+            const loginResult = await checkDailyLogin(token, profile);
+            if (loginResult.awarded) {
+                profile = loginResult.newProfile;
+                setTimeout(() => setNotification({ type: 'alert', message: `Daily Login Bonus! +${loginResult.coinsAdded} Coins` }), 1000);
+            }
+            setUserProfile(profile);
+        } catch (e) {
+            console.error("Failed to load profile", e);
+        }
+    };
+
+    const handleUpdateCoins = (newCoins) => {
+        if (!user || !userProfile) return;
+        const updated = { ...userProfile, coins: newCoins };
+        setUserProfile(updated);
+        saveUserProfile(user.token, updated).catch(e => console.error("Failed to save coins", e));
+    };
 
     const fetchPublicStacks = async () => {
         if (!PUBLIC_API_KEY || !PUBLIC_FOLDER_ID) return;
@@ -152,8 +229,8 @@ const App = () => {
     };
 
     useEffect(() => {
-        if (activeTab === 'ready-made' && publicStacks.length === 0) fetchPublicStacks();
-    }, [activeTab]);
+        if (publicStacks.length === 0) fetchPublicStacks();
+    }, []);
 
     const handleImportStack = async (stack) => {
         if (!user) { signIn(); return; }
@@ -169,6 +246,23 @@ const App = () => {
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleLoginRequired = (progress) => {
+        setPreviewSession(progress);
+        setReviewStack(null);
+        setShowLoginPrompt(true);
+    };
+
+    const handleLoginPromptConfirm = () => {
+        setShowLoginPrompt(false);
+        signIn();
+    };
+
+    const handleLoginPromptCancel = () => {
+        setShowLoginPrompt(false);
+        setPreviewSession(null);
+        setReviewStack(null);
     };
 
     const fetchStacks = async (token) => {
@@ -219,6 +313,11 @@ const App = () => {
             <header className="main-header">
                 <img src={logo} alt="Chethan in Cardland" className="app-logo" />
                 <div className="header-actions">
+                    {user && (
+                        <div onClick={() => setShowCoinModal(true)} style={{ cursor: 'pointer' }}>
+                            <CoinsDisplay coins={userProfile?.coins || 0} />
+                        </div>
+                    )}
                     <button className="neo-button icon-btn" onClick={toggleFullscreen}>
                         {isFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
                     </button>
@@ -235,7 +334,20 @@ const App = () => {
                         stacks={user ? getSortedStacks() : [DEMO_STACK]}
                         publicStacks={publicStacks} user={user} onLogin={signIn}
                         loading={loading} publicLoading={publicLoading}
-                        onReview={(s) => s.importantNote ? setNoteStack(s) : setReviewStack(s)}
+                        userCoins={userProfile?.coins || 0}
+                        onReview={(s) => {
+                            // For ready-made stacks without login, allow preview mode
+                            if (!user && s.isPublic) {
+                                setReviewStack(s);
+                                return;
+                            }
+                            // Check coins before review for logged-in users, but skip for public/demo stacks
+                            if (user && !s.isPublic && s.id !== 'demo-stack' && (userProfile?.coins || 0) < 5) {
+                                setNotification({ type: 'alert', message: "Not enough coins! You need 5 coins to review." });
+                                return;
+                            }
+                            s.importantNote ? setNoteStack(s) : setReviewStack(s);
+                        }}
                         onEdit={(s) => { setActiveStack(s); setShowAddModal(true); }}
                         onImport={handleImportStack} searchQuery={searchQuery} setSearchQuery={setSearchQuery}
                         onShowFeedback={() => setShowFeedback(true)} filters={publicFilters} setFilters={setPublicFilters}
@@ -244,22 +356,43 @@ const App = () => {
                     />
                 </main>
 
-                <button
-                    className="neo-button neo-glow-blue fab-add-button"
-                    onClick={() => { if (!user) { signIn(); return; } setActiveStack(null); setShowAddModal(true); }}
-                >
-                    <Plus size={32} />
-                </button>
+                {user && (
+                    <button
+                        className="neo-button neo-glow-blue fab-add-button"
+                        onClick={() => { setActiveStack(null); setShowAddModal(true); }}
+                    >
+                        <Plus size={32} />
+                    </button>
+                )}
 
                 <AnimatePresence>
-                    {noteStack && <ImportantNotePopup stack={noteStack} onStart={() => { setReviewStack(noteStack); setNoteStack(null); }} onClose={() => setNoteStack(null)} />}
+                    {noteStack && <ImportantNotePopup
+                        stack={noteStack}
+                        user={user}
+                        onStart={() => {
+                            if (noteStack.isPublic || noteStack.id === 'demo-stack' || (userProfile?.coins || 0) >= 5) {
+                                setReviewStack(noteStack);
+                                setNoteStack(null);
+                            } else {
+                                setNotification({ type: 'alert', message: "Not enough coins!" });
+                            }
+                        }}
+                        onClose={() => setNoteStack(null)}
+                        onEdit={() => { setActiveStack(noteStack); setNoteStack(null); setShowAddModal(true); }}
+                    />}
                 </AnimatePresence>
             </div>
 
             {showMenu && (
                 <HamburgerMenu
                     user={user} theme={theme} onToggleTheme={handleToggleTheme}
+                    soundsEnabled={soundsEnabled} onToggleSounds={() => setSoundsEnabled(prev => {
+                        const newValue = !prev;
+                        localStorage.setItem('soundsEnabled', newValue);
+                        return newValue;
+                    })}
                     onShowFeedback={() => { setShowMenu(false); setShowFeedback(true); }}
+                    onShowReferral={() => { setShowMenu(false); setShowReferralModal(true); }}
                     onClose={() => setShowMenu(false)} onLogout={() => signOut(setUser)} onLogin={signIn}
                     onShowAdminPanel={() => { setShowMenu(false); setShowAdminPanel(true); }}
                 />
@@ -282,7 +415,19 @@ const App = () => {
                     stack={reviewStack} user={user} onClose={() => setReviewStack(null)}
                     onUpdate={(upd) => handleUpdateLocalStack(upd)}
                     onEdit={() => { setActiveStack(reviewStack); setReviewStack(null); setShowAddModal(true); }}
-                    showAlert={(msg) => setNotification({ type: 'alert', message: msg })}
+                    onDuplicate={handleImportStack}
+                    showAlert={(notificationObj) => {
+                        if (typeof notificationObj === 'string') {
+                            setNotification({ type: 'alert', message: notificationObj });
+                        } else {
+                            setNotification(notificationObj);
+                        }
+                    }}
+                    userCoins={userProfile?.coins || 0}
+                    onDeductCoins={(amount) => handleUpdateCoins((userProfile?.coins || 0) - amount)}
+                    isPreviewMode={!user && reviewStack.isPublic}
+                    onLoginRequired={handleLoginRequired}
+                    previewProgress={previewSession}
                 />
             )}
 
@@ -298,7 +443,15 @@ const App = () => {
             {showFeedback && <FeedbackModal user={user} onClose={() => setShowFeedback(false)} showAlert={(m) => setNotification({ type: 'alert', message: m })} />}
             <KnowMoreModal isOpen={showKnowMore} onClose={() => setShowKnowMore(false)} onLogin={() => { setShowKnowMore(false); signIn(); }} />
 
-            <AdPopup isOpen={showAdPopup} onClose={() => setShowAdPopup(false)} adConfig={adConfig} isInitialAd={isInitialAd} authIssue={authIssue} user={user} />
+            {showReferralModal && (
+                <ReferralModal
+                    user={user}
+                    userProfile={userProfile}
+                    onClose={() => setShowReferralModal(false)}
+                    onUpdateProfile={(upd) => { setUserProfile(upd); saveUserProfile(user.token, upd); }}
+                    showAlert={(m) => setNotification({ type: 'alert', message: m })}
+                />
+            )}
 
             {showAdminPanel && user?.email === 'chethanincardland@gmail.com' && (
                 <AdminPanel
@@ -307,6 +460,26 @@ const App = () => {
                     publicFolderId={PUBLIC_FOLDER_ID}
                     showAlert={(m) => setNotification({ type: 'alert', message: m })}
                     showConfirm={(m, c) => setNotification({ type: 'confirm', message: m, onConfirm: c })}
+                />
+            )}
+
+            {showCoinModal && (
+                <CoinPurchaseModal
+                    userCoins={userProfile?.coins || 0}
+                    onClose={() => setShowCoinModal(false)}
+                    onShare={() => {
+                        setShowCoinModal(false);
+                        setShowReferralModal(true);
+                    }}
+                />
+            )}
+
+            {showLoginPrompt && previewSession && (
+                <LoginPromptModal
+                    onLogin={handleLoginPromptConfirm}
+                    onCancel={handleLoginPromptCancel}
+                    cardsReviewed={previewSession.sessionRatings?.length || 0}
+                    totalCards={previewSession.stack?.cards?.length || 0}
                 />
             )}
         </div>

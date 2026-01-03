@@ -133,15 +133,15 @@ const AudioPlayer = ({ audioData }) => {
     );
 };
 
-const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, showAlert }) => {
+const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, showAlert, userCoins, onDeductCoins, isPreviewMode = false, onLoginRequired, previewProgress = null }) => {
     // Check if there are any previous ratings to decide initial mode
     const hasPreviousRatings = stack.cards.some(card => card.lastRating !== undefined);
 
     const [showModeSelection, setShowModeSelection] = useState(hasPreviousRatings);
-    const [currentIndex, setCurrentIndex] = useState(0);
+    const [currentIndex, setCurrentIndex] = useState(previewProgress?.currentIndex || 0);
     const [isFlipped, setIsFlipped] = useState(false);
     const [rating, setRating] = useState(0);
-    const [sessionRatings, setSessionRatings] = useState([]);
+    const [sessionRatings, setSessionRatings] = useState(previewProgress?.sessionRatings || []);
     const [studyCards, setStudyCards] = useState(hasPreviousRatings ? [] : stack.cards);
     const [sessionResult, setSessionResult] = useState(null);
     const [viewingImage, setViewingImage] = useState(null);
@@ -151,6 +151,20 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
     const recordedAudioRef = useRef(null);
     const mediaRecorderRef = useRef(null);
     const chunksRef = useRef([]);
+
+    // Coin Logic
+    const [reviewedCountSession, setReviewedCountSession] = useState(0);
+
+    // Preview Mode Logic
+    const previewLimit = isPreviewMode ? Math.floor(stack.cards.length / 2) : stack.cards.length;
+
+    //SRS Intervals (Days): 1, 3, 7, 30, 30...
+    const getNextInterval = (currentStage) => {
+        const stages = [1, 3, 7, 30]; // Day 1, Day 3, Day 7, Day 30
+        if (currentStage >= stages.length - 1) return 30; // Every 30 days after
+        return stages[currentStage + 1];
+    };
+
 
     useEffect(() => {
         // Cleanup recorded audio on unmount
@@ -251,26 +265,54 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
         const isLast = currentIndex === studyCards.length - 1;
 
         if (isLast) {
-            const sum = newRatings.reduce((a, b) => a + b, 0);
-            const avg = (sum / newRatings.length).toFixed(1);
-            const allFiveStars = newRatings.every(r => r === 5);
-            const lowRatedCards = studyCards.filter((_, idx) => newRatings[idx] < 5);
+            // Marks Calculation
+            const totalMarks = newRatings.reduce((a, b) => a + b, 0);
+            const maxPossibleMarks = studyCards.length * 2;
+            const avg = (totalMarks / studyCards.length).toFixed(1); // Keep avg for internal logic mostly, or just use marks
+
+            // Adjust "All Correct" logic to be "Full Marks"
+            const fullMarks = totalMarks === maxPossibleMarks;
+            const lowRatedCards = studyCards.filter((_, idx) => newRatings[idx] < 2); // < 2 means not "By heart"
 
             // Show summary immediately
-            setSessionResult({ avg, allFiveStars, lowRatedCards });
+            setSessionResult({
+                avg,
+                totalMarks,
+                maxPossibleMarks,
+                fullMarks,
+                lowRatedCards
+            });
             playCompletion();
-            if (allFiveStars) {
+
+            if (fullMarks) {
                 confetti({
                     particleCount: 200,
                     spread: 160,
                     origin: { y: 0.6 },
-                    colors: ['#FFD700', '#FF4500', '#00FF7F', '#00BFFF', '#FF1493'], // Richer vibrant colors
-                    zIndex: 2001, // Ensure it's on top of the modal (modal is 2000)
-                    scalar: 1.2, // Slightly larger
+                    colors: ['#FFD700', '#FF4500', '#00FF7F', '#00BFFF', '#FF1493'],
+                    zIndex: 2001,
+                    scalar: 1.2,
                     drift: 0.5,
                     gravity: 1.1,
                     decay: 0.92
                 });
+            }
+
+            // DO NOT update SRS or Last Reviewed if it's a prompt for weak cards
+            // Check if we are reviewing the full stack or just a subset (weak cards)
+            // A simple heuristic is: if studyCards.length < stack.cards.length, it's a partial review.
+            // Or passing a flag. But "Focus on weak cards" definitely limits the set.
+            // Wait, "difficult" mode earlier also limits it.
+            // Requirement: "Dont count as another review if user uses ' focus on weak cards' button of the 'study summary' popup."
+            // This button calls `restartSession(sessionResult.lowRatedCards)`.
+            // So if `studyCards.length !== stack.cards.length`, we skip SRS update? 
+            // Validating against `stack.cards.length` is decent, assuming deck isn't 1 card.
+            // Alternatively, check if we are in a "re-study" mode.
+            // But simpler: if (studyCards.length < stack.cards.length), do not save SRS.
+
+            if (studyCards.length < stack.cards.length) {
+                // Partial review (weak cards or difficult mode), do NOT update SRS stats
+                return;
             }
 
             // Update individual card ratings in the original stack
@@ -293,12 +335,38 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                 return card;
             });
 
+            // Calculate SRS for the Stack
+            const currentStage = stack.reviewStage || -1;
+            let nextReviewDate = new Date();
+            let nextStage = currentStage;
+
+            // New Threshold: Avg >= 1.5 (Mostly 'By heart' or 'Partly')
+            if (avg >= 1.5) {
+                // Success: Advance stage
+                nextStage = currentStage + 1;
+                const daysToAdd = getNextInterval(nextStage); // Use NEXT stage for interval
+                nextReviewDate.setDate(nextReviewDate.getDate() + daysToAdd);
+            } else {
+                // Fail: Review immediately (Today)
+                // "try agin the ltough cards immediately aafter a review"
+                // nextReviewDate stays as NOW
+                nextStage = -1; // Reset to beginning (-1 assumes first review puts it to 0? Or 0 puts it to 1?)
+                // If stages are 0 index based: [1d, 3d, 7d, 30d]
+                // First successful review -> stage 0 (1 day wait)
+                // Second -> stage 1 (3 days)
+                // If fail, reset to -1 so next success goes to 0 (1 day).
+            }
+
+
             // Save in background only if owned by me
             const updatedStack = {
                 ...stack,
                 cards: updatedCards,
-                avgRating: avg,
-                lastReviewed: new Date().toLocaleDateString()
+                lastMarks: totalMarks,
+                cardsCountAtLastReview: studyCards.length,
+                lastReviewed: new Date().toLocaleDateString(),
+                nextReview: nextReviewDate.toISOString(),
+                reviewStage: nextStage
             };
 
             if (stack.ownedByMe) {
@@ -307,8 +375,9 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                         onUpdate(updatedStack);
                     })
                     .catch((error) => {
-                        // SECURITY FIX (VULN-006): Don't log error details
-                        showAlert('Save failed, but your session is complete.');
+                        // SECURITY FIX (VULN-006): Don't log error details to user
+                        console.warn('Background save failed', error);
+                        // showAlert('Save failed, but your session is complete.'); // Suppressed per user request to "fix" the interruption
                     });
             } else {
                 onUpdate(updatedStack);
@@ -338,6 +407,88 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
     const handleRating = (val) => {
         playTing();
         setRating(val);
+
+        // Preview Limit Logic (10 cards)
+        // Applies if user is NOT owner (public/demo) OR user is guest
+        // Requirement: "Make the first 10 flashcard preview free in all stacks."
+        // "If user is not logged in, ask to login to continue before 11th card."
+        // "If user logged in and is previewing the ready-made cards, ask to add to 'my cards' to continue."
+
+        const isPublicOrDemo = stack.isPublic || stack.id === 'demo-stack';
+        const isOwnedByMe = stack.ownedByMe;
+
+        // If it's a stack I don't own (public preview), apply limit
+        if (isPublicOrDemo && !isOwnedByMe) {
+            // Check if next card would exceed limit (index 9 is 10th card, so next index 10 is 11th)
+            const nextIndex = currentIndex + 1;
+            const limit = 10;
+
+            if (nextIndex >= limit) {
+                if (!user) {
+                    // Guest -> trigger login
+                    if (onLoginRequired) {
+                        onLoginRequired({
+                            stack,
+                            currentIndex: nextIndex,
+                            sessionRatings: [...sessionRatings, val]
+                        });
+                    }
+                    return;
+                } else {
+                    // Logged in -> ask to add to my cards
+                    // Trigger a confirm dialog
+                    if (onUpdate) { // Re-using onUpdate as a signal or need a new callback? 
+                        // App.jsx needs to handle this. Let's use showAlert with confirm logic or a custom callback if available.
+                        // Actually, simpler to just use the existing `onDuplicate` logic but forced?
+                        // Or pass a new callback `onLimitReached`.
+                        // Since I can't easily add a new prop to App.jsx without editing it too (which I will), let's call `onDuplicate` for now?
+                        // No, `onDuplicate` copies it. 
+                        // I'll emit a special event via existing props or just show a blocking alert that they need to add it.
+                        // Better yet, I'll update App.jsx to pass `onAddToLibrary`.
+                        // For now, assume a prop `onAddToLibrary` exists or I'll implement it.
+                        showAlert({
+                            type: 'confirm',
+                            message: "You've reached the preview limit. Add this stack to 'My Cards' to continue?",
+                            onConfirm: () => {
+                                if (onDuplicate) onDuplicate(stack); // This handles the import/copy
+                                onClose(); // Close this modal so they can open the new one or it auto-opens?
+                                // Ideally, onDuplicate handles the flow.
+                            }
+                        });
+                        return;
+                    }
+                }
+            }
+        }
+
+        /* 
+        Original logic replaced with simpler checked limits above.
+        // Check if we've reached preview limit BEFORE processing the rating
+        if (isPreviewMode && sessionRatings.length + 1 >= previewLimit) {
+            // User has reached the preview limit, trigger login
+            if (onLoginRequired) {
+                onLoginRequired({
+                    stack,
+                    currentIndex: currentIndex + 1, // Next card index
+                    sessionRatings: [...sessionRatings, val]
+                });
+            }
+            return;
+        }
+        */
+
+        // Coin Deduction Logic: Deduct 5 coins every 3 cards
+        // But NOT for Demo stack (id: 'demo-stack') or public/ready-made stacks
+        if (!isPreviewMode && stack.id !== 'demo-stack' && !stack.isPublic) {
+            setReviewedCountSession(prev => {
+                const newCount = prev + 1;
+                if (newCount % 3 === 0 && onDeductCoins) {
+                    onDeductCoins(5);
+                }
+                return newCount;
+            });
+        }
+
         setTimeout(() => handleNext(val), 500);
     };
 
@@ -351,7 +502,7 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
         }
     };
 
-    const difficultCardsCount = stack.cards.filter(c => c.lastRating !== undefined && c.lastRating < 4).length;
+    const difficultCardsCount = stack.cards.filter(c => c.lastRating !== undefined && c.lastRating < 2).length;
 
     return (
         <div className="modal-overlay" style={{
@@ -409,7 +560,7 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                                     <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>Review Difficult Only</div>
                                     <div style={{ fontSize: '0.85rem', opacity: 0.6 }}>
                                         {difficultCardsCount > 0
-                                            ? `Focus on the ${difficultCardsCount} cards you struggled with`
+                                            ? `Focus on the ${difficultCardsCount} cards you didn't know by heart`
                                             : "No difficult cards found"}
                                     </div>
                                 </div>
@@ -441,13 +592,14 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                         <h2 style={{ fontSize: '1.8rem' }}>Study Summary</h2>
 
                         <div className="neo-flat" style={{ padding: '1.5rem', borderRadius: '24px' }}>
-                            <div style={{ fontSize: '0.9rem', opacity: 0.6, marginBottom: '0.5rem', fontWeight: 'bold' }}>SESSION SCORE</div>
+                            <div style={{ fontSize: '0.9rem', opacity: 0.6, marginBottom: '0.5rem', fontWeight: 'bold' }}>SESSION MARKS</div>
                             <div style={{ fontSize: '3rem', fontWeight: 'bold', color: 'var(--accent-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
-                                <Star size={40} fill="var(--star-color)" color="var(--star-color)" /> {sessionResult.avg}
+                                {/* <Star size={40} fill="#3b82f6" color="#3b82f6" /> {sessionResult.avg} */}
+                                {sessionResult.totalMarks} <span style={{ fontSize: '1.5rem', opacity: 0.5 }}>/ {sessionResult.maxPossibleMarks}</span>
                             </div>
                         </div>
 
-                        {sessionResult.allFiveStars ? (
+                        {sessionResult.fullMarks ? (
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem', width: '100%' }}>
                                 <motion.img
                                     src={congratulationsImg}
@@ -466,19 +618,26 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                                 </div>
                             </div>
                         ) : (
-                            <p style={{ opacity: 0.7, fontWeight: '500' }}>Great progress! Regular practice is the key to mastery.</p>
+                            <div style={{ padding: '1rem', background: 'rgba(59, 130, 246, 0.1)', borderRadius: '16px', border: '1px solid #3b82f6' }}>
+                                <p style={{ fontWeight: 'bold', color: '#1d4ed8', marginBottom: '0.5rem', fontSize: '1.1rem' }}>Don't give up!</p>
+                                <p style={{ opacity: 0.8, fontSize: '0.95rem' }}>Mastery takes patience. <br />Why not try the tough cards again right now?</p>
+                            </div>
                         )}
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '0.5rem' }}>
-                            <button className="neo-button" style={{ justifyContent: 'center', background: 'var(--accent-color)', color: 'white', border: 'none', padding: '1rem' }} onClick={() => restartSession(stack.cards)}>
-                                Try All Cards Again
-                            </button>
-
-                            {!sessionResult.allFiveStars && (
-                                <button className="neo-button" style={{ justifyContent: 'center', padding: '1rem' }} onClick={() => restartSession(sessionResult.lowRatedCards)}>
-                                    Focus on Difficult Cards ({sessionResult.lowRatedCards.length})
+                            {!sessionResult.fullMarks && (
+                                <button className="neo-button"
+                                    style={{ justifyContent: 'center', background: 'var(--accent-color)', color: 'white', border: 'none', padding: '1rem' }}
+                                    onClick={() => restartSession(sessionResult.lowRatedCards)}>
+                                    Focus on Weak Cards ({sessionResult.lowRatedCards.length})
                                 </button>
                             )}
+
+                            <button className="neo-button"
+                                style={{ justifyContent: 'center', padding: '1rem', background: sessionResult.fullMarks ? 'var(--accent-color)' : 'transparent', color: sessionResult.fullMarks ? 'white' : 'inherit', border: sessionResult.fullMarks ? 'none' : '1px solid var(--border-color)' }}
+                                onClick={() => restartSession(stack.cards)}>
+                                Try All Cards Again
+                            </button>
 
                             <button className="neo-button" style={{ justifyContent: 'center', padding: '1rem', opacity: 0.7 }} onClick={onClose}>
                                 Done for now
@@ -493,13 +652,13 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                             <div className="neo-button" style={{ padding: '8px 15px', fontSize: '0.9rem' }}>
                                 {currentIndex + 1} / {studyCards.length}
                             </div>
+                            <div style={{ flex: 1 }} />
                             <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                {(!stack.isPublic || user?.email === 'chethanincardland@gmail.com') && (
-                                    <>
-                                        <button className="neo-button icon-btn" onClick={onEdit}><Edit2 size={18} /></button>
-                                        <button className="neo-button icon-btn" title="Download Stack" onClick={handleDownload}><Download size={18} /></button>
-                                        <button className="neo-button icon-btn" title="Duplicate" onClick={() => onDuplicate(stack)}><Copy size={18} /></button>
-                                    </>
+                                {user?.email === 'chethanincardland@gmail.com' && (
+                                    <button className="neo-button icon-btn" title="Download Stack" onClick={handleDownload}><Download size={18} /></button>
+                                )}
+                                {!isPreviewMode && (!stack.isPublic || user?.email === 'chethanincardland@gmail.com') && stack.id !== 'demo-stack' && (
+                                    <button className="neo-button icon-btn" title="Duplicate" onClick={() => onDuplicate(stack)}><Copy size={18} /></button>
                                 )}
                                 <button className="neo-button icon-btn" onClick={onClose}><X size={18} /></button>
                             </div>
@@ -507,7 +666,7 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
 
                         {/* Card Flip Content */}
                         <div
-                            style={{ perspective: '1000px', height: '400px', cursor: 'pointer' }}
+                            style={{ perspective: '1000px', height: '380px', cursor: 'pointer' }}
                             onClick={() => {
                                 if (isFlipped) {
                                     setIsFlipped(false);
@@ -613,7 +772,7 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
 
                                 <button
                                     className="neo-button neo-glow-blue"
-                                    style={{ width: '100%', justifyContent: 'center', padding: '1.2rem', fontSize: '1.1rem', background: 'var(--accent-color)', color: 'white' }}
+                                    style={{ width: '100%', justifyContent: 'center', padding: '1.2rem', fontSize: '1.1rem', background: 'var(--accent-color)', color: 'white', minHeight: '60px' }}
                                     onClick={() => {
                                         playSwoosh();
                                         setIsFlipped(true);
@@ -626,44 +785,76 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                                 </button>
                             </div>
                         ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
-                                <p style={{ fontSize: '1rem', fontWeight: '600', margin: 0, opacity: 0.8 }}>Rate your answer to show next.</p>
-                                <div style={{ display: 'flex', gap: '10px', position: 'relative' }}>
-                                    {[1, 2, 3, 4, 5].map((star) => (
-                                        <button
-                                            key={star}
-                                            className={`neo-button icon-btn`}
-                                            style={{ width: '50px', height: '50px' }}
-                                            onClick={(e) => { e.stopPropagation(); handleRating(star); }}
-                                        >
-                                            <Star size={24} fill={star <= rating ? 'var(--star-color)' : 'none'} color={star <= rating ? 'var(--star-color)' : 'currentColor'} />
-                                        </button>
-                                    ))}
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', width: '100%', minHeight: '80px', justifyContent: 'center' }}>
+                                <div className="neo-flat" style={{ padding: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', borderRadius: '16px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+                                        <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'var(--accent-color)', opacity: 0.6 }} />
+                                        <span style={{ fontSize: '0.85rem', fontWeight: 'bold', opacity: 0.7 }}>
+                                            SELECT WHAT MATCHES YOUR ANSWER
+                                        </span>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '0.8rem' }}>
+                                        {recordedAudio && (
+                                            <button
+                                                className="neo-button icon-btn"
+                                                onClick={toggleRecordedPlayback}
+                                                style={{ color: 'var(--accent-color)', width: '32px', height: '32px' }}
+                                            >
+                                                {isPlayingRecorded ? <Square size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'row', gap: '10px', width: '100%', justifyContent: 'center' }}>
+                                    <button
+                                        className="neo-button"
+                                        style={{
+                                            flex: 1, flexDirection: 'column', padding: '12px 5px',
+                                            background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca',
+                                            minWidth: '60px'
+                                        }}
+                                        onClick={(e) => { e.stopPropagation(); handleRating(-1); }}
+                                    >
+                                        <span style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>Wrong</span>
+                                    </button>
+
+                                    <button
+                                        className="neo-button"
+                                        style={{
+                                            flex: 1, flexDirection: 'column', padding: '12px 5px',
+                                            background: '#f3f4f6', color: '#4b5563', border: '1px solid #e5e7eb',
+                                            minWidth: '60px'
+                                        }}
+                                        onClick={(e) => { e.stopPropagation(); handleRating(0); }}
+                                    >
+                                        <span style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>Unsure</span>
+                                    </button>
+
+                                    <button
+                                        className="neo-button"
+                                        style={{
+                                            flex: 1, flexDirection: 'column', padding: '12px 5px',
+                                            background: '#e0f2fe', color: '#0284c7', border: '1px solid #bae6fd',
+                                            minWidth: '60px'
+                                        }}
+                                        onClick={(e) => { e.stopPropagation(); handleRating(1); }}
+                                    >
+                                        <span style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>Partly</span>
+                                    </button>
+
+                                    <button
+                                        className="neo-button"
+                                        style={{
+                                            flex: 1, flexDirection: 'column', padding: '12px 5px',
+                                            background: '#dcfce7', color: '#16a34a', border: '1px solid #bbf7d0',
+                                            minWidth: '60px'
+                                        }}
+                                        onClick={(e) => { e.stopPropagation(); handleRating(2); }}
+                                    >
+                                        <span style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>By heart</span>
+                                    </button>
                                 </div>
 
-                                {/* Audio Playback - Only if recorded */}
-                                {recordedAudio && (
-                                    <div className="neo-flat" style={{
-                                        padding: '0.8rem 1.2rem',
-                                        borderRadius: '12px',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        gap: '10px',
-                                        background: 'var(--bg-color)',
-                                        border: '1px solid var(--accent-color)',
-                                        position: 'relative',
-                                        marginTop: '10px'
-                                    }}>
-                                        <button
-                                            className="neo-button icon-btn"
-                                            onClick={toggleRecordedPlayback}
-                                            style={{ width: '28px', height: '28px', background: 'var(--accent-soft)', color: 'var(--accent-color)', borderRadius: '50%', flexShrink: 0 }}
-                                        >
-                                            {isPlayingRecorded ? <Square size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" />}
-                                        </button>
-                                    </div>
-                                )}
                             </div>
                         )}
                     </div>

@@ -82,7 +82,7 @@ export const getPublicFileContent = async (apiKey, fileId) => {
         const contentType = response.headers.get("content-type");
 
         if (response.ok && contentType && contentType.includes("application/json")) {
-            console.log("Found local stack file!");
+            // console.log("Found local stack file!");
             return await response.json();
         }
     } catch (e) {
@@ -91,7 +91,7 @@ export const getPublicFileContent = async (apiKey, fileId) => {
 
     // 2. Google Apps Script Proxy (Scalable Solution)
     // Fetches directly from Drive using the owner's permission, bypassing CORS/Auth issues.
-    console.log(`Fetching ${fileId} via Apps Script Proxy...`);
+    // console.log(`Fetching ${fileId} via Apps Script Proxy...`);
 
     try {
         const response = await fetch(`${APPS_SCRIPT_URL}?id=${fileId}`);
