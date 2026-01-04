@@ -148,6 +148,7 @@ const AddStackModal = ({
     const [syllabus, setSyllabus] = useState(stack?.syllabus || (stack ? '' : (defaultMetadata?.syllabus || '')));
     const [medium, setMedium] = useState(stack?.medium || (stack ? '' : (defaultMetadata?.medium || '')));
     const [subject, setSubject] = useState(stack?.subject || (stack ? '' : (defaultMetadata?.subject || '')));
+    const [cost, setCost] = useState(stack?.cost || 0);
     const [isPublishing, setIsPublishing] = useState(activeTab === 'ready-made' && user?.email === ADMIN_EMAIL);
     const [viewingImage, setViewingImage] = useState(null);
     const uploadInputRef = useRef(null);
@@ -307,11 +308,27 @@ const AddStackModal = ({
             owner: user.email,
             avgRating: stack?.avgRating || null,
             lastReviewed: stack?.lastReviewed || null,
+            cost: parseInt(cost) || 0,
         };
 
         try {
             const folderId = isPublishing ? publicFolderId : null;
             const result = await saveStack(user.token, newStack, stack?.driveFileId, folderId);
+
+            // Update public index if needed
+            if ((isPublishing || stack?.isPublic) && user?.email === ADMIN_EMAIL && publicFolderId) {
+                try {
+                    const { updatePublicStackIndex } = await import('../services/adminService');
+                    await updatePublicStackIndex(user.token, publicFolderId, { ...newStack, driveFileId: result.id });
+
+                    // Clear cache for this stack to ensure fresh load
+                    const { clearStackCache } = await import('../services/googleDrive');
+                    clearStackCache(result.id);
+                } catch (e) {
+                    console.error('Index update failed', e);
+                }
+            }
+
             // Passing back the stack with the possibly new driveFileId
             onSave({ ...newStack, driveFileId: result.id }, true, isPublishing);
         } catch (error) {
@@ -625,6 +642,17 @@ const AddStackModal = ({
                                 onChange={setSubject}
                                 placeholder="Select Subject"
                             />
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                                <label style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase' }}>Cost (Coins)</label>
+                                <input
+                                    type="number"
+                                    className="neo-input"
+                                    value={cost}
+                                    onChange={(e) => setCost(e.target.value)}
+                                    placeholder="0 for free"
+                                    style={{ padding: '10px 12px' }}
+                                />
+                            </div>
                         </div>
 
                         <label style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '1rem', cursor: 'pointer', padding: '0.5rem', borderRadius: '8px', background: isPublishing ? 'var(--accent-soft)' : 'transparent' }}>

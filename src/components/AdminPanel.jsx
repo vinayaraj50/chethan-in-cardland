@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import CloseButton from './common/CloseButton';
 import { X, Upload, Trash2, RefreshCw, Search, User, Database, Zap, ChevronDown, Edit2, Copy } from 'lucide-react';
-import { getUsersData, getUserStats, sortUsers } from '../services/adminService';
+import { getUsersData, getUserStats, sortUsers, rebuildPublicIndex } from '../services/adminService';
 import { parseGeminiOutput } from '../utils/importUtils';
-import { saveStack, saveFile, deleteStack } from '../services/googleDrive';
+import { saveStack, saveFile, deleteStack, listFilesInFolder, getFileContent } from '../services/googleDrive';
 
 const SimpleSelect = ({ label, value, options, onChange }) => (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
@@ -162,6 +162,20 @@ const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolder
                 setLoading(false);
             }
         });
+    };
+
+    const handleRebuildIndex = async () => {
+        setLoading(true);
+        try {
+            const count = await rebuildPublicIndex(user.token, publicFolderId);
+            showAlert(`Index rebuilt with ${count} stacks!`);
+            onRefreshPublic();
+        } catch (e) {
+            console.error(e);
+            showAlert('Failed to rebuild index');
+        } finally {
+            setLoading(false);
+        }
     };
 
     const getSortedUsers = () => {
@@ -368,7 +382,10 @@ const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolder
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', padding: '0.75rem', background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0', alignItems: 'flex-end' }}>
                                 <div style={{ flex: '1 1 100px' }}><SimpleSelect label="Class" value={dbFilters.standard} options={[{ label: 'All', value: '' }, ...['V', 'VI', 'VII', 'VIII', 'IX', 'X'].map(s => ({ label: s, value: s }))]} onChange={v => setDbFilters({ ...dbFilters, standard: v })} /></div>
                                 <div style={{ flex: '1 1 100px' }}><SimpleSelect label="Board" value={dbFilters.syllabus} options={[{ label: 'All', value: '' }, ...['NCERT', 'Kerala'].map(s => ({ label: s, value: s }))]} onChange={v => setDbFilters({ ...dbFilters, syllabus: v })} /></div>
-                                <button onClick={onRefreshPublic} style={{ height: '40px', padding: '0 10px', background: '#f1f5f9', border: 'none', borderRadius: '8px', cursor: 'pointer' }}><RefreshCw size={16} /></button>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                    <button onClick={handleRebuildIndex} title="Rebuild Master Index" style={{ height: '40px', padding: '0 10px', background: '#e0f2fe', color: '#0369a1', border: 'none', borderRadius: '8px', cursor: 'pointer' }}><Database size={16} /></button>
+                                    <button onClick={onRefreshPublic} style={{ height: '40px', padding: '0 10px', background: '#f1f5f9', border: 'none', borderRadius: '8px', cursor: 'pointer' }}><RefreshCw size={16} /></button>
+                                </div>
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '0.75rem' }}>
                                 {getFilteredStacks().map(s => (

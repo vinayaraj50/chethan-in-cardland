@@ -3,7 +3,7 @@ import { Layers, Calendar, Star, Plus, Edit2, Coins } from 'lucide-react';
 import { sanitizeStackTitle, validateDataURI } from '../utils/securityUtils';
 import { ADMIN_EMAIL } from '../constants/config';
 
-const StackCard = ({ stack, onReview, onEdit, onImport, user }) => {
+const StackCard = ({ stack, onReview, onEdit, onImport, user, onDelete, showConfirm }) => {
     // SECURITY FIX (VULN-005): Sanitize stack title before using in URL
     // SECURITY FIX (VULN-004): Validate titleImage and card images before using
     const safeTitleForUrl = sanitizeStackTitle(stack.title);
@@ -47,6 +47,24 @@ const StackCard = ({ stack, onReview, onEdit, onImport, user }) => {
                     <Edit2 size={18} color="var(--accent-color)" />
                 </button>
             )}
+
+            <div className="neo-flat" style={{
+                position: 'absolute',
+                top: '12px',
+                left: '12px',
+                zIndex: 2,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                fontSize: '0.8rem',
+                fontWeight: '600',
+                padding: '4px 8px',
+                borderRadius: '12px',
+                opacity: 0.9
+            }}>
+                <Layers size={14} />
+                {stack.cardsCount !== undefined ? stack.cardsCount : (stack.cards?.length || 0)}
+            </div>
             <img
                 src={titleImage}
                 alt={stack.title}
@@ -63,27 +81,11 @@ const StackCard = ({ stack, onReview, onEdit, onImport, user }) => {
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     lineHeight: '1.4',
-                    height: '4.2em'
+                    height: '4.2em',
+                    textAlign: 'center'
                 }} title={stack.title}>{stack.title}</h3>
-                {/* Stats */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.4rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', opacity: 0.6, fontSize: '0.8rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                            <Layers size={14} /> {stack.cards?.length || 0}
-                        </div>
-                    </div>
-
-                    {stack.cost > 0 ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.85rem', color: '#f59e0b', fontWeight: 'bold' }}>
-                            <Coins size={14} /> {stack.cost}
-                        </div>
-                    ) : stack.isPublic && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.85rem', color: '#10b981', fontWeight: 'bold' }}>
-                            Free
-                        </div>
-                    )}
-                </div>
             </div>
+
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', gap: '1rem', paddingTop: '1rem' }}>
                 {stack.isPublic && (
@@ -104,18 +106,40 @@ const StackCard = ({ stack, onReview, onEdit, onImport, user }) => {
                     </button>
                 )}
                 {!stack.isPublic && (
-                    <div className="neo-flat" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.9rem', color: 'var(--accent-color)', padding: '6px 12px', borderRadius: '20px' }}>
-                        <Star size={16} fill="#FFD700" color="#FFD700" />
-                        <span style={{ fontWeight: '600' }}>Marks : {stack.lastMarks !== undefined ? stack.lastMarks : '—'}/{stack.cards ? stack.cards.length * 2 : 0}</span>
+                    <div className="neo-flat" style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.3rem',
+                        fontSize: '0.85rem',
+                        color: 'var(--accent-color)',
+                        padding: '6px 8px',
+                        borderRadius: '12px',
+                        minWidth: '110px',
+                        whiteSpace: 'nowrap'
+                    }}>
+                        <span style={{ fontWeight: '700' }}>Marks : {stack.lastMarks !== undefined ? stack.lastMarks : '—'}/{stack.cards ? stack.cards.length * 2 : 0}</span>
                     </div>
                 )}
-
                 {!stack.isPublic && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', opacity: 0.5 }}>
-                        <Calendar size={14} />
+                    <div style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'flex-end',
+                        gap: '0.1rem',
+                        fontSize: '0.75rem',
+                        opacity: 0.8,
+                        minWidth: '100px',
+                        textAlign: 'right'
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', opacity: 0.7 }}>
+                            <Calendar size={12} />
+                            <span>Review in</span>
+                        </div>
                         <NextReviewDisplay nextReview={stack.nextReview} />
                     </div>
                 )}
+
             </div>
 
             <style>{`
@@ -138,14 +162,14 @@ const NextReviewDisplay = ({ nextReview }) => {
             return { text: `Due: ${absDays} days ago`, isDue: true };
         }
 
-        if (days === 0) return { text: `Next review in : ${hours} hours`, isDue: false };
-        return { text: `Next review in : ${days} days`, isDue: false };
+        if (days === 0) return { text: `${hours} hours`, isDue: false };
+        return { text: `${days} days`, isDue: false };
     };
 
     const { text, isDue } = calculateTimeLeft();
 
     return (
-        <span style={{ color: isDue ? '#ef4444' : 'inherit', fontWeight: isDue ? 'bold' : 'normal' }}>
+        <span style={{ color: isDue ? '#ef4444' : 'inherit', fontWeight: isDue ? '700' : '600', fontSize: isDue ? '0.85rem' : '0.9rem' }}>
             {text}
         </span>
     );

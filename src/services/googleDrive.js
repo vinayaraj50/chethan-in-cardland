@@ -9,6 +9,16 @@ const UPLOAD_API_URL = 'https://www.googleapis.com/upload/drive/v3/files';
 // In-memory cache for file contents to avoid redundant fetches
 const fileContentCache = new Map();
 
+/**
+ * Clear cache for a specific file ID
+ * Used after editing to ensure fresh data is loaded
+ */
+export const clearStackCache = (fileId) => {
+    if (fileId) {
+        fileContentCache.delete(fileId);
+    }
+};
+
 const getHeaders = (token) => ({
     Authorization: `Bearer ${token}`,
     'Content-Type': 'application/json',
@@ -88,6 +98,27 @@ export const listStacks = async (token) => {
     return stacks.filter(stack => stack !== null);
 };
 
+/**
+ * List all files in a specific folder (for Admin Indexing)
+ */
+export const listFilesInFolder = async (token, folderId) => {
+    // Modified query to include the 'trashed = false' check and filter by JSON mimeType
+    const query = `'${folderId}' in parents and mimeType = 'application/json' and trashed = false`;
+    const fields = 'files(id, name, createdTime, modifiedTime)';
+    const url = `${DRIVE_API_URL}?q=${encodeURIComponent(query)}&fields=${fields}&supportsAllDrives=true&includeItemsFromAllDrives=true&spaces=drive`;
+
+    const response = await fetch(url, {
+        headers: getHeaders(token),
+    });
+
+    if (response.status === 401) {
+        throw new Error('REAUTH_NEEDED');
+    }
+
+    const data = await response.json();
+    return data.files || [];
+};
+
 
 
 
@@ -98,7 +129,9 @@ export const listStacks = async (token) => {
  * Get content of a specific file.
  */
 export const getFileContent = async (token, fileId) => {
-    const response = await fetch(`${DRIVE_API_URL}/${fileId}?alt=media`, {
+    // Append timestamp to prevent caching
+    const url = `${DRIVE_API_URL}/${fileId}?alt=media&t=${Date.now()}`;
+    const response = await fetch(url, {
         headers: getHeaders(token),
     });
 

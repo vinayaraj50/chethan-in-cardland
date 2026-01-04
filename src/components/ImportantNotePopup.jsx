@@ -1,10 +1,10 @@
 import React, { useEffect, useRef } from 'react';
 import CloseButton from './common/CloseButton';
-import { Play, X, Edit2 } from 'lucide-react';
+import { Play, X, Edit2, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { ADMIN_EMAIL } from '../constants/config';
 
-const ImportantNotePopup = ({ stack, user, onStart, onClose, onEdit }) => {
+const ImportantNotePopup = ({ stack, user, onStart, onClose, onEdit, onDelete, showConfirm }) => {
     const containerRef = useRef(null);
     const canEdit = user && (stack.ownedByMe || user.email === ADMIN_EMAIL);
 
@@ -42,9 +42,19 @@ const ImportantNotePopup = ({ stack, user, onStart, onClose, onEdit }) => {
                 <h2 style={{ fontSize: window.innerWidth < 768 ? '1.5rem' : '1.8rem', margin: 0 }}>Important Note</h2>
                 <div style={{ display: 'flex', gap: '1rem' }}>
                     {canEdit && (
-                        <button className="neo-button icon-btn" onClick={onEdit} title="Edit Stack">
-                            <Edit2 size={20} />
-                        </button>
+                        <>
+                            <button
+                                className="neo-button icon-btn"
+                                onClick={() => showConfirm(`Delete "${stack.title}"?`, onDelete)}
+                                title="Delete Stack"
+                                style={{ color: '#ef4444' }}
+                            >
+                                <Trash2 size={20} />
+                            </button>
+                            <button className="neo-button icon-btn" onClick={onEdit} title="Edit Stack">
+                                <Edit2 size={20} />
+                            </button>
+                        </>
                     )}
                     <CloseButton onClick={onClose} size={20} />
                 </div>

@@ -138,12 +138,15 @@ const App = () => {
                     // Resume review with the imported stack
                     setReviewStack(importedStack);
 
-                    // Clear preview session
+                    // Clear preview session after successful import
                     setPreviewSession(null);
                     setNotification({ type: 'alert', message: `"${newStack.title}" added to My Cards!` });
                 } catch (error) {
-                    if (error.message === 'REAUTH_NEEDED') signIn();
-                    else setNotification({ type: 'alert', message: 'Import failed. Please try again.' });
+                    if (error.message === 'REAUTH_NEEDED') {
+                        signIn();
+                    } else {
+                        setNotification({ type: 'alert', message: 'Import failed. Please try again.' });
+                    }
                     setPreviewSession(null);
                 } finally {
                     setLoading(false);
@@ -151,7 +154,7 @@ const App = () => {
             }
         };
         resumePreviewSession();
-    }, [user]);
+    }, [user, previewSession, handleUpdateLocalStack]);
 
     // Track review progress for confirmation
     const [reviewStarted, setReviewStarted] = useState(false);
@@ -205,11 +208,8 @@ const App = () => {
                     type: 'confirm',
                     message: "End review session? Progress will be lost.",
                     onConfirm: () => {
-                        // Authorize the close so popstate keeps flow
+                        setNotification(null); // Clear first to allow popstate to reach reviewStack
                         setReviewStarted(false);
-                        // We need to trigger the back that we cancelled/restored
-                        // But simply setting state null is safer, history is already 'back' before the restore?
-                        // No, we restored it. So we need to back() again.
                         window.history.back();
                     }
                 });
@@ -240,6 +240,7 @@ const App = () => {
                 type: 'confirm',
                 message: "End review session? Progress will be lost.",
                 onConfirm: () => {
+                    setNotification(null); // Clear first for popstate flow
                     setReviewStarted(false);
                     window.history.back();
                 }
@@ -305,15 +306,24 @@ const App = () => {
         if (!PUBLIC_API_KEY || !PUBLIC_FOLDER_ID) return;
         setPublicLoading(true);
         try {
-            const { listPublicStacks, getPublicFileContent } = await import('./services/publicDrive');
-            const files = await listPublicStacks(PUBLIC_API_KEY, PUBLIC_FOLDER_ID);
-            const data = await Promise.all(files.map(async (file) => {
-                try {
-                    const content = await getPublicFileContent(PUBLIC_API_KEY, file.id, user?.token);
-                    return { ...content, driveFileId: file.id, isPublic: true };
-                } catch (e) { return null; }
-            }));
-            setPublicStacks(data.filter(s => s !== null));
+            const { listPublicStacks, getPublicFileContent, getPublicIndex } = await import('./services/publicDrive');
+
+            // Try fetching from master index first
+            const indexData = await getPublicIndex(PUBLIC_API_KEY, PUBLIC_FOLDER_ID);
+
+            if (indexData && Array.isArray(indexData) && indexData.length > 0) {
+                setPublicStacks(indexData);
+            } else {
+                // Fallback to slow scan if index missing
+                const files = await listPublicStacks(PUBLIC_API_KEY, PUBLIC_FOLDER_ID);
+                const data = await Promise.all(files.map(async (file) => {
+                    try {
+                        const content = await getPublicFileContent(PUBLIC_API_KEY, file.id, user?.token);
+                        return { ...content, driveFileId: file.id, isPublic: true };
+                    } catch (e) { return null; }
+                }));
+                setPublicStacks(data.filter(s => s !== null));
+            }
         } catch (error) {
             console.error('Fetch public failed');
         } finally {
@@ -407,22 +417,27 @@ const App = () => {
     };
 
     const handleDeleteStack = async (stack) => {
+        if (!stack || (!stack.id && !stack.driveFileId)) return;
+
         setLoading(true);
         try {
-            if (stack.driveFileId) {
+            if (stack.driveFileId && user?.token) {
                 await deleteStack(user.token, stack.driveFileId);
             }
+
             if (stack.isPublic) {
                 fetchPublicStacks();
             } else {
                 setStacks(prev => prev.filter(s => s.id !== stack.id));
             }
+
             setShowAddModal(false);
             setReviewStack(null);
             setNoteStack(null);
             setNotification({ type: 'alert', message: `Deleted "${stack.title}"` });
         } catch (e) {
-            setNotification({ type: 'alert', message: 'Delete failed' });
+            console.error('Delete failed:', e);
+            setNotification({ type: 'alert', message: 'Delete failed. Please try again.' });
         } finally {
             setLoading(false);
         }
@@ -438,6 +453,41 @@ const App = () => {
         }
     };
 
+    const handleEditStack = async (stack) => {
+        let stackToEdit = stack;
+
+        // Check if we need to fetch content for a public stack
+        // Specifically for Admin editing ready-made stacks
+        if (stackToEdit.isPublic && (!stackToEdit.cards || stackToEdit.cards.length === 0) && stackToEdit.driveFileId) {
+            setLoading(true);
+            try {
+                const { getPublicFileContent } = await import('./services/publicDrive');
+                // Pass true for skipLocal to ensure we get the latest version from Drive, not local cache
+                const fullContent = await getPublicFileContent(PUBLIC_API_KEY, stackToEdit.driveFileId, user?.token, true);
+
+                if (fullContent) {
+                    stackToEdit = { ...stackToEdit, ...fullContent, isPublic: true, driveFileId: stackToEdit.driveFileId };
+
+                    // Update cache to avoid re-fetching
+                    setPublicStacks(prev => prev.map(p => p.id === stack.id ? stackToEdit : p));
+                } else {
+                    setNotification({ type: 'alert', message: 'Stack content not found.' });
+                    setLoading(false);
+                    return;
+                }
+            } catch (e) {
+                setNotification({ type: 'alert', message: 'Failed to load stack content for editing.' });
+                setLoading(false);
+                return;
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        setActiveStack(stackToEdit);
+        setShowAddModal(true);
+    };
+
     const isUnlimited = userProfile?.unlimitedCoinsExpiry && new Date(userProfile.unlimitedCoinsExpiry).getTime() > Date.now();
 
     return (
@@ -447,9 +497,7 @@ const App = () => {
                 <div className="header-actions">
                     {user && (
                         <div onClick={() => setShowCoinModal(true)} style={{ cursor: 'pointer' }}>
-                            <div onClick={() => setShowCoinModal(true)} style={{ cursor: 'pointer' }}>
-                                <CoinsDisplay coins={userProfile?.coins || 0} isUnlimited={isUnlimited} />
-                            </div>
+                            <CoinsDisplay coins={userProfile?.coins || 0} isUnlimited={isUnlimited} />
                         </div>
                     )}
                     <button className="neo-button icon-btn" onClick={toggleFullscreen}>
@@ -469,20 +517,46 @@ const App = () => {
                         publicStacks={publicStacks} user={user} onLogin={signIn}
                         loading={loading} publicLoading={publicLoading}
                         userCoins={userProfile?.coins || 0}
-                        onReview={(s) => {
+                        onReview={async (s) => {
+                            let stackToReview = s;
+                            // Check if full content is loaded (cards array exists)
+                            if ((!stackToReview.cards || stackToReview.cards.length === 0) && stackToReview.isPublic && stackToReview.driveFileId && stackToReview.cardsCount > 0) {
+                                try {
+                                    setPublicLoading(true);
+                                    const { getPublicFileContent } = await import('./services/publicDrive');
+                                    // Skip local file if Admin (to see latest changes)
+                                    const fullContent = await getPublicFileContent(PUBLIC_API_KEY, stackToReview.driveFileId, user?.token, user?.email === ADMIN_EMAIL);
+                                    if (fullContent) {
+                                        stackToReview = { ...stackToReview, ...fullContent, isPublic: true, driveFileId: stackToReview.driveFileId };
+                                        // Optional: Cache this in state so next time it's instant
+                                        setPublicStacks(prev => prev.map(p => p.id === s.id ? stackToReview : p));
+                                    }
+                                } catch (e) {
+                                    setNotification({ type: 'alert', message: 'Failed to open stack.' });
+                                    setPublicLoading(false);
+                                    return;
+                                } finally {
+                                    setPublicLoading(false);
+                                }
+                            }
+
                             // For ready-made stacks without login, allow preview mode
-                            if (!user && s.isPublic) {
-                                setReviewStack(s);
+                            if (!user && stackToReview.isPublic) {
+                                setReviewStack(stackToReview);
                                 return;
                             }
                             // No coin deduction for reviews in the new model
-                            s.importantNote ? setNoteStack(s) : setReviewStack(s);
+                            stackToReview.importantNote ? setNoteStack(stackToReview) : setReviewStack(stackToReview);
                         }}
-                        onEdit={(s) => { setActiveStack(s); setShowAddModal(true); }}
+
+
+                        onEdit={handleEditStack}
                         onImport={handleImportStack} searchQuery={searchQuery} setSearchQuery={setSearchQuery}
                         onShowFeedback={() => setShowFeedback(true)} filters={publicFilters} setFilters={setPublicFilters}
                         sortBy={sortBy} onSortChange={setSortBy} filterLabel={filterLabel} onLabelChange={setFilterLabel}
                         availableLabels={[...new Set(stacks.map(s => s.label).filter(l => l && l !== 'No label'))]} onShowKnowMore={() => setShowKnowMore(true)}
+                        onDelete={handleDeleteStack}
+                        showConfirm={(msg, cb) => setNotification({ type: 'confirm', message: msg, onConfirm: cb })}
                     />
                 </main>
 
@@ -505,6 +579,8 @@ const App = () => {
                         }}
                         onClose={() => window.history.back()}
                         onEdit={() => { setActiveStack(noteStack); setNoteStack(null); setShowAddModal(true); }}
+                        onDelete={() => handleDeleteStack(noteStack)}
+                        showConfirm={(msg, cb) => setNotification({ type: 'confirm', message: msg, onConfirm: cb })}
                     />}
                 </AnimatePresence>
             </div>
@@ -528,13 +604,23 @@ const App = () => {
             {showAddModal && (
                 <AddStackModal
                     user={user} stack={activeStack} onClose={() => window.history.back()}
-                    onSave={(upd) => { handleUpdateLocalStack(upd); setShowAddModal(false); }}
+                    onSave={(upd, shouldClose, isPublishing) => {
+                        handleUpdateLocalStack(upd);
+                        // Refresh public stacks if editing a public stack
+                        if (upd.isPublic || isPublishing) {
+                            fetchPublicStacks();
+                        }
+                        if (shouldClose !== false) {
+                            setShowAddModal(false);
+                        }
+                    }}
                     onDelete={handleDeleteStack}
                     showAlert={(msg) => setNotification({ type: 'alert', message: msg })}
                     showConfirm={(msg, cb) => setNotification({ type: 'confirm', message: msg, onConfirm: cb })}
                     publicFolderId={PUBLIC_FOLDER_ID}
                     availableLabels={[...new Set(stacks.map(s => s.label).filter(l => l && l !== 'No label'))]}
                     allStacks={stacks}
+                    activeTab={activeTab}
                 />
             )}
 

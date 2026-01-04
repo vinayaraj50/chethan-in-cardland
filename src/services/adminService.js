@@ -3,7 +3,7 @@
  * Handles user activity tracking and admin-specific operations.
  */
 
-import { saveFile, getFileContent } from './googleDrive';
+import { saveFile, getFileContent, listFilesInFolder } from './googleDrive';
 import { APPS_SCRIPT_URL } from './publicDrive';
 import { ADMIN_EMAIL } from '../constants/config';
 
@@ -178,5 +178,111 @@ export const sortUsers = (users, sortBy) => {
             return sorted.sort((a, b) => a.email.localeCompare(b.email));
         default:
             return sorted;
+    }
+};
+// ... existing code ...
+
+/**
+ * Update a single stack in the public index
+ */
+export const updatePublicStackIndex = async (token, publicFolderId, stack) => {
+    try {
+        // 1. Find index file
+        const files = await listFilesInFolder(token, publicFolderId);
+        const indexFile = files.find(f => f.name === 'public_index.json' && !f.trashed);
+
+        let index = [];
+        let fileId = null;
+
+        if (indexFile) {
+            fileId = indexFile.id;
+            try {
+                index = await getFileContent(token, fileId);
+                if (!Array.isArray(index)) index = [];
+            } catch (e) {
+                console.warn('Failed to read index', e);
+                index = [];
+            }
+        }
+
+        // 2. Update entry
+        const entry = {
+            id: stack.id,
+            title: stack.title,
+            label: stack.label,
+            standard: stack.standard,
+            syllabus: stack.syllabus,
+            subject: stack.subject,
+            medium: stack.medium,
+            cardsCount: stack.cards ? stack.cards.length : (stack.cardsCount || 0),
+            driveFileId: stack.driveFileId,
+            isPublic: true,
+            cost: parseInt(stack.cost) || 0,
+            importantNote: stack.importantNote || '',
+            owner: stack.owner || 'System' // Preserve owner info
+        };
+
+        const existingIndex = index.findIndex(s => s.id === stack.id || (stack.driveFileId && s.driveFileId === stack.driveFileId));
+        if (existingIndex >= 0) {
+            index[existingIndex] = { ...index[existingIndex], ...entry };
+        } else {
+            index.push(entry);
+        }
+
+        // 3. Save
+        await saveFile(token, 'public_index.json', index, fileId, 'application/json', publicFolderId);
+        return true;
+    } catch (error) {
+        console.error('Failed to update public index:', error);
+        return false;
+    }
+};
+
+/**
+ * Rebuild the entire public index by scanning all files
+ */
+export const rebuildPublicIndex = async (token, publicFolderId) => {
+    try {
+        // 1. List all public JSON files
+        const files = await listFilesInFolder(token, publicFolderId);
+        const stackFiles = files.filter(f => f.name.includes('flashcard_stack_') && f.name.endsWith('.json') && !f.trashed);
+
+        // 2. Fetch content for each to get metadata
+        const index = [];
+
+        await Promise.all(stackFiles.map(async (file) => {
+            try {
+                const content = await getFileContent(token, file.id);
+                // Only add if it's a valid stack
+                if (content && content.cards) {
+                    index.push({
+                        id: content.id,
+                        title: content.title,
+                        label: content.label,
+                        standard: content.standard,
+                        syllabus: content.syllabus,
+                        subject: content.subject,
+                        medium: content.medium,
+                        cardsCount: content.cards.length,
+                        driveFileId: file.id,
+                        isPublic: true,
+                        cost: content.cost || 0,
+                        importantNote: content.importantNote || '',
+                        owner: content.owner || 'System'
+                    });
+                }
+            } catch (e) {
+                console.error('Failed to index file', file.name, e);
+            }
+        }));
+
+        // 3. Save index.json
+        const existingIndex = files.find(f => f.name === 'public_index.json');
+        await saveFile(token, 'public_index.json', index, existingIndex ? existingIndex.id : null, 'application/json', publicFolderId);
+
+        return index.length;
+    } catch (e) {
+        console.error(e);
+        throw e;
     }
 };

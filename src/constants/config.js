@@ -7,7 +7,7 @@
 export const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 export const PUBLIC_API_KEY = import.meta.env.VITE_PUBLIC_API_KEY || import.meta.env.VITE_GOOGLE_API_KEY;
 export const PUBLIC_FOLDER_ID = import.meta.env.VITE_PUBLIC_FOLDER_ID;
-export const APPS_SCRIPT_URL = import.meta.env.VITE_APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbyx1eOsk18mZMgMpaLLKm_2N2R42k8v8e9bTvbJF9kpcfBcPhwf2-XYWzG-1BTKnpV50g/exec';
+export const APPS_SCRIPT_URL = import.meta.env.VITE_APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbwU14LQl2oAqth8uRyUjIX7I3IihVg2lMGf4UAMwmvspbbgR4QxMoZUjoVxt24KGMj7QA/exec';
 
 // Admin Configuration
 export const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL || 'chethanincardland@gmail.com';

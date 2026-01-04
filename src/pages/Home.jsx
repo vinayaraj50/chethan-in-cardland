@@ -16,7 +16,9 @@ const Home = ({
     sortBy, onSortChange,
     filterLabel, onLabelChange,
     availableLabels,
-    onShowKnowMore
+    onShowKnowMore,
+    onDelete,
+    showConfirm
 }) => {
     const [showSearch, setShowSearch] = useState(false);
     const standards = ['V', 'VI', 'VII', 'VIII', 'IX', 'X'];
@@ -380,6 +382,8 @@ const Home = ({
                                             onEdit={onEdit}
                                             onImport={onImport}
                                             user={user}
+                                            onDelete={onDelete}
+                                            showConfirm={showConfirm}
                                         />
                                     ))}
                                     {filteredPublicStacks.map(stack => (
@@ -390,6 +394,8 @@ const Home = ({
                                             onEdit={onEdit}
                                             onImport={onImport}
                                             user={user}
+                                            onDelete={onDelete}
+                                            showConfirm={showConfirm}
                                         />
                                     ))}
                                 </div>
@@ -460,6 +466,8 @@ const Home = ({
                                     onEdit={onEdit}
                                     onImport={onImport}
                                     user={user}
+                                    onDelete={onDelete}
+                                    showConfirm={showConfirm}
                                 />
                             ))}
                         </div>

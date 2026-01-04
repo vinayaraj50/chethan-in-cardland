@@ -73,22 +73,24 @@ export const listPublicStacks = async (apiKey, folderId) => {
     }
 };
 
-export const getPublicFileContent = async (apiKey, fileId) => {
+export const getPublicFileContent = async (apiKey, fileId, token = null, skipLocal = false) => {
     // 1. Local/GitHub Pages Fetch (Primary & Most Reliable)
     // We try to fetch the file from the local 'public/stacks' folder first.
     // This allows for instant loading of "bundled" stacks without hitting the server.
     const localUrl = `./stacks/${fileId}.json`;
 
-    try {
-        const response = await fetch(localUrl);
-        const contentType = response.headers.get("content-type");
+    if (!skipLocal) {
+        try {
+            const response = await fetch(localUrl);
+            const contentType = response.headers.get("content-type");
 
-        if (response.ok && contentType && contentType.includes("application/json")) {
-            // console.log("Found local stack file!");
-            return await response.json();
+            if (response.ok && contentType && contentType.includes("application/json")) {
+                // console.log("Found local stack file!");
+                return await response.json();
+            }
+        } catch (e) {
+            // Ignore local fetch errors, proceed to script
         }
-    } catch (e) {
-        // Ignore local fetch errors, proceed to script
     }
 
     // 2. Google Apps Script Proxy (Scalable Solution)
@@ -96,7 +98,7 @@ export const getPublicFileContent = async (apiKey, fileId) => {
     // console.log(`Fetching ${fileId} via Apps Script Proxy...`);
 
     try {
-        const response = await fetch(`${APPS_SCRIPT_URL}?id=${fileId}`);
+        const response = await fetch(`${APPS_SCRIPT_URL}?id=${fileId}&t=${Date.now()}`);
 
         if (!response.ok) {
             throw new Error(`Script returned ${response.status}`);
@@ -113,6 +115,34 @@ export const getPublicFileContent = async (apiKey, fileId) => {
 
     } catch (e) {
         console.error('Apps Script fetch failed:', e);
+        return null;
+    }
+};
+
+export const getPublicIndex = async (apiKey, folderId) => {
+    // Try to fetch the index file
+    // We first need to find the file ID of 'public_index.json'
+    try {
+        await initGapiClient(apiKey);
+        const response = await window.gapi.client.drive.files.list({
+            q: `'${folderId}' in parents and name = 'public_index.json' and trashed = false`,
+            fields: 'files(id, name)',
+        });
+
+        const files = response.result.files;
+        if (files && files.length > 0) {
+            // Found the index file, now fetch its content with cache busting
+            const indexId = files[0].id;
+            const url = `${APPS_SCRIPT_URL}?id=${indexId}&t=${Date.now()}`;
+            const fetchResponse = await fetch(url);
+            if (fetchResponse.ok) {
+                return await fetchResponse.json();
+            }
+            return null;
+        }
+        return null;
+    } catch (error) {
+        console.error('Error fetching public index:', error);
         return null;
     }
 };

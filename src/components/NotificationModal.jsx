@@ -52,7 +52,11 @@ const NotificationModal = ({ type = 'alert', message, onConfirm, onCancel, onClo
                             <button
                                 className="neo-button"
                                 style={{ flex: 1, justifyContent: 'center', background: 'var(--accent-color)', color: 'white', border: 'none' }}
-                                onClick={() => { onConfirm?.(); onClose(); }}
+                                onClick={() => {
+                                    const cb = onConfirm;
+                                    onClose();
+                                    cb?.();
+                                }}
                             >
                                 Confirm
                             </button>
