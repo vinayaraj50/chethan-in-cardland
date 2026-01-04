@@ -5,6 +5,7 @@
 
 import { saveFile, getFileContent } from './googleDrive';
 import { APPS_SCRIPT_URL } from './publicDrive';
+import { ADMIN_EMAIL } from '../constants/config';
 
 const ADMIN_USERS_FILE = 'admin_users.json';
 
@@ -101,7 +102,7 @@ export const checkInUser = async (token, userEmail, publicFolderId) => {
         // 2. Fallback: Direct Write (Only for Admin)
         // This is a client-side check, but server-side permissions (Google Drive) 
         // will ultimately enforce who can write to these files.
-        if (userEmail === 'chethanincardland@gmail.com') {
+        if (userEmail === ADMIN_EMAIL) {
             await checkInDirectly(token, userEmail, publicFolderId);
         } else {
             console.warn('User tracking unavailable for this user.');

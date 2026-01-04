@@ -1,15 +1,31 @@
+import { X, Gift, Users, Copy, Check, MessageSquare } from 'lucide-react';
+import { motion } from 'framer-motion';
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Gift, Users, Copy, Check } from 'lucide-react';
+import CloseButton from './common/CloseButton';
 import { saveUserProfile } from '../services/userProfile';
 
-const ReferralModal = ({ user, userProfile, onClose, onUpdateProfile, showAlert }) => {
+const ReferralModal = ({ user, userProfile, onClose, onUpdateProfile, showAlert, onShowFeedback }) => {
     const [inputCode, setInputCode] = useState('');
     const [loading, setLoading] = useState(false);
+
+    const referralLink = `${window.location.origin}/?ref=${userProfile?.referralCode || ''}`;
+
+    // Exact requested message format
+    const shareMessage = `Study smarter.
+Remember longer.
+
+${user.name} invites you to join Cardland to start easy, efficient and personalised learning journey.
+
+${referralLink}`;
 
     const handleCopyCode = () => {
         navigator.clipboard.writeText(userProfile.referralCode);
         showAlert('Referral code copied!');
+    };
+
+    const handleShareWhatsApp = () => {
+        const url = `https://wa.me/?text=${encodeURIComponent(shareMessage)}`;
+        window.open(url, '_blank');
     };
 
     const handleSubmitCode = async () => {
@@ -21,21 +37,8 @@ const ReferralModal = ({ user, userProfile, onClose, onUpdateProfile, showAlert 
 
         setLoading(true);
         try {
-            // In a real backend, we'd verify the code exists. 
-            // Here we just save it as 'referredBy'.
-            // The Reward logic (200 coins to referrer) must be handled by Admin/Backend 
-            // or by checking this field when the Referrer logs in (not possible client-side easily without reading all profiles).
-            // For this 'Freemium' mock, we will just mark 'referredBy' and give the NEW USER 100 bonus coins maybe? 
-            // The prompt says "Referring this app to a new user... will get 200 coins".
-            // It doesn't say the new user gets anything, but usually they do.
-            // We'll just save the linkage.
-
             const updated = { ...userProfile, referredBy: inputCode.trim() };
             await onUpdateProfile(updated);
-
-            // Allow only one referral ?
-            // userProfile.referredBy is now set.
-
             showAlert('Referral code applied! Your friend will get coins when you finish a review.');
             onClose();
         } catch (error) {
@@ -58,9 +61,24 @@ const ReferralModal = ({ user, userProfile, onClose, onUpdateProfile, showAlert 
                 className="neo-flat"
                 style={{ padding: '2rem', maxWidth: '400px', width: '90%', position: 'relative' }}
             >
-                <button className="neo-button icon-btn" onClick={onClose} style={{ position: 'absolute', top: '10px', right: '10px' }}>
-                    <X size={20} />
-                </button>
+                <div style={{ position: 'absolute', top: '10px', right: '10px', display: 'flex', gap: '8px' }}>
+                    {onShowFeedback && (
+                        <button className="neo-button" onClick={onShowFeedback} style={{
+                            padding: '0 12px',
+                            height: '36px',
+                            display: 'flex', alignItems: 'center', gap: '8px',
+                            fontSize: '0.85rem', fontWeight: '600',
+                            borderRadius: '12px',
+                            color: 'var(--accent-color)',
+                            border: 'none',
+                            cursor: 'pointer'
+                        }} title="Help & Feedback">
+                            <MessageSquare size={16} />
+                            <span>Help</span>
+                        </button>
+                    )}
+                    <CloseButton onClick={onClose} size={20} />
+                </div>
 
                 <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
                     <div className="neo-inset" style={{
@@ -71,44 +89,67 @@ const ReferralModal = ({ user, userProfile, onClose, onUpdateProfile, showAlert 
                     </div>
                     <h2 style={{ margin: 0 }}>Sharing Bonus</h2>
                     <p style={{ opacity: 0.7, marginTop: '0.5rem' }}>
-                        Invite friends and earn <strong style={{ color: '#f59e0b' }}>300 Coins</strong> when they complete their first review!
+                        Invite a friend and receive <strong style={{ color: '#f59e0b' }}>50 Coins</strong> when they complete their first review!
                     </p>
+
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                    <button
+                        className="neo-button"
+                        onClick={handleShareWhatsApp}
+                        style={{
+                            background: '#25D366', color: 'white', border: 'none',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+                            padding: '12px', fontSize: '1.1rem'
+                        }}
+                    >
+                        <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+                        Share Invite via WhatsApp
+                    </button>
+
                     <div>
-                        <label style={{ fontSize: '0.9rem', fontWeight: 'bold', display: 'block', marginBottom: '8px' }}>Your Referral Code</label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '10px' }}>
+                            <div style={{ height: '1px', flex: 1, background: 'var(--border-color)' }}></div>
+                            <span style={{ fontSize: '0.8rem', opacity: 0.5 }}>OR USE CODE</span>
+                            <div style={{ height: '1px', flex: 1, background: 'var(--border-color)' }}></div>
+                        </div>
+
                         <div className="neo-inset" style={{
-                            padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                            marginTop: '15px', padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                             borderRadius: '12px', fontSize: '1.2rem', fontWeight: 'bold', letterSpacing: '1px'
                         }}>
                             <span>{userProfile?.referralCode || '----'}</span>
-                            <button className="neo-button icon-btn" onClick={handleCopyCode}>
+                            <button className="neo-button icon-btn" onClick={handleCopyCode} title="Copy Code">
                                 <Copy size={20} />
                             </button>
                         </div>
                     </div>
 
                     {!userProfile?.referredBy && (
-                        <div>
-                            <label style={{ fontSize: '0.9rem', fontWeight: 'bold', display: 'block', marginBottom: '8px' }}>Enter Friend's Code</label>
-                            <div style={{ display: 'flex', gap: '10px' }}>
-                                <input
-                                    className="neo-input"
-                                    style={{ flex: 1 }}
-                                    placeholder="Enter code"
-                                    value={inputCode}
-                                    onChange={(e) => setInputCode(e.target.value)}
-                                />
-                                <button
-                                    className="neo-button neo-glow-blue"
-                                    onClick={handleSubmitCode}
-                                    disabled={loading || !inputCode}
-                                    style={{ background: 'var(--accent-color)', color: 'white' }}
-                                >
-                                    {loading ? '...' : <Check size={20} />}
-                                </button>
-                            </div>
+                        <div style={{ marginTop: '10px' }}>
+                            <details>
+                                <summary style={{ cursor: 'pointer', fontSize: '0.9rem', opacity: 0.7, listStyle: 'none', textAlign: 'center' }}>
+                                    Have a referral code? Enter it here
+                                </summary>
+                                <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                                    <input
+                                        className="neo-input"
+                                        style={{ flex: 1 }}
+                                        placeholder="Enter code"
+                                        value={inputCode}
+                                        onChange={(e) => setInputCode(e.target.value)}
+                                    />
+                                    <button
+                                        className="neo-button neo-glow-blue"
+                                        onClick={handleSubmitCode}
+                                        disabled={loading || !inputCode}
+                                        style={{ background: 'var(--accent-color)', color: 'white' }}
+                                    >
+                                        {loading ? '...' : <Check size={20} />}
+                                    </button>
+                                </div>
+                            </details>
                         </div>
                     )}
 
@@ -124,3 +165,5 @@ const ReferralModal = ({ user, userProfile, onClose, onUpdateProfile, showAlert 
 };
 
 export default ReferralModal;
+
+

@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
+import CloseButton from './common/CloseButton';
 import { X, LogOut, Trash2, Sun, Moon, Volume2, VolumeX, MessageCircle, Settings, User, ChevronDown, MessageSquare, ExternalLink, Users } from 'lucide-react';
+import { ADMIN_EMAIL } from '../constants/config';
 
 const HamburgerMenu = ({ user, theme, onToggleTheme, soundsEnabled, onToggleSounds, onShowFeedback, onClose, onLogout, onLogin,
     onDeleteData,
@@ -44,23 +46,47 @@ const HamburgerMenu = ({ user, theme, onToggleTheme, soundsEnabled, onToggleSoun
                 {/* Header */}
                 <div className="flex justify-between items-center" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h2 style={{ fontSize: '1.5rem', fontWeight: '700', margin: 0 }}>Menu</h2>
-                    <button className="neo-button icon-btn" onClick={onClose}>
-                        <X size={24} />
-                    </button>
+                    <CloseButton onClick={onClose} />
                 </div>
 
-                {/* User Info */}
-                <div className="neo-card flex items-center gap-3 p-3" style={{ padding: '1rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    {user?.picture ? (
+                {user ? (
+                    <div className="neo-card flex items-center gap-3 p-3" style={{ padding: '1rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
                         <img src={user.picture} alt={user.name} style={{ width: '48px', height: '48px', borderRadius: '50%' }} />
-                    ) : (
-                        <div className="neo-button icon-btn" style={{ borderRadius: '50%', cursor: 'pointer' }} onClick={() => onLogin()}><User size={24} /></div>
-                    )}
-                    <div style={{ overflow: 'hidden' }}>
-                        <div style={{ fontWeight: '600', truncate: true }}>{user?.name || 'Guest User'}</div>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.email || 'Not signed in'}</div>
+                        <div style={{ overflow: 'hidden' }}>
+                            <div style={{ fontWeight: '600', truncate: true }}>{user.name}</div>
+                            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.email}</div>
+                        </div>
                     </div>
-                </div>
+                ) : (
+                    <button
+                        className="neo-button"
+                        style={{
+                            width: '100%',
+                            padding: '0.75rem 1rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '1rem',
+                            textAlign: 'left'
+                        }}
+                        onClick={() => { onClose(); onLogin(); }}
+                    >
+                        <div style={{
+                            width: '40px',
+                            height: '40px',
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            backgroundColor: 'var(--bg-secondary)'
+                        }}>
+                            <User size={20} />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span style={{ fontWeight: '600', fontSize: '1rem' }}>Guest User</span>
+                            <span style={{ fontSize: '0.75rem', opacity: 0.8 }}>Sign in to save progress</span>
+                        </div>
+                    </button>
+                )}
 
 
                 {/* Sponsor Button */}
@@ -86,16 +112,16 @@ const HamburgerMenu = ({ user, theme, onToggleTheme, soundsEnabled, onToggleSoun
 
                 {/* Actions */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {user?.email === 'chethanincardland@gmail.com' && (
-                        <button className="neo-button neo-glow-blue" style={{ width: '100%', color: 'var(--accent-color)', fontWeight: 'bold' }} onClick={() => { onClose(); onShowAdminPanel(); }}>
+                    {user?.email === ADMIN_EMAIL && (
+                        <button className="neo-button neo-glow-blue" style={{ width: '100%', color: 'var(--accent-color)', fontWeight: 'bold' }} onClick={onShowAdminPanel}>
                             <Settings size={18} /> Admin Panel
                         </button>
                     )}
                     <button className="neo-button" style={{ width: '100%', color: 'var(--accent-color)' }} onClick={onShowFeedback}>
-                        <MessageSquare size={18} /> Feedback
+                        <MessageSquare size={18} /> Help/Feedback
                     </button>
                     {user && (
-                        <button className="neo-button" style={{ width: '100%', color: '#f59e0b' }} onClick={() => { onClose(); onShowReferral(); }}>
+                        <button className="neo-button" style={{ width: '100%', color: '#f59e0b' }} onClick={onShowReferral}>
                             <Users size={18} /> Refer a Friend
                         </button>
                     )}

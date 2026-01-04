@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import CloseButton from './common/CloseButton';
 import { X, Send } from 'lucide-react';
 import { sanitizeFeedbackText, isValidEmail } from '../utils/securityUtils';
 
@@ -45,9 +46,9 @@ const FeedbackModal = ({ user, onClose, showAlert }) => {
                 width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto', padding: '2rem',
                 display: 'flex', flexDirection: 'column', gap: '1.5rem', position: 'relative'
             }}>
-                <button className="neo-button icon-btn" style={{ position: 'absolute', top: '1.5rem', right: '1.5rem' }} onClick={onClose}><X size={18} /></button>
+                <CloseButton onClick={onClose} style={{ position: 'absolute', top: '1.5rem', right: '1.5rem' }} size={18} />
 
-                <h2 style={{ fontSize: '1.5rem' }}>Send Feedback</h2>
+                <h2 style={{ fontSize: '1.5rem' }}>Help & Feedback</h2>
                 <p style={{ opacity: 0.7, fontSize: '0.9rem' }}>Help us improve Chethan in Cardland! Your feedback will be sent via WhatsApp.</p>
 
                 <div className="neo-inset" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>

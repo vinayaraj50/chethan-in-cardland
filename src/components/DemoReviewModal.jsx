@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import CloseButton from './common/CloseButton';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Star, ArrowRight, Mic, Trash2, Play, Square } from 'lucide-react';
 import confetti from 'canvas-confetti';
@@ -268,7 +269,7 @@ const DemoReviewModal = ({ onClose, onLogin }) => {
                         <div className="neo-badge" style={{ padding: '4px 12px', fontSize: '0.75rem', background: 'var(--accent-soft)', color: 'var(--accent-color)', borderRadius: '12px', fontWeight: 'bold' }}>
                             DEMO MODE
                         </div>
-                        <button className="neo-button icon-btn" onClick={onClose}><X size={18} /></button>
+                        <CloseButton onClick={onClose} size={18} />
                     </div>
 
                     {/* Card Flip Content */}

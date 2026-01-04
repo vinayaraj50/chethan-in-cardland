@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import CloseButton from './common/CloseButton';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ZoomIn, ZoomOut, RotateCw } from 'lucide-react';
 
@@ -107,14 +108,7 @@ const ImageViewer = ({ imageUrl, onClose }) => {
                 >
                     Reset
                 </button>
-                <button
-                    className="neo-button icon-btn"
-                    onClick={onClose}
-                    title="Close"
-                    style={{ background: 'var(--bg-color)' }}
-                >
-                    <X size={20} />
-                </button>
+                <CloseButton onClick={onClose} size={20} />
             </div>
 
             {/* Zoom Level Indicator */}

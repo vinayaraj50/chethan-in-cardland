@@ -1,4 +1,5 @@
 import logo from '../assets/logo.png';
+import { ADMIN_EMAIL } from './config';
 
 export const DEMO_STACK = {
     id: 'demo-stack',
@@ -32,7 +33,7 @@ export const DEMO_STACK = {
             answer: { text: "Honey", image: '', audio: '' }
         }
     ],
-    owner: 'chethanincardland@gmail.com',
+    owner: ADMIN_EMAIL,
     ownerName: 'Demo User',
     avgRating: 4.8,
     lastReviewed: null,

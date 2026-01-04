@@ -14,7 +14,7 @@ export const parseGeminiOutput = (text) => {
             rawData = JSON.parse(jsonMatch[0]);
         }
     } catch (e) {
-        console.log("Not JSON, trying plain text parsing");
+        // Not JSON, trying plain text parsing
     }
 
     if (rawData) {

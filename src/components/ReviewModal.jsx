@@ -3,10 +3,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Edit2, Copy, Star, Play, SkipForward, Square, Pause, Download, Mic, Trash2, Layers, AlertCircle } from 'lucide-react';
 import { saveStack } from '../services/googleDrive';
 import { downloadStackAsZip } from '../utils/zipUtils';
+import CloseButton from './common/CloseButton';
 import ImageViewer from './ImageViewer';
 import confetti from 'canvas-confetti';
 import { playTada, playSwoosh, playTing, playCompletion } from '../utils/soundEffects';
 import congratulationsImg from '../assets/congratulations.png';
+import { ADMIN_EMAIL } from '../constants/config';
 
 const AudioPlayer = ({ audioData }) => {
     const [isPlaying, setIsPlaying] = useState(false);
@@ -133,7 +135,7 @@ const AudioPlayer = ({ audioData }) => {
     );
 };
 
-const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, showAlert, userCoins, onDeductCoins, isPreviewMode = false, onLoginRequired, previewProgress = null }) => {
+const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, showAlert, userCoins, onDeductCoins, isPreviewMode = false, onLoginRequired, previewProgress = null, onReviewStart }) => {
     // Check if there are any previous ratings to decide initial mode
     const hasPreviousRatings = stack.cards.some(card => card.lastRating !== undefined);
 
@@ -164,6 +166,12 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
         if (currentStage >= stages.length - 1) return 30; // Every 30 days after
         return stages[currentStage + 1];
     };
+
+    useEffect(() => {
+        if (sessionRatings.length > 0 && onReviewStart) {
+            onReviewStart();
+        }
+    }, [sessionRatings, onReviewStart]);
 
 
     useEffect(() => {
@@ -477,17 +485,8 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
         }
         */
 
-        // Coin Deduction Logic: Deduct 5 coins every 3 cards
-        // But NOT for Demo stack (id: 'demo-stack') or public/ready-made stacks
-        if (!isPreviewMode && stack.id !== 'demo-stack' && !stack.isPublic) {
-            setReviewedCountSession(prev => {
-                const newCount = prev + 1;
-                if (newCount % 3 === 0 && onDeductCoins) {
-                    onDeductCoins(5);
-                }
-                return newCount;
-            });
-        }
+        // Coin deduction logic removed in new model
+        setReviewedCountSession(prev => prev + 1);
 
         setTimeout(() => handleNext(val), 500);
     };
@@ -654,13 +653,13 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                             </div>
                             <div style={{ flex: 1 }} />
                             <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                {user?.email === 'chethanincardland@gmail.com' && (
+                                {user?.email === ADMIN_EMAIL && (
                                     <button className="neo-button icon-btn" title="Download Stack" onClick={handleDownload}><Download size={18} /></button>
                                 )}
-                                {!isPreviewMode && (!stack.isPublic || user?.email === 'chethanincardland@gmail.com') && stack.id !== 'demo-stack' && (
+                                {!isPreviewMode && (!stack.isPublic || user?.email === ADMIN_EMAIL) && stack.id !== 'demo-stack' && (
                                     <button className="neo-button icon-btn" title="Duplicate" onClick={() => onDuplicate(stack)}><Copy size={18} /></button>
                                 )}
-                                <button className="neo-button icon-btn" onClick={onClose}><X size={18} /></button>
+                                <CloseButton onClick={onClose} size={18} />
                             </div>
                         </div>
 

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { X, Upload, Trash2, RefreshCw, Search, User, Database, Zap, ChevronDown } from 'lucide-react';
+import CloseButton from './common/CloseButton';
+import { X, Upload, Trash2, RefreshCw, Search, User, Database, Zap, ChevronDown, Edit2, Copy } from 'lucide-react';
 import { getUsersData, getUserStats, sortUsers } from '../services/adminService';
 import { parseGeminiOutput } from '../utils/importUtils';
-import { saveStack, deleteStack } from '../services/googleDrive';
+import { saveStack, saveFile, deleteStack } from '../services/googleDrive';
 
 const SimpleSelect = ({ label, value, options, onChange }) => (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
@@ -36,10 +37,16 @@ const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolder
     const [title, setTitle] = useState('');
     const [label, setLabel] = useState('No label');
     const [importantNote, setImportantNote] = useState('');
-    const [standard, setStandard] = useState('');
-    const [syllabus, setSyllabus] = useState('');
+    const [standard, setStandard] = useState(localStorage.getItem('admin_standard') || '');
+    const [syllabus, setSyllabus] = useState(localStorage.getItem('admin_syllabus') || '');
     const [medium, setMedium] = useState('');
-    const [subject, setSubject] = useState('');
+    const [subject, setSubject] = useState(localStorage.getItem('admin_subject') || '');
+    const [cost, setCost] = useState(0);
+
+    // Persist selections
+    useEffect(() => { localStorage.setItem('admin_standard', standard); }, [standard]);
+    useEffect(() => { localStorage.setItem('admin_syllabus', syllabus); }, [syllabus]);
+    useEffect(() => { localStorage.setItem('admin_subject', subject); }, [subject]);
 
     const [dbFilters, setDbFilters] = useState({ standard: '', syllabus: '', medium: '', subject: '' });
 
@@ -78,11 +85,47 @@ const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolder
             setLoading(true);
             await saveStack(user.token, {
                 id: Date.now().toString(), title, label, standard, syllabus, medium, subject,
-                importantNote, cards: parsedData.cards, owner: user.email
+                importantNote, cards: parsedData.cards, owner: user.email, cost: parseInt(cost) || 0
             }, null, publicFolderId);
             showAlert('Stack published!');
             setSmartPasteText(''); setParsedData(null); onRefreshPublic();
+            // Note: selections (standard, syllabus, subject) are NOT cleared to allow fast consecutive uploads.
         } catch (e) { showAlert('Publish failed'); } finally { setLoading(false); }
+    };
+
+    const copyToClipboard = (text) => {
+        navigator.clipboard.writeText(text);
+        showAlert('Prompt copied to clipboard!');
+    };
+
+    const [editingPrompt, setEditingPrompt] = useState(null);
+
+    const defaultPrompts = [
+        { id: 1, title: "MCQ Generator", prompt: "Create 10 multiple choice questions about..." },
+        { id: 2, title: "Summary", prompt: "Summarize the following text into key bullet points..." },
+        { id: 3, title: "Lesson Plan", prompt: "Generate a lesson plan for 5th grade science on..." },
+        { id: 4, title: "Q&A Creator", prompt: "Create 5 short answer questions and answers for..." },
+        { id: 5, title: "Simplified Explainer", prompt: "Explain this topic to a 10-year old..." },
+        { id: 6, title: "Keyword Extractor", prompt: "Extract 10 key terms and their definitions from..." },
+        { id: 7, title: "Story Prompt", prompt: "Write a short story based on these concepts..." },
+        { id: 8, title: "Translation", prompt: "Translate this text into English..." },
+        { id: 9, title: "Fact Lister", prompt: "List 5 interesting and rare facts about..." },
+        { id: 10, title: "Stack Splitter", prompt: "Divide this content into 3 logical flashcard sets..." }
+    ];
+
+    const [customPrompts, setCustomPrompts] = useState(() => {
+        const saved = localStorage.getItem('admin_custom_prompts');
+        return saved ? JSON.parse(saved) : defaultPrompts;
+    });
+
+    useEffect(() => {
+        localStorage.setItem('admin_custom_prompts', JSON.stringify(customPrompts));
+    }, [customPrompts]);
+
+    const handleSavePrompt = (id, newTitle, newPrompt) => {
+        setCustomPrompts(prev => prev.map(p => p.id === id ? { ...p, title: newTitle, prompt: newPrompt } : p));
+        setEditingPrompt(null);
+        showAlert('Prompt updated!');
     };
 
     const handleDeletePublicStack = async (stack) => {
@@ -90,6 +133,34 @@ const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolder
             setLoading(true);
             try { await deleteStack(user.token, stack.driveFileId); showAlert('Deleted!'); onRefreshPublic(); }
             catch (e) { showAlert('Failed'); } finally { setLoading(false); }
+        });
+    };
+
+    const handleGrantUnlimited = async (targetEmail) => {
+        showConfirm(`Grant 1 Month Unlimited to ${targetEmail}?`, async () => {
+            setLoading(true);
+            try {
+                const expiry = new Date();
+                expiry.setDate(expiry.getDate() + 30);
+
+                const grantData = {
+                    email: targetEmail,
+                    expiry: expiry.toISOString(),
+                    grantedAt: new Date().toISOString(),
+                    grantedBy: user.email
+                };
+
+                // Save to public folder so the user's app can find it
+                const fileName = `grant_${targetEmail}.json`;
+                await saveFile(user.token, fileName, grantData, null, 'application/json', publicFolderId);
+
+                showAlert(`Granted! Valid until ${expiry.toLocaleDateString()}`);
+            } catch (e) {
+                console.error(e);
+                showAlert('Failed to grant subscription');
+            } finally {
+                setLoading(false);
+            }
         });
     };
 
@@ -122,7 +193,7 @@ const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolder
                         Admin panel <span style={{ color: '#64748b', fontWeight: '400' }}>({usersData.length} Users)</span>
                     </h1>
                 </div>
-                <button onClick={onClose} style={{ border: 'none', background: '#f1f5f9', padding: '6px', borderRadius: '50%', cursor: 'pointer' }}><X size={20} /></button>
+                <CloseButton onClick={onClose} size={20} style={{ border: 'none', background: '#f1f5f9' }} />
             </header>
 
             <nav style={{
@@ -177,6 +248,7 @@ const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolder
                                                 <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.7rem', color: '#64748b' }}>EMAIL ADDRESS</th>
                                                 <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.7rem', color: '#64748b' }}>LAST ACTIVE</th>
                                                 <th style={{ padding: '0.75rem', textAlign: 'center', fontSize: '0.7rem', color: '#64748b' }}>LOGINS</th>
+                                                <th style={{ padding: '0.75rem', textAlign: 'center', fontSize: '0.7rem', color: '#64748b' }}>ACTIONS</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -186,6 +258,18 @@ const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolder
                                                     <td style={{ padding: '0.75rem', fontSize: '0.75rem', color: '#64748b', whiteSpace: 'nowrap' }}>{formatDate(u.lastSeen)}</td>
                                                     <td style={{ padding: '0.75rem', textAlign: 'center' }}>
                                                         <span style={{ background: '#eff6ff', color: '#3b82f6', padding: '2px 8px', borderRadius: '4px', fontWeight: '700', fontSize: '0.7rem' }}>{u.totalLogins}</span>
+                                                    </td>
+                                                    <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+                                                        <button
+                                                            onClick={() => handleGrantUnlimited(u.email)}
+                                                            style={{
+                                                                background: '#8b5cf6', color: 'white', border: 'none',
+                                                                padding: '4px 8px', borderRadius: '4px', fontSize: '0.7rem',
+                                                                fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', margin: '0 auto'
+                                                            }}
+                                                        >
+                                                            <Zap size={12} fill="white" /> Grant
+                                                        </button>
                                                     </td>
                                                 </tr>
                                             ))}
@@ -201,11 +285,53 @@ const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolder
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                             <div style={{ background: '#fff', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                                 <label style={{ fontSize: '0.85rem', fontWeight: '600', display: 'block', marginBottom: '8px' }}>Paste Script Output</label>
-                                <textarea
-                                    value={smartPasteText} onChange={(e) => setSmartPasteText(e.target.value)}
-                                    placeholder="JSON output..."
-                                    style={{ width: '100%', height: '150px', padding: '0.75rem', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.85rem', outline: 'none' }}
-                                />
+
+                                <div style={{ display: 'flex', gap: '1rem', minHeight: '300px' }}>
+                                    <textarea
+                                        value={smartPasteText} onChange={(e) => setSmartPasteText(e.target.value)}
+                                        placeholder="JSON output..."
+                                        style={{ flex: 1, padding: '0.75rem', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.85rem', outline: 'none', resize: 'vertical' }}
+                                    />
+
+                                    <div style={{ width: '220px', display: 'flex', flexDirection: 'column', gap: '8px', overflowY: 'auto', maxHeight: '400px', paddingRight: '4px' }}>
+                                        <label style={{ fontSize: '0.65rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase' }}>AI Prompts</label>
+                                        {customPrompts.map((p) => (
+                                            <div
+                                                key={p.id}
+                                                style={{
+                                                    padding: '10px',
+                                                    background: '#f8fafc',
+                                                    border: '1px solid #e2e8f0',
+                                                    borderRadius: '8px',
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    gap: '8px',
+                                                    position: 'relative',
+                                                    transition: 'all 0.2s',
+                                                    cursor: 'pointer'
+                                                }}
+                                                onClick={() => copyToClipboard(p.prompt)}
+                                                onMouseOver={(e) => e.currentTarget.style.borderColor = '#3b82f6'}
+                                                onMouseOut={(e) => e.currentTarget.style.borderColor = '#e2e8f0'}
+                                            >
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '140px' }}>{p.title}</span>
+                                                    <div style={{ display: 'flex', gap: '4px' }}>
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); setEditingPrompt(p); }}
+                                                            style={{ background: 'none', border: 'none', padding: '4px', cursor: 'pointer', color: '#64748b' }}
+                                                            title="Edit Prompt"
+                                                        >
+                                                            <Edit2 size={12} />
+                                                        </button>
+                                                        <div style={{ color: '#3b82f6', padding: '4px' }}><Copy size={12} /></div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
                                 <button onClick={handleParseSmartPaste} style={{ marginTop: '0.75rem', padding: '0.6rem 1rem', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Analyze</button>
                             </div>
                             {parsedData && (
@@ -218,6 +344,16 @@ const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolder
                                         <SimpleSelect label="Class" value={standard} options={['V', 'VI', 'VII', 'VIII', 'IX', 'X'].map(s => ({ label: s, value: s }))} onChange={setStandard} />
                                         <SimpleSelect label="Board" value={syllabus} options={['NCERT', 'Kerala'].map(s => ({ label: s, value: s }))} onChange={setSyllabus} />
                                         <SimpleSelect label="Sub" value={subject} options={['Maths', 'Social', 'Science', 'English'].map(s => ({ label: s, value: s }))} onChange={setSubject} />
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
+                                            <label style={{ fontSize: '0.65rem', fontWeight: '700', color: '#64748b', display: 'block' }}>COST (COINS)</label>
+                                            <input
+                                                type="number"
+                                                value={cost}
+                                                onChange={(e) => setCost(e.target.value)}
+                                                placeholder="0 for free"
+                                                style={{ width: '100%', padding: '8px', border: '1px solid #e2e8f0', borderRadius: '6px', height: '42px' }}
+                                            />
+                                        </div>
                                     </div>
                                     <button onClick={handlePublishStack} disabled={loading} style={{ width: '100%', padding: '0.75rem', background: '#1e293b', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer' }}>
                                         {loading ? 'Publishing...' : `Go Live (${parsedData.cards.length} Cards)`}
@@ -250,6 +386,51 @@ const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolder
 
                 </div>
             </main>
+
+            {/* Edit Prompt Modal */}
+            {editingPrompt && (
+                <div style={{
+                    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 20000,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
+                }} onClick={() => setEditingPrompt(null)}>
+                    <div
+                        style={{ background: '#fff', width: '100%', maxWidth: '500px', borderRadius: '12px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '700' }}>Edit Prompt</h3>
+                        <div>
+                            <label style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '4px', display: 'block' }}>Title</label>
+                            <input
+                                value={editingPrompt.title}
+                                onChange={e => setEditingPrompt({ ...editingPrompt, title: e.target.value })}
+                                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', outline: 'none' }}
+                            />
+                        </div>
+                        <div>
+                            <label style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '4px', display: 'block' }}>Prompt Text</label>
+                            <textarea
+                                value={editingPrompt.prompt}
+                                onChange={e => setEditingPrompt({ ...editingPrompt, prompt: e.target.value })}
+                                style={{ width: '100%', height: '150px', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', outline: 'none', fontSize: '0.9rem' }}
+                            />
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
+                            <button
+                                onClick={() => handleSavePrompt(editingPrompt.id, editingPrompt.title, editingPrompt.prompt)}
+                                style={{ flex: 1, padding: '0.75rem', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}
+                            >
+                                Save Changes
+                            </button>
+                            <button
+                                onClick={() => setEditingPrompt(null)}
+                                style={{ padding: '0.75rem 1.25rem', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

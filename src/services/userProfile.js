@@ -16,11 +16,13 @@ const getHeaders = (token) => ({
 
 // Default Profile State
 const DEFAULT_PROFILE = {
-    coins: 300,
+    coins: 0,
     lastLoginDate: null,
     referralCode: null, // Generated on first save
     referredBy: null,
-    totalReviews: 0
+    referredBy: null,
+    totalReviews: 0,
+    unlimitedCoinsExpiry: null // Timestamp for unlimited plan expiry
 };
 
 /**
@@ -94,10 +96,10 @@ export const checkDailyLogin = async (token, profile) => {
 
     const newProfile = {
         ...profile,
-        coins: (profile.coins || 0) + 20,
+        coins: (profile.coins || 0) + 5,
         lastLoginDate: today
     };
 
     await saveUserProfile(token, newProfile);
-    return { awarded: true, coinsAdded: 20, newProfile };
+    return { awarded: true, coinsAdded: 5, newProfile };
 };

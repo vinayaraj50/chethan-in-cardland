@@ -1,4 +1,5 @@
 import React from 'react';
+import CloseButton from './common/CloseButton';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertCircle, HelpCircle, X } from 'lucide-react';
 
@@ -20,13 +21,11 @@ const NotificationModal = ({ type = 'alert', message, onConfirm, onCancel, onClo
                     position: 'relative'
                 }}
             >
-                <button
-                    className="neo-button icon-btn"
-                    style={{ position: 'absolute', top: '1rem', right: '1rem', width: '30px', height: '30px' }}
+                <CloseButton
                     onClick={onClose}
-                >
-                    <X size={16} />
-                </button>
+                    style={{ position: 'absolute', top: '1rem', right: '1rem' }}
+                    size={16}
+                />
 
                 <div className="neo-inset" style={{
                     width: '60px', height: '60px', borderRadius: '50%',

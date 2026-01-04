@@ -63,7 +63,7 @@ const Home = ({
                 <button
                     className={`neo-tab-item ${activeTab === 'my' ? 'active' : ''}`}
                     onClick={() => {
-                        console.log('Switching to My Cards');
+                        // console.log('Switching to My Cards');
                         setActiveTab('my');
                     }}
                 >
@@ -72,7 +72,7 @@ const Home = ({
                 <button
                     className={`neo-tab-item ${activeTab === 'ready-made' ? 'active' : ''}`}
                     onClick={() => {
-                        console.log('Switching to Ready-made Section');
+                        // console.log('Switching to Ready-made Section');
                         setActiveTab('ready-made');
                     }}
                 >

@@ -1,4 +1,5 @@
 import React from 'react';
+import CloseButton from './common/CloseButton';
 import { motion } from 'framer-motion';
 import { LogIn, X, Star, Calendar, TrendingUp } from 'lucide-react';
 
@@ -22,13 +23,11 @@ const LoginPromptModal = ({ onLogin, onCancel, cardsReviewed, totalCards }) => {
                     position: 'relative', maxHeight: '95vh', overflowY: 'auto'
                 }}
             >
-                <button
-                    className="neo-button icon-btn"
+                <CloseButton
                     onClick={onCancel}
                     style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 10 }}
-                >
-                    <X size={18} />
-                </button>
+                    size={18}
+                />
 
                 <div>
                     <div className="neo-inset" style={{

@@ -1,7 +1,7 @@
 {
   "name": "chethan-in-cardland",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "homepage": "https://vinayaraj50.github.io/chethan-in-cardland",
   "scripts": {
@@ -18,7 +18,8 @@
     "jszip": "^3.10.1",
     "lucide-react": "^0.263.1",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "react-qr-code": "^2.0.18"
   },
   "devDependencies": {
     "@types/react": "^18.2.14",

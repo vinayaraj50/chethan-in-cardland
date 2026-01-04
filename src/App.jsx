@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { Home as HomeIcon, Plus, Menu, X, LogOut, Trash2, Sun, Moon, Share2, Copy, Maximize, Minimize } from 'lucide-react';
 import { initGoogleAuth, signIn, signOut } from './services/googleAuth';
@@ -23,6 +23,8 @@ import AdminPanel from './components/AdminPanel';
 import CoinPurchaseModal from './components/CoinPurchaseModal';
 import LoginPromptModal from './components/LoginPromptModal';
 import { DEMO_STACK } from './constants/data';
+import { checkSubscriptionGrant } from './services/subscriptionService';
+import { ADMIN_EMAIL } from './constants/config';
 
 
 
@@ -74,9 +76,16 @@ const App = () => {
 
     // Initialize Auth
     useEffect(() => {
+        // Capture referral code immediately on load
+        const urlParams = new URLSearchParams(window.location.search);
+        const refParam = urlParams.get('ref');
+        if (refParam) {
+            localStorage.setItem('pendingReferral', refParam);
+            // Optional: Clean URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+
         const handleAuthUpdate = (profile) => {
-            setUser(profile);
-            setShowMenu(false);
             setUser(profile);
             setShowMenu(false);
             if (profile) {
@@ -144,57 +153,141 @@ const App = () => {
         resumePreviewSession();
     }, [user]);
 
-    // Navigation confirmation logic
+    // Track review progress for confirmation
+    const [reviewStarted, setReviewStarted] = useState(false);
+
+    // Track open modal count for history management
+    const openModalCount = [
+        reviewStack, showAddModal, showMenu, showReferralModal,
+        showAdminPanel, showCoinModal, showFeedback, showKnowMore,
+        showLoginPrompt, noteStack, notification?.type === 'alert'
+    ].filter(Boolean).length;
+
+    const prevModalCount = useRef(0);
+
+    // Handle Browser Back Button & Modal History
     useEffect(() => {
-        if (!user) return;
-        const handleBeforeUnload = (e) => {
-            if (reviewStack || showAddModal) {
-                e.preventDefault();
-                e.returnValue = '';
-                return '';
+        // Only push history if we INCREASED the number of modals (stacked up)
+        if (openModalCount > prevModalCount.current) {
+            window.history.pushState({ modalOpen: true }, '', window.location.pathname);
+        }
+
+        prevModalCount.current = openModalCount;
+
+        const handlePopState = (e) => {
+            // Priority Closing Logic - "Pop" the top-most modal
+
+            // 1. Notification (Top)
+            if (notification) {
+                setNotification(null);
+                // If notification was just an alert (no history push), we might need to handle history?
+                // But normally we treat alerts as ephemeral. If one was open, we close it.
+                // If it caused a stack increase, we are good (one back consumed).
+                return;
             }
+
+            // 2. Leaf Modals (Stacked on top of others)
+            if (showLoginPrompt) { setShowLoginPrompt(false); return; }
+            if (noteStack) { setNoteStack(null); return; }
+            if (showReferralModal) { setShowReferralModal(false); return; }
+            if (showFeedback) { setShowFeedback(false); return; }
+            if (showKnowMore) { setShowKnowMore(false); return; }
+            if (showAdminPanel) { setShowAdminPanel(false); return; }
+
+            // 3. Primary Modals
+            // Review Confirmation
+            if (reviewStack && reviewStarted) {
+                // Prevent navigation by restoring state (pushing it back)
+                // because we consumed one "back" to get here, but we are refusing to leave.
+                window.history.pushState({ modalOpen: true }, '', window.location.pathname);
+
+                setNotification({
+                    type: 'confirm',
+                    message: "End review session? Progress will be lost.",
+                    onConfirm: () => {
+                        // Authorize the close so popstate keeps flow
+                        setReviewStarted(false);
+                        // We need to trigger the back that we cancelled/restored
+                        // But simply setting state null is safer, history is already 'back' before the restore?
+                        // No, we restored it. So we need to back() again.
+                        window.history.back();
+                    }
+                });
+                return;
+            }
+            if (reviewStack) { setReviewStack(null); return; } // Not started, just close
+
+            if (showCoinModal) { setShowCoinModal(false); return; }
+            if (showAddModal) { setShowAddModal(false); return; }
+            if (showMenu) { setShowMenu(false); return; }
         };
 
-        window.addEventListener('beforeunload', handleBeforeUnload);
-        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-    }, [user, reviewStack, showAddModal]);
+        window.addEventListener('popstate', handlePopState);
 
-    // Handle Back Button specifically for closing modals
-    useEffect(() => {
-        if (reviewStack || showAddModal) {
-            // Push state only when a modal opens
-            window.history.pushState({ modal: true }, '', window.location.pathname);
+        return () => {
+            window.removeEventListener('popstate', handlePopState);
+        };
+    }, [
+        reviewStack, showAddModal, showMenu, showReferralModal,
+        showAdminPanel, showCoinModal, showFeedback, showKnowMore,
+        showLoginPrompt, noteStack, notification, reviewStarted
+    ]);
 
-            const handlePopState = (e) => {
-                // User pressed back. Close the modal immediately like the close button.
-                if (reviewStack) {
-                    setReviewStack(null);
-                } else if (showAddModal) {
-                    setShowAddModal(false);
+    // Helper to safely close modals with history check
+    const safelyCloseModal = () => {
+        if (reviewStack && reviewStarted) {
+            setNotification({
+                type: 'confirm',
+                message: "End review session? Progress will be lost.",
+                onConfirm: () => {
+                    setReviewStarted(false);
+                    window.history.back();
                 }
-            };
-
-            window.addEventListener('popstate', handlePopState);
-            return () => {
-                window.removeEventListener('popstate', handlePopState);
-                // Clean up history state if we close programmatically? 
-                // It's tricky to remove history items. 
-                // Mostly we just let the user navigate forward/back naturally.
-            };
+            });
+        } else {
+            window.history.back();
         }
-    }, [reviewStack !== null, showAddModal]); // Only re-run when open state changes boolean value
+    };
 
-    // Other app logic
     // Other app logic
     const loadUserProfile = async (token) => {
         try {
             let profile = await getUserProfile(token);
+
+            // Check for pending referral code from URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const refCode = urlParams.get('ref') || localStorage.getItem('pendingReferral');
+
+            if (refCode && !profile.referredBy && profile.referralCode !== refCode) {
+                // Apply referral Code
+                profile = { ...profile, referredBy: refCode };
+                await saveUserProfile(token, profile);
+
+                localStorage.removeItem('pendingReferral'); // Clear after use
+                setNotification({ type: 'alert', message: 'Referral code applied successfully!' });
+            }
+
             // Check Daily Login
             const loginResult = await checkDailyLogin(token, profile);
             if (loginResult.awarded) {
                 profile = loginResult.newProfile;
                 setTimeout(() => setNotification({ type: 'alert', message: `Daily Login Bonus! +${loginResult.coinsAdded} Coins` }), 1000);
             }
+
+            // Check for Unlimited Subscription Grant
+            if (PUBLIC_FOLDER_ID) {
+                const grant = await checkSubscriptionGrant(profile.email, PUBLIC_FOLDER_ID);
+                if (grant && grant.expiry) {
+                    const expiryTime = new Date(grant.expiry).getTime();
+                    if (expiryTime > Date.now() && (!profile.unlimitedCoinsExpiry || expiryTime > new Date(profile.unlimitedCoinsExpiry).getTime())) {
+                        // New or extended grant found
+                        profile = { ...profile, unlimitedCoinsExpiry: grant.expiry };
+                        await saveUserProfile(token, profile);
+                        setTimeout(() => setNotification({ type: 'alert', message: "Unlimited Coins Plan Activated! 🚀" }), 1500);
+                    }
+                }
+            }
+
             setUserProfile(profile);
         } catch (e) {
             console.error("Failed to load profile", e);
@@ -234,15 +327,30 @@ const App = () => {
 
     const handleImportStack = async (stack) => {
         if (!user) { signIn(); return; }
+
+        const cost = stack.cost || 0;
+        if (cost > 0) {
+            if ((userProfile?.coins || 0) < cost) {
+                setNotification({ type: 'alert', message: `Not enough coins! You need ${cost} coins.` });
+                return;
+            }
+            if (!window.confirm(`Buy "${stack.title}" for ${cost} coins?`)) return;
+        }
+
         setLoading(true);
         try {
-            const newStack = { ...stack, id: Date.now().toString(), driveFileId: null, isPublic: false };
+            const newStack = { ...stack, id: Date.now().toString(), driveFileId: null, isPublic: false, cost: 0 };
             const result = await saveStack(user.token, newStack);
+
+            if (cost > 0) {
+                handleUpdateCoins(userProfile.coins - cost);
+            }
+
             handleUpdateLocalStack({ ...newStack, driveFileId: result.id });
-            setNotification({ type: 'alert', message: `Added "${stack.title}"!` });
+            setNotification({ type: 'alert', message: cost > 0 ? `Purchased "${stack.title}"!` : `Added "${stack.title}"!` });
         } catch (error) {
             if (error.message === 'REAUTH_NEEDED') signIn();
-            else setNotification({ type: 'alert', message: 'Import failed.' });
+            else setNotification({ type: 'alert', message: 'Operation failed.' });
         } finally {
             setLoading(false);
         }
@@ -298,6 +406,28 @@ const App = () => {
         });
     };
 
+    const handleDeleteStack = async (stack) => {
+        setLoading(true);
+        try {
+            if (stack.driveFileId) {
+                await deleteStack(user.token, stack.driveFileId);
+            }
+            if (stack.isPublic) {
+                fetchPublicStacks();
+            } else {
+                setStacks(prev => prev.filter(s => s.id !== stack.id));
+            }
+            setShowAddModal(false);
+            setReviewStack(null);
+            setNoteStack(null);
+            setNotification({ type: 'alert', message: `Deleted "${stack.title}"` });
+        } catch (e) {
+            setNotification({ type: 'alert', message: 'Delete failed' });
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const toggleFullscreen = () => {
         if (!document.fullscreenElement) {
             document.documentElement.requestFullscreen().catch(() => { });
@@ -308,6 +438,8 @@ const App = () => {
         }
     };
 
+    const isUnlimited = userProfile?.unlimitedCoinsExpiry && new Date(userProfile.unlimitedCoinsExpiry).getTime() > Date.now();
+
     return (
         <div className="app-layout">
             <header className="main-header">
@@ -315,7 +447,9 @@ const App = () => {
                 <div className="header-actions">
                     {user && (
                         <div onClick={() => setShowCoinModal(true)} style={{ cursor: 'pointer' }}>
-                            <CoinsDisplay coins={userProfile?.coins || 0} />
+                            <div onClick={() => setShowCoinModal(true)} style={{ cursor: 'pointer' }}>
+                                <CoinsDisplay coins={userProfile?.coins || 0} isUnlimited={isUnlimited} />
+                            </div>
                         </div>
                     )}
                     <button className="neo-button icon-btn" onClick={toggleFullscreen}>
@@ -341,18 +475,14 @@ const App = () => {
                                 setReviewStack(s);
                                 return;
                             }
-                            // Check coins before review for logged-in users, but skip for public/demo stacks
-                            if (user && !s.isPublic && s.id !== 'demo-stack' && (userProfile?.coins || 0) < 5) {
-                                setNotification({ type: 'alert', message: "Not enough coins! You need 5 coins to review." });
-                                return;
-                            }
+                            // No coin deduction for reviews in the new model
                             s.importantNote ? setNoteStack(s) : setReviewStack(s);
                         }}
                         onEdit={(s) => { setActiveStack(s); setShowAddModal(true); }}
                         onImport={handleImportStack} searchQuery={searchQuery} setSearchQuery={setSearchQuery}
                         onShowFeedback={() => setShowFeedback(true)} filters={publicFilters} setFilters={setPublicFilters}
                         sortBy={sortBy} onSortChange={setSortBy} filterLabel={filterLabel} onLabelChange={setFilterLabel}
-                        availableLabels={[]} onShowKnowMore={() => setShowKnowMore(true)}
+                        availableLabels={[...new Set(stacks.map(s => s.label).filter(l => l && l !== 'No label'))]} onShowKnowMore={() => setShowKnowMore(true)}
                     />
                 </main>
 
@@ -370,14 +500,10 @@ const App = () => {
                         stack={noteStack}
                         user={user}
                         onStart={() => {
-                            if (noteStack.isPublic || noteStack.id === 'demo-stack' || (userProfile?.coins || 0) >= 5) {
-                                setReviewStack(noteStack);
-                                setNoteStack(null);
-                            } else {
-                                setNotification({ type: 'alert', message: "Not enough coins!" });
-                            }
+                            setReviewStack(noteStack);
+                            setNoteStack(null);
                         }}
-                        onClose={() => setNoteStack(null)}
+                        onClose={() => window.history.back()}
                         onEdit={() => { setActiveStack(noteStack); setNoteStack(null); setShowAddModal(true); }}
                     />}
                 </AnimatePresence>
@@ -386,22 +512,24 @@ const App = () => {
             {showMenu && (
                 <HamburgerMenu
                     user={user} theme={theme} onToggleTheme={handleToggleTheme}
-                    soundsEnabled={soundsEnabled} onToggleSounds={() => setSoundsEnabled(prev => {
-                        const newValue = !prev;
+                    soundsEnabled={soundsEnabled} onToggleSounds={() => {
+                        const newValue = !soundsEnabled;
+                        setSoundsEnabled(newValue);
                         localStorage.setItem('soundsEnabled', newValue);
                         return newValue;
-                    })}
+                    }}
                     onShowFeedback={() => { setShowMenu(false); setShowFeedback(true); }}
                     onShowReferral={() => { setShowMenu(false); setShowReferralModal(true); }}
-                    onClose={() => setShowMenu(false)} onLogout={() => signOut(setUser)} onLogin={signIn}
+                    onClose={() => window.history.back()} onLogout={() => signOut(setUser)} onLogin={signIn}
                     onShowAdminPanel={() => { setShowMenu(false); setShowAdminPanel(true); }}
                 />
             )}
 
             {showAddModal && (
                 <AddStackModal
-                    user={user} stack={activeStack} onClose={() => setShowAddModal(false)}
+                    user={user} stack={activeStack} onClose={() => window.history.back()}
                     onSave={(upd) => { handleUpdateLocalStack(upd); setShowAddModal(false); }}
+                    onDelete={handleDeleteStack}
                     showAlert={(msg) => setNotification({ type: 'alert', message: msg })}
                     showConfirm={(msg, cb) => setNotification({ type: 'confirm', message: msg, onConfirm: cb })}
                     publicFolderId={PUBLIC_FOLDER_ID}
@@ -412,7 +540,7 @@ const App = () => {
 
             {reviewStack && (
                 <ReviewModal
-                    stack={reviewStack} user={user} onClose={() => setReviewStack(null)}
+                    stack={reviewStack} user={user} onClose={safelyCloseModal}
                     onUpdate={(upd) => handleUpdateLocalStack(upd)}
                     onEdit={() => { setActiveStack(reviewStack); setReviewStack(null); setShowAddModal(true); }}
                     onDuplicate={handleImportStack}
@@ -424,10 +552,14 @@ const App = () => {
                         }
                     }}
                     userCoins={userProfile?.coins || 0}
-                    onDeductCoins={(amount) => handleUpdateCoins((userProfile?.coins || 0) - amount)}
+                    onDeductCoins={(amount) => {
+                        if (!isUnlimited) handleUpdateCoins((userProfile?.coins || 0) - amount);
+                    }}
                     isPreviewMode={!user && reviewStack.isPublic}
                     onLoginRequired={handleLoginRequired}
                     previewProgress={previewSession}
+                    isUnlimited={isUnlimited}
+                    onReviewStart={() => setReviewStarted(true)}
                 />
             )}
 
@@ -440,37 +572,46 @@ const App = () => {
                 )}
             </AnimatePresence>
 
-            {showFeedback && <FeedbackModal user={user} onClose={() => setShowFeedback(false)} showAlert={(m) => setNotification({ type: 'alert', message: m })} />}
-            <KnowMoreModal isOpen={showKnowMore} onClose={() => setShowKnowMore(false)} onLogin={() => { setShowKnowMore(false); signIn(); }} />
+            {showFeedback && <FeedbackModal user={user} onClose={() => window.history.back()} showAlert={(m) => setNotification({ type: 'alert', message: m })} />}
+            <KnowMoreModal isOpen={showKnowMore} onClose={() => window.history.back()} onLogin={() => { setShowKnowMore(false); signIn(); }} />
+
+            {showCoinModal && (
+                <CoinPurchaseModal
+                    user={user}
+                    userCoins={userProfile?.coins || 0}
+                    onClose={() => window.history.back()}
+                    onShare={() => {
+                        setShowCoinModal(false);
+                        setShowReferralModal(true);
+                    }}
+                    onShowFeedback={() => {
+                        setShowCoinModal(false);
+                        setShowFeedback(true);
+                    }}
+                />
+            )}
 
             {showReferralModal && (
                 <ReferralModal
                     user={user}
                     userProfile={userProfile}
-                    onClose={() => setShowReferralModal(false)}
+                    onClose={() => window.history.back()}
                     onUpdateProfile={(upd) => { setUserProfile(upd); saveUserProfile(user.token, upd); }}
                     showAlert={(m) => setNotification({ type: 'alert', message: m })}
+                    onShowFeedback={() => {
+                        setShowReferralModal(false);
+                        setShowFeedback(true);
+                    }}
                 />
             )}
 
-            {showAdminPanel && user?.email === 'chethanincardland@gmail.com' && (
+            {showAdminPanel && user?.email === ADMIN_EMAIL && (
                 <AdminPanel
-                    user={user} onClose={() => setShowAdminPanel(false)}
+                    user={user} onClose={() => window.history.back()}
                     publicStacks={publicStacks} onRefreshPublic={fetchPublicStacks}
                     publicFolderId={PUBLIC_FOLDER_ID}
                     showAlert={(m) => setNotification({ type: 'alert', message: m })}
                     showConfirm={(m, c) => setNotification({ type: 'confirm', message: m, onConfirm: c })}
-                />
-            )}
-
-            {showCoinModal && (
-                <CoinPurchaseModal
-                    userCoins={userProfile?.coins || 0}
-                    onClose={() => setShowCoinModal(false)}
-                    onShare={() => {
-                        setShowCoinModal(false);
-                        setShowReferralModal(true);
-                    }}
                 />
             )}
 

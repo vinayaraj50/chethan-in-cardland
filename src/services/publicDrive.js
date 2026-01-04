@@ -4,7 +4,9 @@
  * We use gapi instead of raw fetch to avoid CORS issues with 'alt=media' downloads.
  */
 
-export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyx1eOsk18mZMgMpaLLKm_2N2R42k8v8e9bTvbJF9kpcfBcPhwf2-XYWzG-1BTKnpV50g/exec';
+import { APPS_SCRIPT_URL as CONFIG_SCRIPT_URL } from '../constants/config';
+
+export const APPS_SCRIPT_URL = CONFIG_SCRIPT_URL;
 
 let gapiInitialized = false;
 let gapiInitPromise = null;

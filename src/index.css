@@ -559,18 +559,16 @@ button {
   80%,
   100% {
     transform: translateY(0);
-    border-color: transparent;
+    box-shadow: 5px 5px 10px var(--shadow-dark), -5px -5px 10px var(--shadow-light);
   }
 
   40% {
     transform: translateY(-20px);
-    border-color: var(--accent-color);
     box-shadow:
+      0 0 15px rgba(var(--accent-rgb), 0.6),
       5px 25px 30px rgba(0, 0, 0, 0.1),
-      /* Drop shadow when lifted */
       inset 2px 2px 5px var(--shadow-dark),
       inset -2px -2px 5px var(--shadow-light);
-    /* Inner shadow look */
   }
 }
 

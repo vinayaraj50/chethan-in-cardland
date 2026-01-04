@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import CloseButton from './common/CloseButton';
 import { X, Mic, Image as ImageIcon, Plus, Trash2, Copy, Save, Check, Play, Square, Pause, ChevronDown, Download, Upload, Split, Merge } from 'lucide-react';
 import { signIn } from '../services/googleAuth';
 import { saveStack, deleteStack } from '../services/googleDrive';
@@ -8,6 +9,7 @@ import { validateDataURI, sanitizeText } from '../utils/securityUtils';
 import ImageViewer from './ImageViewer';
 import { AnimatePresence } from 'framer-motion';
 import NeoDropdown from './NeoDropdown';
+import { ADMIN_EMAIL } from '../constants/config';
 
 const AudioPlayer = ({ audioData }) => {
     const [isPlaying, setIsPlaying] = useState(false);
@@ -146,7 +148,7 @@ const AddStackModal = ({
     const [syllabus, setSyllabus] = useState(stack?.syllabus || (stack ? '' : (defaultMetadata?.syllabus || '')));
     const [medium, setMedium] = useState(stack?.medium || (stack ? '' : (defaultMetadata?.medium || '')));
     const [subject, setSubject] = useState(stack?.subject || (stack ? '' : (defaultMetadata?.subject || '')));
-    const [isPublishing, setIsPublishing] = useState(activeTab === 'ready-made' && user?.email === 'chethanincardland@gmail.com');
+    const [isPublishing, setIsPublishing] = useState(activeTab === 'ready-made' && user?.email === ADMIN_EMAIL);
     const [viewingImage, setViewingImage] = useState(null);
     const uploadInputRef = useRef(null);
 
@@ -488,7 +490,7 @@ const AddStackModal = ({
                 <div style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', display: 'flex', gap: '0.5rem' }}>
                     {stack && <button className="neo-button icon-btn" title="Download Stack" onClick={handleDownload}><Download size={18} /></button>}
                     {stack && <button className="neo-button icon-btn" title="Duplicate" onClick={() => onDuplicate(stack)}><Copy size={18} /></button>}
-                    <button className="neo-button icon-btn" onClick={onClose}><X size={18} /></button>
+                    <CloseButton onClick={onClose} size={18} />
                 </div>
 
                 <h2 style={{ fontSize: '1.5rem' }}>{stack ? 'Edit Stack' : 'New Flashcard Stack'}</h2>
@@ -591,7 +593,7 @@ const AddStackModal = ({
                 </div>
 
                 {/* Community Metadata & Publishing (Admin only) */}
-                {user?.email === 'chethanincardland@gmail.com' && (
+                {user?.email === ADMIN_EMAIL && (
                     <div className="neo-inset" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', borderRadius: '16px' }}>
                         <h3 style={{ fontSize: '0.9rem', fontWeight: 'bold', opacity: 0.6 }}>COMMUNITY METADATA</h3>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
@@ -917,7 +919,11 @@ const AddStackModal = ({
                     )}
                     <div style={{ display: 'flex', gap: '1rem' }}>
                         {stack && (
-                            <button className="neo-button neo-glow-red" style={{ flex: 1, justifyContent: 'center', color: 'var(--error-color)' }} onClick={() => onDelete(stack)}>
+                            <button
+                                className="neo-button neo-glow-red"
+                                style={{ flex: 1, justifyContent: 'center', color: 'var(--error-color)' }}
+                                onClick={() => showConfirm(`Delete "${stack.title}"?`, () => onDelete(stack))}
+                            >
                                 <Trash2 size={18} /> Delete Stack
                             </button>
                         )}

@@ -48,6 +48,10 @@
     VITE_GOOGLE_CLIENT_ID=your_client_id_from_google_cloud
     VITE_PUBLIC_API_KEY=your_api_key
     VITE_PUBLIC_FOLDER_ID=your_public_drive_folder_id
+    VITE_APPS_SCRIPT_URL=your_google_apps_script_url
+    VITE_ADMIN_EMAIL=your_admin_email
+    VITE_UPI_ID=your_upi_id_for_payments
+    VITE_SUPPORT_PHONE=your_support_phone_number
     ```
 
 4.  **Run Development Server**

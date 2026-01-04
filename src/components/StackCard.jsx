@@ -1,13 +1,14 @@
 import React from 'react';
 import { Layers, Calendar, Star, Plus, Edit2, Coins } from 'lucide-react';
 import { sanitizeStackTitle, validateDataURI } from '../utils/securityUtils';
+import { ADMIN_EMAIL } from '../constants/config';
 
 const StackCard = ({ stack, onReview, onEdit, onImport, user }) => {
     // SECURITY FIX (VULN-005): Sanitize stack title before using in URL
     // SECURITY FIX (VULN-004): Validate titleImage and card images before using
     const safeTitleForUrl = sanitizeStackTitle(stack.title);
 
-    const isAdmin = user?.email === 'chethanincardland@gmail.com';
+    const isAdmin = user?.email === ADMIN_EMAIL;
 
     // Validate titleImage if it exists
     let titleImage = null;
@@ -64,47 +65,45 @@ const StackCard = ({ stack, onReview, onEdit, onImport, user }) => {
                     lineHeight: '1.4',
                     height: '4.2em'
                 }} title={stack.title}>{stack.title}</h3>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', opacity: 0.6, fontSize: '0.85rem' }}>
-                        <Layers size={14} /> {stack.cards?.length || 0} Flashcards
+                {/* Stats */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.4rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', opacity: 0.6, fontSize: '0.8rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                            <Layers size={14} /> {stack.cards?.length || 0}
+                        </div>
                     </div>
-                    {stack.id !== 'demo-stack' && !stack.isPublic && (
+
+                    {stack.cost > 0 ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.85rem', color: '#f59e0b', fontWeight: 'bold' }}>
-                            <Coins size={14} /> 5
+                            <Coins size={14} /> {stack.cost}
+                        </div>
+                    ) : stack.isPublic && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.85rem', color: '#10b981', fontWeight: 'bold' }}>
+                            Free
                         </div>
                     )}
                 </div>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', gap: '1rem', paddingTop: '1rem' }}>
-                {stack.isPublic ? (
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <button
-                            className="neo-button neo-glow-blue"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                if (user) {
-                                    onImport(stack);
-                                } else {
-                                    // For non-logged-in users, clicking triggers review (preview mode)
-                                    onReview(stack);
-                                }
-                            }}
-                            title={user ? "Add to My Cards" : "Preview this stack"}
-                            style={{
-                                padding: '6px 12px',
-                                fontSize: '0.8rem',
-                                background: 'var(--accent-color)',
-                                color: 'white',
-                                borderRadius: '12px',
-                                fontWeight: '600',
-                                border: 'none',
-                            }}
-                        >
-                            <Plus size={14} /> {user ? 'Add to My Cards' : 'Preview'}
-                        </button>
-                    </div>
-                ) : (
+                {stack.isPublic && (
+                    <button
+                        className="neo-button icon-btn"
+                        style={{ flex: 1, padding: '0.5rem', background: stack.cost > 0 ? '#f59e0b' : 'var(--accent-color)', color: 'white', border: 'none', fontSize: '0.85rem', display: 'flex', gap: '6px', alignItems: 'center', justifyContent: 'center' }}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if (user) {
+                                onImport(stack);
+                            } else {
+                                onReview(stack);
+                            }
+                        }}
+                    >
+                        {stack.cost > 0 ? <Coins size={14} /> : <Plus size={14} />}
+                        {user ? (stack.cost > 0 ? `Buy for ${stack.cost}` : 'Add to My Cards') : 'Preview'}
+                    </button>
+                )}
+                {!stack.isPublic && (
                     <div className="neo-flat" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.9rem', color: 'var(--accent-color)', padding: '6px 12px', borderRadius: '20px' }}>
                         <Star size={16} fill="#FFD700" color="#FFD700" />
                         <span style={{ fontWeight: '600' }}>Marks : {stack.lastMarks !== undefined ? stack.lastMarks : '—'}/{stack.cards ? stack.cards.length * 2 : 0}</span>

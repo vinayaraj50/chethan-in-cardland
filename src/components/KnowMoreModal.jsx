@@ -1,4 +1,5 @@
 import React from 'react';
+import CloseButton from './common/CloseButton';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Brain, Zap, Mic, Camera, BookOpen, TrendingUp, Sparkles, LogIn } from 'lucide-react';
 
@@ -10,13 +11,13 @@ const KnowMoreModal = ({ isOpen, onClose, onLogin }) => {
         },
         {
             icon: <TrendingUp size={28} />,
-            text: "Instead of passive reading, the app adapts to your memory strength by tracking how well you answer and guiding you to focus more on what you find difficult. This helps you improve faster and retain information longer."
+            text: "Powered by an advanced learning algorithm, the app understands your memory strength, tracks progress, and guides you through a personalised and efficient learning journey. This helps you improve faster and retain information longer."
         },
         {
             icon: <Sparkles size={28} />,
             content: (
                 <div>
-                    <p style={{ margin: '0 0 1rem 0' }}>You can quickly create your own flashcards using your own questions and answers by:</p>
+                    <p style={{ margin: '0 0 1rem 0' }}>You can quickly create your own flashcards using your own questions and answers using one or more of these options.</p>
                     <div style={{ display: 'flex', gap: '1.5rem', justifyContent: 'center', marginBottom: '1rem', marginTop: '0.5rem' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
                             <div className="neo-inset" style={{
@@ -61,6 +62,7 @@ const KnowMoreModal = ({ isOpen, onClose, onLogin }) => {
                             <span style={{ fontSize: '0.85rem', fontWeight: '500', opacity: 0.8 }}>Photo</span>
                         </div>
                     </div>
+                    <p style={{ margin: '0', lineHeight: '1.6', fontSize: '1rem', fontWeight: '500', opacity: 0.9 }}>The app then intelligently adapts and guides you with the most efficient learning path for it.</p>
                 </div>
             )
         },
@@ -99,9 +101,7 @@ const KnowMoreModal = ({ isOpen, onClose, onLogin }) => {
                             display: 'flex', alignItems: 'center', justifyContent: 'space-between'
                         }}>
                             <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: '800', color: 'var(--accent-color)' }}>How it Works</h2>
-                            <button className="neo-button icon-btn neo-glow-red" onClick={onClose} style={{ color: 'var(--error-color)' }}>
-                                <X size={20} />
-                            </button>
+                            <CloseButton onClick={onClose} />
                         </div>
 
                         <div style={{

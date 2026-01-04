@@ -1,0 +1,31 @@
+/**
+ * Application Configuration
+ * Centralized configuration for environment variables and constants
+ */
+
+// Google API Configuration
+export const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+export const PUBLIC_API_KEY = import.meta.env.VITE_PUBLIC_API_KEY || import.meta.env.VITE_GOOGLE_API_KEY;
+export const PUBLIC_FOLDER_ID = import.meta.env.VITE_PUBLIC_FOLDER_ID;
+export const APPS_SCRIPT_URL = import.meta.env.VITE_APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbyx1eOsk18mZMgMpaLLKm_2N2R42k8v8e9bTvbJF9kpcfBcPhwf2-XYWzG-1BTKnpV50g/exec';
+
+// Admin Configuration
+export const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL || 'chethanincardland@gmail.com';
+
+// Payment Configuration
+export const UPI_ID = import.meta.env.VITE_UPI_ID || 'vinayarajh1-1@okhdfcbank';
+export const SUPPORT_PHONE = import.meta.env.VITE_SUPPORT_PHONE || '919497449115';
+export const UPI_NAME = 'ChethanInCardland';
+
+// Application Constants
+export const PREVIEW_CARD_LIMIT = 10;
+export const SRS_INTERVALS = [1, 3, 7, 30]; // Days
+export const DAILY_LOGIN_COINS = 5;
+export const REFERRAL_COINS = 50;
+
+// Coin Packages
+export const COIN_PACKAGES = [
+    { coins: 50, price: 79, label: 'Basic Pack' },
+    { coins: 200, price: 299, label: 'Popular Choice' },
+    { coins: 500, price: 479, label: 'Master Study Pack' }
+];
