@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { Home as HomeIcon, Plus, Menu, X, LogOut, Trash2, Sun, Moon, Share2, Copy, Maximize, Minimize } from 'lucide-react';
 import { initGoogleAuth, signIn, signOut } from './services/googleAuth';
@@ -22,20 +22,15 @@ import ReferralModal from './components/ReferralModal';
 import AdminPanel from './components/AdminPanel';
 import CoinPurchaseModal from './components/CoinPurchaseModal';
 import LoginPromptModal from './components/LoginPromptModal';
+import CoinRewardAnimation from './components/CoinRewardAnimation';
 import { DEMO_STACK } from './constants/data';
 import { checkSubscriptionGrant } from './services/subscriptionService';
-import { ADMIN_EMAIL } from './constants/config';
-
-
-
-
-// Environment Variables
-const PUBLIC_FOLDER_ID = import.meta.env.VITE_PUBLIC_FOLDER_ID;
-const PUBLIC_API_KEY = import.meta.env.VITE_PUBLIC_API_KEY || import.meta.env.VITE_GOOGLE_API_KEY;
+import { ADMIN_EMAIL, PUBLIC_API_KEY, PUBLIC_FOLDER_ID } from './constants/config';
 
 const App = () => {
+    // 1. State
     const [user, setUser] = useState(null);
-    const [userProfile, setUserProfile] = useState(null); // { coins, lastLoginDate, driveFileId, ... }
+    const [userProfile, setUserProfile] = useState(null);
     const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
     const [stacks, setStacks] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -46,8 +41,6 @@ const App = () => {
     const [publicStacks, setPublicStacks] = useState([]);
     const [publicLoading, setPublicLoading] = useState(false);
     const [publicFilters, setPublicFilters] = useState({ standard: '', syllabus: '', medium: '', subject: '' });
-
-    // Modal States
     const [showMenu, setShowMenu] = useState(false);
     const [showAddModal, setShowAddModal] = useState(false);
     const [activeStack, setActiveStack] = useState(null);
@@ -58,30 +51,222 @@ const App = () => {
     const [showFeedback, setShowFeedback] = useState(false);
     const [showKnowMore, setShowKnowMore] = useState(false);
     const [noteStack, setNoteStack] = useState(null);
-
     const [showReferralModal, setShowReferralModal] = useState(false);
     const [showAdminPanel, setShowAdminPanel] = useState(false);
     const [showCoinModal, setShowCoinModal] = useState(false);
-
-    // Preview Mode State
     const [previewSession, setPreviewSession] = useState(null);
     const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+    const [reviewStarted, setReviewStarted] = useState(false);
+    const [rewardData, setRewardData] = useState(null);
 
+    const prevModalCount = useRef(0);
 
+    // 2. Logic Functions (useCallback for stable references)
+    // Moving handleUpdateLocalStack to the VERY top of declarations
+    const handleUpdateLocalStack = useCallback((updated) => {
+        setStacks(prev => {
+            const index = prev.findIndex(s => s.id === updated.id || s.driveFileId === updated.driveFileId);
+            if (index >= 0) {
+                const copy = [...prev];
+                copy[index] = { ...copy[index], ...updated };
+                return copy;
+            }
+            return [updated, ...prev];
+        });
+    }, []);
 
+    const fetchPublicStacks = useCallback(async () => {
+        if (!PUBLIC_API_KEY || !PUBLIC_FOLDER_ID) return;
+        setPublicLoading(true);
+        try {
+            const { listPublicStacks, getPublicFileContent, getPublicIndex } = await import('./services/publicDrive');
+            const indexData = await getPublicIndex(PUBLIC_API_KEY, PUBLIC_FOLDER_ID);
+
+            if (indexData && Array.isArray(indexData) && indexData.length > 0) {
+                setPublicStacks(indexData);
+            } else {
+                const files = await listPublicStacks(PUBLIC_API_KEY, PUBLIC_FOLDER_ID);
+                const data = await Promise.all(files.map(async (file) => {
+                    try {
+                        const content = await getPublicFileContent(PUBLIC_API_KEY, file.id, null);
+                        return { ...content, driveFileId: file.id, isPublic: true };
+                    } catch (e) { return null; }
+                }));
+                setPublicStacks(data.filter(s => s !== null));
+            }
+        } catch (error) {
+            console.error('Fetch public failed');
+        } finally {
+            setPublicLoading(false);
+        }
+    }, []);
+
+    const handleUpdateCoins = useCallback((newCoins) => {
+        if (!user || !userProfile) return;
+        const updated = { ...userProfile, coins: newCoins };
+        setUserProfile(updated);
+        saveUserProfile(user.token, updated).catch(e => console.error("Failed to save coins", e));
+    }, [user, userProfile]);
+
+    const handleImportStack = useCallback(async (stack) => {
+        if (!user) { signIn(); return; }
+        const cost = stack.cost || 0;
+        if (cost > 0) {
+            if ((userProfile?.coins || 0) < cost) {
+                setNotification({ type: 'alert', message: `Not enough coins! You need ${cost} coins.` });
+                return;
+            }
+            if (!window.confirm(`Buy "${stack.title}" for ${cost} coins?`)) return;
+        }
+        setLoading(true);
+        try {
+            const newStack = { ...stack, id: Date.now().toString(), driveFileId: null, isPublic: false, cost: 0 };
+            const result = await saveStack(user.token, newStack);
+            if (cost > 0) {
+                handleUpdateCoins(userProfile.coins - cost);
+            }
+            handleUpdateLocalStack({ ...newStack, driveFileId: result.id });
+            setNotification({ type: 'alert', message: cost > 0 ? `Purchased "${stack.title}"!` : `Added "${stack.title}"!` });
+        } catch (error) {
+            if (error.message === 'REAUTH_NEEDED') signIn();
+            else setNotification({ type: 'alert', message: 'Operation failed.' });
+        } finally {
+            setLoading(false);
+        }
+    }, [user, userProfile, handleUpdateCoins, handleUpdateLocalStack]);
+
+    const handleDeleteStack = useCallback(async (stack) => {
+        if (!stack || (!stack.id && !stack.driveFileId)) return;
+        setLoading(true);
+        try {
+            if (stack.driveFileId && user?.token) {
+                await deleteStack(user.token, stack.driveFileId);
+            }
+            if (stack.isPublic) {
+                fetchPublicStacks();
+            } else {
+                setStacks(prev => prev.filter(s => s.id !== stack.id));
+            }
+            setShowAddModal(false);
+            setReviewStack(null);
+            setNoteStack(null);
+            setNotification({ type: 'alert', message: `Deleted "${stack.title}"` });
+        } catch (e) {
+            console.error('Delete failed:', e);
+            setNotification({ type: 'alert', message: 'Delete failed. Please try again.' });
+        } finally {
+            setLoading(false);
+        }
+    }, [user, fetchPublicStacks]);
+
+    const fetchStacks = useCallback(async (token) => {
+        setLoading(true);
+        try {
+            const data = await listStacks(token);
+            setStacks(data);
+        } catch (error) {
+            if (error.message === 'REAUTH_NEEDED') signIn();
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const loadUserProfile = useCallback(async (token) => {
+        try {
+            let profile = await getUserProfile(token);
+            const urlParams = new URLSearchParams(window.location.search);
+            const refCode = urlParams.get('ref') || localStorage.getItem('pendingReferral');
+
+            if (refCode && !profile.referredBy && profile.referralCode !== refCode) {
+                profile = { ...profile, referredBy: refCode };
+                await saveUserProfile(token, profile);
+                localStorage.removeItem('pendingReferral');
+                setNotification({ type: 'alert', message: 'Referral code applied successfully!' });
+            }
+
+            const loginResult = await checkDailyLogin(token, profile);
+            if (loginResult.awarded) {
+                profile = loginResult.newProfile;
+                setTimeout(() => setRewardData({ amount: loginResult.coinsAdded, type: 'Daily Login' }), 1000);
+            }
+
+            if (PUBLIC_FOLDER_ID) {
+                const grant = await checkSubscriptionGrant(profile.email, PUBLIC_FOLDER_ID);
+                if (grant && grant.expiry) {
+                    const expiryTime = new Date(grant.expiry).getTime();
+                    if (expiryTime > Date.now() && (!profile.unlimitedCoinsExpiry || expiryTime > new Date(profile.unlimitedCoinsExpiry).getTime())) {
+                        profile = { ...profile, unlimitedCoinsExpiry: grant.expiry };
+                        await saveUserProfile(token, profile);
+                        setTimeout(() => setNotification({ type: 'alert', message: "Unlimited Coins Plan Activated! 🚀" }), 1500);
+                    }
+                }
+            }
+            setUserProfile(profile);
+        } catch (e) {
+            console.error("Failed to load profile", e);
+        }
+    }, []);
+
+    const safelyCloseModal = useCallback(() => {
+        if (reviewStack && reviewStarted) {
+            setNotification({
+                type: 'confirm',
+                message: "End review session? Progress will be lost.",
+                onConfirm: () => {
+                    setNotification(null);
+                    setReviewStarted(false);
+                    setReviewStack(null);
+                    window.history.back();
+                }
+            });
+        } else {
+            window.history.back();
+        }
+    }, [reviewStack, reviewStarted]);
+
+    const handleEditStack = useCallback(async (stack) => {
+        let stackToEdit = stack;
+        if (stackToEdit.isPublic && (!stackToEdit.cards || stackToEdit.cards.length === 0) && stackToEdit.driveFileId) {
+            setLoading(true);
+            try {
+                const { getPublicFileContent } = await import('./services/publicDrive');
+                const fullContent = await getPublicFileContent(PUBLIC_API_KEY, stackToEdit.driveFileId, user?.token, true);
+                if (fullContent) {
+                    stackToEdit = { ...stackToEdit, ...fullContent, isPublic: true, driveFileId: stackToEdit.driveFileId };
+                    setPublicStacks(prev => prev.map(p => p.id === stack.id ? stackToEdit : p));
+                } else {
+                    setNotification({ type: 'alert', message: 'Stack content not found.' });
+                    return;
+                }
+            } catch (e) {
+                setNotification({ type: 'alert', message: 'Failed to load stack content' });
+                return;
+            } finally {
+                setLoading(false);
+            }
+        }
+        setActiveStack(stackToEdit);
+        setShowAddModal(true);
+    }, [user]);
+
+    const handleLoginRequired = useCallback((progress) => {
+        setPreviewSession(progress);
+        setReviewStack(null);
+        setShowLoginPrompt(true);
+    }, []);
+
+    // 4. Effects
+    // Ensure ALL useEffects are defined AFTER their dependencies
     useEffect(() => {
         document.documentElement.setAttribute('data-theme', theme);
         localStorage.setItem('theme', theme);
     }, [theme]);
 
-    // Initialize Auth
     useEffect(() => {
-        // Capture referral code immediately on load
         const urlParams = new URLSearchParams(window.location.search);
         const refParam = urlParams.get('ref');
         if (refParam) {
             localStorage.setItem('pendingReferral', refParam);
-            // Optional: Clean URL
             window.history.replaceState({}, document.title, window.location.pathname);
         }
 
@@ -91,8 +276,7 @@ const App = () => {
             if (profile) {
                 fetchStacks(profile.token);
                 loadUserProfile(profile.token);
-            }
-            else {
+            } else {
                 setStacks([]);
                 setUserProfile(null);
             }
@@ -105,9 +289,8 @@ const App = () => {
             }
         }, 500);
         return () => clearInterval(interval);
-    }, []);
+    }, [fetchStacks, loadUserProfile]);
 
-    // Track User Login (Admin Analytics)
     useEffect(() => {
         if (user && PUBLIC_FOLDER_ID) {
             import('./services/adminService').then(({ checkInUser }) => {
@@ -118,35 +301,22 @@ const App = () => {
         }
     }, [user]);
 
-    // Handle Preview Session Resume After Login
+    // Resuming preview session relies on handleUpdateLocalStack
     useEffect(() => {
         const resumePreviewSession = async () => {
             if (user && previewSession) {
                 setLoading(true);
                 try {
-                    // Import the stack to user's collection
-                    const newStack = {
-                        ...previewSession.stack,
-                        id: Date.now().toString(),
-                        driveFileId: null,
-                        isPublic: false
-                    };
+                    const newStack = { ...previewSession.stack, id: Date.now().toString(), driveFileId: null, isPublic: false };
                     const result = await saveStack(user.token, newStack);
                     const importedStack = { ...newStack, driveFileId: result.id };
                     handleUpdateLocalStack(importedStack);
-
-                    // Resume review with the imported stack
                     setReviewStack(importedStack);
-
-                    // Clear preview session after successful import
                     setPreviewSession(null);
                     setNotification({ type: 'alert', message: `"${newStack.title}" added to My Cards!` });
                 } catch (error) {
-                    if (error.message === 'REAUTH_NEEDED') {
-                        signIn();
-                    } else {
-                        setNotification({ type: 'alert', message: 'Import failed. Please try again.' });
-                    }
+                    if (error.message === 'REAUTH_NEEDED') signIn();
+                    else setNotification({ type: 'alert', message: 'Import failed.' });
                     setPreviewSession(null);
                 } finally {
                     setLoading(false);
@@ -156,40 +326,25 @@ const App = () => {
         resumePreviewSession();
     }, [user, previewSession, handleUpdateLocalStack]);
 
-    // Track review progress for confirmation
-    const [reviewStarted, setReviewStarted] = useState(false);
+    useEffect(() => {
+        if (publicStacks.length === 0) fetchPublicStacks();
+    }, [fetchPublicStacks, publicStacks.length]);
 
-    // Track open modal count for history management
     const openModalCount = [
         reviewStack, showAddModal, showMenu, showReferralModal,
         showAdminPanel, showCoinModal, showFeedback, showKnowMore,
-        showLoginPrompt, noteStack, notification?.type === 'alert'
+        showLoginPrompt, noteStack, notification?.type === 'alert', rewardData
     ].filter(Boolean).length;
 
-    const prevModalCount = useRef(0);
-
-    // Handle Browser Back Button & Modal History
     useEffect(() => {
-        // Only push history if we INCREASED the number of modals (stacked up)
         if (openModalCount > prevModalCount.current) {
             window.history.pushState({ modalOpen: true }, '', window.location.pathname);
         }
-
         prevModalCount.current = openModalCount;
 
         const handlePopState = (e) => {
-            // Priority Closing Logic - "Pop" the top-most modal
-
-            // 1. Notification (Top)
-            if (notification) {
-                setNotification(null);
-                // If notification was just an alert (no history push), we might need to handle history?
-                // But normally we treat alerts as ephemeral. If one was open, we close it.
-                // If it caused a stack increase, we are good (one back consumed).
-                return;
-            }
-
-            // 2. Leaf Modals (Stacked on top of others)
+            if (rewardData) { setRewardData(null); return; }
+            if (notification) { setNotification(null); return; }
             if (showLoginPrompt) { setShowLoginPrompt(false); return; }
             if (noteStack) { setNoteStack(null); return; }
             if (showReferralModal) { setShowReferralModal(false); return; }
@@ -197,295 +352,38 @@ const App = () => {
             if (showKnowMore) { setShowKnowMore(false); return; }
             if (showAdminPanel) { setShowAdminPanel(false); return; }
 
-            // 3. Primary Modals
-            // Review Confirmation
             if (reviewStack && reviewStarted) {
-                // Prevent navigation by restoring state (pushing it back)
-                // because we consumed one "back" to get here, but we are refusing to leave.
                 window.history.pushState({ modalOpen: true }, '', window.location.pathname);
-
                 setNotification({
                     type: 'confirm',
                     message: "End review session? Progress will be lost.",
                     onConfirm: () => {
-                        setNotification(null); // Clear first to allow popstate to reach reviewStack
+                        setNotification(null);
                         setReviewStarted(false);
+                        setReviewStack(null);
                         window.history.back();
                     }
                 });
                 return;
             }
-            if (reviewStack) { setReviewStack(null); return; } // Not started, just close
-
+            if (reviewStack) { setReviewStack(null); return; }
             if (showCoinModal) { setShowCoinModal(false); return; }
             if (showAddModal) { setShowAddModal(false); return; }
             if (showMenu) { setShowMenu(false); return; }
         };
 
         window.addEventListener('popstate', handlePopState);
-
-        return () => {
-            window.removeEventListener('popstate', handlePopState);
-        };
+        return () => window.removeEventListener('popstate', handlePopState);
     }, [
         reviewStack, showAddModal, showMenu, showReferralModal,
         showAdminPanel, showCoinModal, showFeedback, showKnowMore,
-        showLoginPrompt, noteStack, notification, reviewStarted
+        showLoginPrompt, noteStack, notification, reviewStarted, rewardData
     ]);
-
-    // Helper to safely close modals with history check
-    const safelyCloseModal = () => {
-        if (reviewStack && reviewStarted) {
-            setNotification({
-                type: 'confirm',
-                message: "End review session? Progress will be lost.",
-                onConfirm: () => {
-                    setNotification(null); // Clear first for popstate flow
-                    setReviewStarted(false);
-                    window.history.back();
-                }
-            });
-        } else {
-            window.history.back();
-        }
-    };
-
-    // Other app logic
-    const loadUserProfile = async (token) => {
-        try {
-            let profile = await getUserProfile(token);
-
-            // Check for pending referral code from URL
-            const urlParams = new URLSearchParams(window.location.search);
-            const refCode = urlParams.get('ref') || localStorage.getItem('pendingReferral');
-
-            if (refCode && !profile.referredBy && profile.referralCode !== refCode) {
-                // Apply referral Code
-                profile = { ...profile, referredBy: refCode };
-                await saveUserProfile(token, profile);
-
-                localStorage.removeItem('pendingReferral'); // Clear after use
-                setNotification({ type: 'alert', message: 'Referral code applied successfully!' });
-            }
-
-            // Check Daily Login
-            const loginResult = await checkDailyLogin(token, profile);
-            if (loginResult.awarded) {
-                profile = loginResult.newProfile;
-                setTimeout(() => setNotification({ type: 'alert', message: `Daily Login Bonus! +${loginResult.coinsAdded} Coins` }), 1000);
-            }
-
-            // Check for Unlimited Subscription Grant
-            if (PUBLIC_FOLDER_ID) {
-                const grant = await checkSubscriptionGrant(profile.email, PUBLIC_FOLDER_ID);
-                if (grant && grant.expiry) {
-                    const expiryTime = new Date(grant.expiry).getTime();
-                    if (expiryTime > Date.now() && (!profile.unlimitedCoinsExpiry || expiryTime > new Date(profile.unlimitedCoinsExpiry).getTime())) {
-                        // New or extended grant found
-                        profile = { ...profile, unlimitedCoinsExpiry: grant.expiry };
-                        await saveUserProfile(token, profile);
-                        setTimeout(() => setNotification({ type: 'alert', message: "Unlimited Coins Plan Activated! 🚀" }), 1500);
-                    }
-                }
-            }
-
-            setUserProfile(profile);
-        } catch (e) {
-            console.error("Failed to load profile", e);
-        }
-    };
-
-    const handleUpdateCoins = (newCoins) => {
-        if (!user || !userProfile) return;
-        const updated = { ...userProfile, coins: newCoins };
-        setUserProfile(updated);
-        saveUserProfile(user.token, updated).catch(e => console.error("Failed to save coins", e));
-    };
-
-    const fetchPublicStacks = async () => {
-        if (!PUBLIC_API_KEY || !PUBLIC_FOLDER_ID) return;
-        setPublicLoading(true);
-        try {
-            const { listPublicStacks, getPublicFileContent, getPublicIndex } = await import('./services/publicDrive');
-
-            // Try fetching from master index first
-            const indexData = await getPublicIndex(PUBLIC_API_KEY, PUBLIC_FOLDER_ID);
-
-            if (indexData && Array.isArray(indexData) && indexData.length > 0) {
-                setPublicStacks(indexData);
-            } else {
-                // Fallback to slow scan if index missing
-                const files = await listPublicStacks(PUBLIC_API_KEY, PUBLIC_FOLDER_ID);
-                const data = await Promise.all(files.map(async (file) => {
-                    try {
-                        const content = await getPublicFileContent(PUBLIC_API_KEY, file.id, user?.token);
-                        return { ...content, driveFileId: file.id, isPublic: true };
-                    } catch (e) { return null; }
-                }));
-                setPublicStacks(data.filter(s => s !== null));
-            }
-        } catch (error) {
-            console.error('Fetch public failed');
-        } finally {
-            setPublicLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        if (publicStacks.length === 0) fetchPublicStacks();
-    }, []);
-
-    const handleImportStack = async (stack) => {
-        if (!user) { signIn(); return; }
-
-        const cost = stack.cost || 0;
-        if (cost > 0) {
-            if ((userProfile?.coins || 0) < cost) {
-                setNotification({ type: 'alert', message: `Not enough coins! You need ${cost} coins.` });
-                return;
-            }
-            if (!window.confirm(`Buy "${stack.title}" for ${cost} coins?`)) return;
-        }
-
-        setLoading(true);
-        try {
-            const newStack = { ...stack, id: Date.now().toString(), driveFileId: null, isPublic: false, cost: 0 };
-            const result = await saveStack(user.token, newStack);
-
-            if (cost > 0) {
-                handleUpdateCoins(userProfile.coins - cost);
-            }
-
-            handleUpdateLocalStack({ ...newStack, driveFileId: result.id });
-            setNotification({ type: 'alert', message: cost > 0 ? `Purchased "${stack.title}"!` : `Added "${stack.title}"!` });
-        } catch (error) {
-            if (error.message === 'REAUTH_NEEDED') signIn();
-            else setNotification({ type: 'alert', message: 'Operation failed.' });
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleLoginRequired = (progress) => {
-        setPreviewSession(progress);
-        setReviewStack(null);
-        setShowLoginPrompt(true);
-    };
-
-    const handleLoginPromptConfirm = () => {
-        setShowLoginPrompt(false);
-        signIn();
-    };
-
-    const handleLoginPromptCancel = () => {
-        setShowLoginPrompt(false);
-        setPreviewSession(null);
-        setReviewStack(null);
-    };
-
-    const fetchStacks = async (token) => {
-        setLoading(true);
-        try {
-            const data = await listStacks(token);
-            setStacks(data);
-        } catch (error) {
-            if (error.message === 'REAUTH_NEEDED') signIn();
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const getSortedStacks = () => {
         let filtered = filterLabel ? stacks.filter(s => s.label === filterLabel) : stacks;
         if (searchQuery.trim()) filtered = filtered.filter(s => s.title.toLowerCase().includes(searchQuery.toLowerCase()));
         return [...filtered].sort((a, b) => (b.id || 0) - (a.id || 0));
-    };
-
-    const handleToggleTheme = () => setTheme(prev => prev === 'light' ? 'dark' : 'light');
-    const handleLogoutAndClear = () => signOut(setUser);
-
-    const handleUpdateLocalStack = (updated) => {
-        setStacks(prev => {
-            const index = prev.findIndex(s => s.id === updated.id || s.driveFileId === updated.driveFileId);
-            if (index >= 0) {
-                const copy = [...prev];
-                copy[index] = { ...copy[index], ...updated };
-                return copy;
-            }
-            return [updated, ...prev];
-        });
-    };
-
-    const handleDeleteStack = async (stack) => {
-        if (!stack || (!stack.id && !stack.driveFileId)) return;
-
-        setLoading(true);
-        try {
-            if (stack.driveFileId && user?.token) {
-                await deleteStack(user.token, stack.driveFileId);
-            }
-
-            if (stack.isPublic) {
-                fetchPublicStacks();
-            } else {
-                setStacks(prev => prev.filter(s => s.id !== stack.id));
-            }
-
-            setShowAddModal(false);
-            setReviewStack(null);
-            setNoteStack(null);
-            setNotification({ type: 'alert', message: `Deleted "${stack.title}"` });
-        } catch (e) {
-            console.error('Delete failed:', e);
-            setNotification({ type: 'alert', message: 'Delete failed. Please try again.' });
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const toggleFullscreen = () => {
-        if (!document.fullscreenElement) {
-            document.documentElement.requestFullscreen().catch(() => { });
-            setIsFullscreen(true);
-        } else {
-            document.exitFullscreen();
-            setIsFullscreen(false);
-        }
-    };
-
-    const handleEditStack = async (stack) => {
-        let stackToEdit = stack;
-
-        // Check if we need to fetch content for a public stack
-        // Specifically for Admin editing ready-made stacks
-        if (stackToEdit.isPublic && (!stackToEdit.cards || stackToEdit.cards.length === 0) && stackToEdit.driveFileId) {
-            setLoading(true);
-            try {
-                const { getPublicFileContent } = await import('./services/publicDrive');
-                // Pass true for skipLocal to ensure we get the latest version from Drive, not local cache
-                const fullContent = await getPublicFileContent(PUBLIC_API_KEY, stackToEdit.driveFileId, user?.token, true);
-
-                if (fullContent) {
-                    stackToEdit = { ...stackToEdit, ...fullContent, isPublic: true, driveFileId: stackToEdit.driveFileId };
-
-                    // Update cache to avoid re-fetching
-                    setPublicStacks(prev => prev.map(p => p.id === stack.id ? stackToEdit : p));
-                } else {
-                    setNotification({ type: 'alert', message: 'Stack content not found.' });
-                    setLoading(false);
-                    return;
-                }
-            } catch (e) {
-                setNotification({ type: 'alert', message: 'Failed to load stack content for editing.' });
-                setLoading(false);
-                return;
-            } finally {
-                setLoading(false);
-            }
-        }
-
-        setActiveStack(stackToEdit);
-        setShowAddModal(true);
     };
 
     const isUnlimited = userProfile?.unlimitedCoinsExpiry && new Date(userProfile.unlimitedCoinsExpiry).getTime() > Date.now();
@@ -500,7 +398,15 @@ const App = () => {
                             <CoinsDisplay coins={userProfile?.coins || 0} isUnlimited={isUnlimited} />
                         </div>
                     )}
-                    <button className="neo-button icon-btn" onClick={toggleFullscreen}>
+                    <button className="neo-button icon-btn" onClick={() => {
+                        if (!document.fullscreenElement) {
+                            document.documentElement.requestFullscreen().catch(() => { });
+                            setIsFullscreen(true);
+                        } else {
+                            document.exitFullscreen();
+                            setIsFullscreen(false);
+                        }
+                    }}>
                         {isFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
                     </button>
                     <button className="neo-button icon-btn" onClick={() => setShowMenu(true)}>
@@ -519,37 +425,36 @@ const App = () => {
                         userCoins={userProfile?.coins || 0}
                         onReview={async (s) => {
                             let stackToReview = s;
-                            // Check if full content is loaded (cards array exists)
                             if ((!stackToReview.cards || stackToReview.cards.length === 0) && stackToReview.isPublic && stackToReview.driveFileId && stackToReview.cardsCount > 0) {
                                 try {
                                     setPublicLoading(true);
                                     const { getPublicFileContent } = await import('./services/publicDrive');
-                                    // Skip local file if Admin (to see latest changes)
                                     const fullContent = await getPublicFileContent(PUBLIC_API_KEY, stackToReview.driveFileId, user?.token, user?.email === ADMIN_EMAIL);
                                     if (fullContent) {
-                                        stackToReview = { ...stackToReview, ...fullContent, isPublic: true, driveFileId: stackToReview.driveFileId };
-                                        // Optional: Cache this in state so next time it's instant
+                                        stackToReview = {
+                                            ...stackToReview,
+                                            ...fullContent,
+                                            // Ensure metadata from index is preserved if fullContent is missing it
+                                            cost: fullContent.cost !== undefined ? fullContent.cost : stackToReview.cost,
+                                            importantNote: fullContent.importantNote || stackToReview.importantNote,
+                                            isPublic: true,
+                                            driveFileId: stackToReview.driveFileId
+                                        };
                                         setPublicStacks(prev => prev.map(p => p.id === s.id ? stackToReview : p));
                                     }
                                 } catch (e) {
                                     setNotification({ type: 'alert', message: 'Failed to open stack.' });
-                                    setPublicLoading(false);
                                     return;
                                 } finally {
                                     setPublicLoading(false);
                                 }
                             }
-
-                            // For ready-made stacks without login, allow preview mode
                             if (!user && stackToReview.isPublic) {
                                 setReviewStack(stackToReview);
                                 return;
                             }
-                            // No coin deduction for reviews in the new model
                             stackToReview.importantNote ? setNoteStack(stackToReview) : setReviewStack(stackToReview);
                         }}
-
-
                         onEdit={handleEditStack}
                         onImport={handleImportStack} searchQuery={searchQuery} setSearchQuery={setSearchQuery}
                         onShowFeedback={() => setShowFeedback(true)} filters={publicFilters} setFilters={setPublicFilters}
@@ -561,22 +466,15 @@ const App = () => {
                 </main>
 
                 {user && (
-                    <button
-                        className="neo-button neo-glow-blue fab-add-button"
-                        onClick={() => { setActiveStack(null); setShowAddModal(true); }}
-                    >
+                    <button className="neo-button neo-glow-blue fab-add-button" onClick={() => { setActiveStack(null); setShowAddModal(true); }}>
                         <Plus size={32} />
                     </button>
                 )}
 
                 <AnimatePresence>
                     {noteStack && <ImportantNotePopup
-                        stack={noteStack}
-                        user={user}
-                        onStart={() => {
-                            setReviewStack(noteStack);
-                            setNoteStack(null);
-                        }}
+                        stack={noteStack} user={user}
+                        onStart={() => { setReviewStack(noteStack); setNoteStack(null); }}
                         onClose={() => window.history.back()}
                         onEdit={() => { setActiveStack(noteStack); setNoteStack(null); setShowAddModal(true); }}
                         onDelete={() => handleDeleteStack(noteStack)}
@@ -587,7 +485,7 @@ const App = () => {
 
             {showMenu && (
                 <HamburgerMenu
-                    user={user} theme={theme} onToggleTheme={handleToggleTheme}
+                    user={user} theme={theme} onToggleTheme={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')}
                     soundsEnabled={soundsEnabled} onToggleSounds={() => {
                         const newValue = !soundsEnabled;
                         setSoundsEnabled(newValue);
@@ -606,13 +504,8 @@ const App = () => {
                     user={user} stack={activeStack} onClose={() => window.history.back()}
                     onSave={(upd, shouldClose, isPublishing) => {
                         handleUpdateLocalStack(upd);
-                        // Refresh public stacks if editing a public stack
-                        if (upd.isPublic || isPublishing) {
-                            fetchPublicStacks();
-                        }
-                        if (shouldClose !== false) {
-                            setShowAddModal(false);
-                        }
+                        if (upd.isPublic || isPublishing) fetchPublicStacks();
+                        if (shouldClose !== false) setShowAddModal(false);
                     }}
                     onDelete={handleDeleteStack}
                     showAlert={(msg) => setNotification({ type: 'alert', message: msg })}
@@ -630,17 +523,9 @@ const App = () => {
                     onUpdate={(upd) => handleUpdateLocalStack(upd)}
                     onEdit={() => { setActiveStack(reviewStack); setReviewStack(null); setShowAddModal(true); }}
                     onDuplicate={handleImportStack}
-                    showAlert={(notificationObj) => {
-                        if (typeof notificationObj === 'string') {
-                            setNotification({ type: 'alert', message: notificationObj });
-                        } else {
-                            setNotification(notificationObj);
-                        }
-                    }}
+                    showAlert={(obj) => typeof obj === 'string' ? setNotification({ type: 'alert', message: obj }) : setNotification(obj)}
                     userCoins={userProfile?.coins || 0}
-                    onDeductCoins={(amount) => {
-                        if (!isUnlimited) handleUpdateCoins((userProfile?.coins || 0) - amount);
-                    }}
+                    onDeductCoins={(amount) => { if (!isUnlimited) handleUpdateCoins((userProfile?.coins || 0) - amount); }}
                     isPreviewMode={!user && reviewStack.isPublic}
                     onLoginRequired={handleLoginRequired}
                     previewProgress={previewSession}
@@ -650,12 +535,7 @@ const App = () => {
             )}
 
             <AnimatePresence>
-                {notification && (
-                    <NotificationModal
-                        type={notification.type} message={notification.message}
-                        onConfirm={notification.onConfirm} onClose={() => setNotification(null)}
-                    />
-                )}
+                {notification && <NotificationModal type={notification.type} message={notification.message} onConfirm={notification.onConfirm} onClose={() => setNotification(null)} />}
             </AnimatePresence>
 
             {showFeedback && <FeedbackModal user={user} onClose={() => window.history.back()} showAlert={(m) => setNotification({ type: 'alert', message: m })} />}
@@ -663,31 +543,18 @@ const App = () => {
 
             {showCoinModal && (
                 <CoinPurchaseModal
-                    user={user}
-                    userCoins={userProfile?.coins || 0}
-                    onClose={() => window.history.back()}
-                    onShare={() => {
-                        setShowCoinModal(false);
-                        setShowReferralModal(true);
-                    }}
-                    onShowFeedback={() => {
-                        setShowCoinModal(false);
-                        setShowFeedback(true);
-                    }}
+                    user={user} userCoins={userProfile?.coins || 0} onClose={() => window.history.back()}
+                    onShare={() => { setShowCoinModal(false); setShowReferralModal(true); }}
+                    onShowFeedback={() => { setShowCoinModal(false); setShowFeedback(true); }}
                 />
             )}
 
             {showReferralModal && (
                 <ReferralModal
-                    user={user}
-                    userProfile={userProfile}
-                    onClose={() => window.history.back()}
+                    user={user} userProfile={userProfile} onClose={() => window.history.back()}
                     onUpdateProfile={(upd) => { setUserProfile(upd); saveUserProfile(user.token, upd); }}
                     showAlert={(m) => setNotification({ type: 'alert', message: m })}
-                    onShowFeedback={() => {
-                        setShowReferralModal(false);
-                        setShowFeedback(true);
-                    }}
+                    onShowFeedback={() => { setShowReferralModal(false); setShowFeedback(true); }}
                 />
             )}
 
@@ -703,12 +570,22 @@ const App = () => {
 
             {showLoginPrompt && previewSession && (
                 <LoginPromptModal
-                    onLogin={handleLoginPromptConfirm}
-                    onCancel={handleLoginPromptCancel}
+                    onLogin={() => { setShowLoginPrompt(false); signIn(); }}
+                    onCancel={() => { setShowLoginPrompt(false); setPreviewSession(null); setReviewStack(null); }}
                     cardsReviewed={previewSession.sessionRatings?.length || 0}
                     totalCards={previewSession.stack?.cards?.length || 0}
                 />
             )}
+
+            <AnimatePresence>
+                {rewardData && (
+                    <CoinRewardAnimation
+                        amount={rewardData.amount}
+                        type={rewardData.type}
+                        onClose={() => setRewardData(null)}
+                    />
+                )}
+            </AnimatePresence>
         </div>
     );
 };

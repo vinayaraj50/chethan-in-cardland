@@ -246,6 +246,29 @@ export const shareStack = async (token, fileId, email, role = 'reader', message 
 
 
 /**
+ * Make a file public (Anyone with the link can view).
+ */
+export const makeFilePublic = async (token, fileId) => {
+    const body = {
+        role: 'reader',
+        type: 'anyone',
+    };
+
+    const response = await fetch(`${DRIVE_API_URL}/${fileId}/permissions`, {
+        method: 'POST',
+        headers: getHeaders(token),
+        body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+        throw new Error('Failed to make file public');
+    }
+
+    return await response.json();
+};
+
+
+/**
  * Delete a specific stack.
  */
 export const deleteStack = async (token, fileId) => {

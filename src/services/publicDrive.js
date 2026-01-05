@@ -74,9 +74,24 @@ export const listPublicStacks = async (apiKey, folderId) => {
 };
 
 export const getPublicFileContent = async (apiKey, fileId, token = null, skipLocal = false) => {
-    // 1. Local/GitHub Pages Fetch (Primary & Most Reliable)
-    // We try to fetch the file from the local 'public/stacks' folder first.
-    // This allows for instant loading of "bundled" stacks without hitting the server.
+    // 1. Try Google Apps Script Proxy first (Primary & Latest Version)
+    // This ensures that any edits made by the admin on Drive are reflected immediately.
+    try {
+        const response = await fetch(`${APPS_SCRIPT_URL}?id=${fileId}&t=${Date.now()}`);
+
+        if (response.ok) {
+            const data = await response.json();
+            if (data && !data.error) {
+                // console.log("Success: Fetched latest content from Drive");
+                return data;
+            }
+        }
+    } catch (e) {
+        // Silently proceed to fallback
+    }
+
+    // 2. Fallback to Local/GitHub Pages (Bundled content)
+    // We try the local folder if Drive fetch failed or was skipped.
     const localUrl = `./stacks/${fileId}.json`;
 
     if (!skipLocal) {
@@ -85,38 +100,15 @@ export const getPublicFileContent = async (apiKey, fileId, token = null, skipLoc
             const contentType = response.headers.get("content-type");
 
             if (response.ok && contentType && contentType.includes("application/json")) {
-                // console.log("Found local stack file!");
+                // console.log("Found local backup stack file!");
                 return await response.json();
             }
         } catch (e) {
-            // Ignore local fetch errors, proceed to script
+            // Ignore local fetch errors
         }
     }
 
-    // 2. Google Apps Script Proxy (Scalable Solution)
-    // Fetches directly from Drive using the owner's permission, bypassing CORS/Auth issues.
-    // console.log(`Fetching ${fileId} via Apps Script Proxy...`);
-
-    try {
-        const response = await fetch(`${APPS_SCRIPT_URL}?id=${fileId}&t=${Date.now()}`);
-
-        if (!response.ok) {
-            throw new Error(`Script returned ${response.status}`);
-        }
-
-        const data = await response.json();
-
-        if (data.error) {
-            console.error('Apps Script returned API error:', data.error);
-            return null;
-        }
-
-        return data;
-
-    } catch (e) {
-        console.error('Apps Script fetch failed:', e);
-        return null;
-    }
+    return null;
 };
 
 export const getPublicIndex = async (apiKey, folderId) => {

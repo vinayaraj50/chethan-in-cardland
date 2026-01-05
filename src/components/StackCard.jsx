@@ -73,16 +73,20 @@ const StackCard = ({ stack, onReview, onEdit, onImport, user, onDelete, showConf
 
             <div style={{ marginTop: '0.8rem' }}>
                 <h3 style={{
-                    fontSize: '1.1rem',
+                    fontSize: '0.95rem',
+                    fontWeight: '600',
                     marginBottom: '0.2rem',
                     display: '-webkit-box',
-                    WebkitLineClamp: 3,
+                    WebkitLineClamp: 5,
                     WebkitBoxOrient: 'vertical',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
-                    lineHeight: '1.4',
-                    height: '4.2em',
-                    textAlign: 'center'
+                    lineHeight: '1.35',
+                    minHeight: '2.7em',
+                    textAlign: 'left',
+                    color: 'var(--text-color)',
+                    opacity: 0.9,
+                    padding: '0 2px'
                 }} title={stack.title}>{stack.title}</h3>
             </div>
 

@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import CloseButton from './common/CloseButton';
-import { X, Upload, Trash2, RefreshCw, Search, User, Database, Zap, ChevronDown, Edit2, Copy } from 'lucide-react';
-import { getUsersData, getUserStats, sortUsers, rebuildPublicIndex } from '../services/adminService';
+import { X, Upload, Trash2, RefreshCw, Search, User, Database, Zap, ChevronDown, Edit2, Copy, Plus } from 'lucide-react';
+import { getUsersData, getUserStats, sortUsers, rebuildPublicIndex, updatePublicStackIndex } from '../services/adminService';
+import { APPS_SCRIPT_URL, COIN_PACKAGES } from '../constants/config';
 import { parseGeminiOutput } from '../utils/importUtils';
-import { saveStack, saveFile, deleteStack, listFilesInFolder, getFileContent } from '../services/googleDrive';
+import { saveStack, saveFile, deleteStack, listFilesInFolder, getFileContent, makeFilePublic } from '../services/googleDrive';
 
 const SimpleSelect = ({ label, value, options, onChange }) => (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
@@ -50,6 +52,8 @@ const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolder
 
     const [dbFilters, setDbFilters] = useState({ standard: '', syllabus: '', medium: '', subject: '' });
 
+    const [processingAction, setProcessingAction] = useState(null); // format: 'email-action' e.g. 'john@doe.com-grant'
+
     useEffect(() => {
         if (activeSection === 'users') fetchUsers();
     }, [activeSection]);
@@ -83,10 +87,20 @@ const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolder
         if (!parsedData || !title.trim()) return showAlert('Fields missing');
         try {
             setLoading(true);
-            await saveStack(user.token, {
+            const newStack = {
                 id: Date.now().toString(), title, label, standard, syllabus, medium, subject,
                 importantNote, cards: parsedData.cards, owner: user.email, cost: parseInt(cost) || 0
-            }, null, publicFolderId);
+            };
+            const result = await saveStack(user.token, newStack, null, publicFolderId);
+
+            // Update index immediately
+            try {
+                // Dynamic import removed, using static import
+                await updatePublicStackIndex(user.token, publicFolderId, { ...newStack, driveFileId: result.id });
+            } catch (e) {
+                console.warn('Index update failed, manual rebuild may be needed', e);
+            }
+
             showAlert('Stack published!');
             setSmartPasteText(''); setParsedData(null); onRefreshPublic();
             // Note: selections (standard, syllabus, subject) are NOT cleared to allow fast consecutive uploads.
@@ -136,32 +150,28 @@ const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolder
         });
     };
 
-    const handleGrantUnlimited = async (targetEmail) => {
-        showConfirm(`Grant 1 Month Unlimited to ${targetEmail}?`, async () => {
-            setLoading(true);
-            try {
-                const expiry = new Date();
-                expiry.setDate(expiry.getDate() + 30);
+    // Unlimited grant function removed as per request
 
-                const grantData = {
-                    email: targetEmail,
-                    expiry: expiry.toISOString(),
-                    grantedAt: new Date().toISOString(),
-                    grantedBy: user.email
-                };
+    const handleGrantCoins = async (targetEmail, amount) => {
+        // Amount is now passed directly
+        if (!amount || isNaN(amount)) return showAlert('Invalid amount');
 
-                // Save to public folder so the user's app can find it
-                const fileName = `grant_${targetEmail}.json`;
-                await saveFile(user.token, fileName, grantData, null, 'application/json', publicFolderId);
+        const actionId = `${targetEmail}-coins`;
+        setProcessingAction(actionId);
+        try {
+            // Dynamic import removed, using static import
+            const url = `${APPS_SCRIPT_URL}?action=grantCoins&email=${encodeURIComponent(targetEmail)}&amount=${amount}&adminEmail=${encodeURIComponent(user.email)}`;
+            const response = await fetch(url);
+            const result = await response.json();
 
-                showAlert(`Granted! Valid until ${expiry.toLocaleDateString()}`);
-            } catch (e) {
-                console.error(e);
-                showAlert('Failed to grant subscription');
-            } finally {
-                setLoading(false);
-            }
-        });
+            if (result.error) throw new Error(result.error);
+            showAlert(`Successfully granted ${amount} coins to ${targetEmail}!`);
+        } catch (e) {
+            console.error(e);
+            showAlert('Failed to grant coins: ' + e.message);
+        } finally {
+            setProcessingAction(null);
+        }
     };
 
     const handleRebuildIndex = async () => {
@@ -193,10 +203,15 @@ const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolder
     const formatDate = (d) => new Date(d).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
 
     return (
-        <div style={{
-            position: 'fixed', inset: 0, background: '#f8fafc', zIndex: 10000,
-            display: 'flex', flexDirection: 'column', color: '#1e293b', fontFamily: 'system-ui, sans-serif'
-        }}>
+        <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            style={{
+                position: 'fixed', inset: 0, background: '#f8fafc', zIndex: 10000,
+                display: 'flex', flexDirection: 'column', color: '#1e293b', fontFamily: 'system-ui, sans-serif'
+            }}
+        >
             <header style={{
                 background: '#fff', padding: '1rem', borderBottom: '1px solid #e2e8f0',
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0
@@ -218,15 +233,21 @@ const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolder
                     { id: 'smart-paste', label: 'Smart Paste', icon: Upload },
                     { id: 'database', label: 'Database', icon: Database }
                 ].map(item => (
-                    <button key={item.id} onClick={() => setActiveSection(item.id)} style={{
-                        display: 'flex', alignItems: 'center', gap: '6px', padding: '0.85rem 0',
-                        background: 'none', border: 'none', fontSize: '0.85rem', fontWeight: '600',
-                        color: activeSection === item.id ? '#3b82f6' : '#64748b',
-                        borderBottom: `2px solid ${activeSection === item.id ? '#3b82f6' : 'transparent'}`,
-                        whiteSpace: 'nowrap', cursor: 'pointer'
-                    }}>
+                    <motion.button
+                        key={item.id}
+                        onClick={() => setActiveSection(item.id)}
+                        whileHover={{ y: -1 }}
+                        whileTap={{ scale: 0.98 }}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: '6px', padding: '0.85rem 0',
+                            background: 'none', border: 'none', fontSize: '0.85rem', fontWeight: '600',
+                            color: activeSection === item.id ? '#3b82f6' : '#64748b',
+                            borderBottom: `2px solid ${activeSection === item.id ? '#3b82f6' : 'transparent'}`,
+                            whiteSpace: 'nowrap', cursor: 'pointer', outline: 'none'
+                        }}
+                    >
                         <item.icon size={16} /> {item.label}
-                    </button>
+                    </motion.button>
                 ))}
             </nav>
 
@@ -248,9 +269,14 @@ const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolder
                                 </div>
                                 <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
                                     <SimpleSelect label="Sort By" value={sortBy} options={['Last Active', 'Most Active', 'First Seen', 'Email'].map(s => ({ label: s, value: s }))} onChange={setSortBy} />
-                                    <button onClick={fetchUsers} style={{ height: '42px', width: '42px', borderRadius: '8px', background: '#3b82f6', color: '#fff', border: 'none', cursor: 'pointer' }}>
-                                        <RefreshCw size={18} className={loading ? 'spin' : ''} />
-                                    </button>
+                                    <motion.button
+                                        onClick={fetchUsers}
+                                        whileHover={{ scale: 1.05 }}
+                                        whileTap={{ scale: 0.92 }}
+                                        style={{ height: '42px', width: '42px', borderRadius: '8px', background: '#3b82f6', color: '#fff', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                    >
+                                        <RefreshCw size={18} className={loading && activeSection === 'users' ? 'spin' : ''} />
+                                    </motion.button>
                                 </div>
                             </div>
 
@@ -274,16 +300,43 @@ const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolder
                                                         <span style={{ background: '#eff6ff', color: '#3b82f6', padding: '2px 8px', borderRadius: '4px', fontWeight: '700', fontSize: '0.7rem' }}>{u.totalLogins}</span>
                                                     </td>
                                                     <td style={{ padding: '0.75rem', textAlign: 'center' }}>
-                                                        <button
-                                                            onClick={() => handleGrantUnlimited(u.email)}
-                                                            style={{
-                                                                background: '#8b5cf6', color: 'white', border: 'none',
-                                                                padding: '4px 8px', borderRadius: '4px', fontSize: '0.7rem',
-                                                                fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', margin: '0 auto'
-                                                            }}
-                                                        >
-                                                            <Zap size={12} fill="white" /> Grant
-                                                        </button>
+                                                        <div style={{ display: 'flex', gap: '4px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                                                            {COIN_PACKAGES.map((pkg) => {
+                                                                // Determine color based on package
+                                                                let bg = '#3b82f6', activeBg = '#2563eb'; // Blue (50)
+                                                                if (pkg.coins === 200) { bg = '#10b981'; activeBg = '#059669'; } // Green
+                                                                if (pkg.coins === 500) { bg = '#f59e0b'; activeBg = '#d97706'; } // Amber
+
+                                                                const actionId = `${u.email}-coins-${pkg.coins}`;
+                                                                const isProcessing = processingAction && processingAction.startsWith(`${u.email}-coins`) && processingAction !== actionId; // Disable other buttons while one is processing
+                                                                const isThisProcessing = processingAction === actionId;
+
+                                                                return (
+                                                                    <motion.button
+                                                                        key={pkg.coins}
+                                                                        whileHover={{ scale: 1.05, filter: 'brightness(1.1)' }}
+                                                                        whileTap={{ scale: 0.95 }}
+                                                                        onClick={() => {
+                                                                            setProcessingAction(actionId);
+                                                                            handleGrantCoins(u.email, pkg.coins).finally(() => setProcessingAction(null));
+                                                                        }}
+                                                                        disabled={!!processingAction}
+                                                                        title={`Grant ${pkg.coins} Coins (₹${pkg.price})`}
+                                                                        style={{
+                                                                            background: isThisProcessing ? '#94a3b8' : bg,
+                                                                            color: 'white', border: 'none',
+                                                                            padding: '6px 8px', borderRadius: '6px', fontSize: '0.65rem',
+                                                                            fontWeight: '600', cursor: !!processingAction ? 'not-allowed' : 'pointer',
+                                                                            display: 'flex', alignItems: 'center', gap: '3px',
+                                                                            opacity: isProcessing ? 0.5 : 1
+                                                                        }}
+                                                                    >
+                                                                        {isThisProcessing ? <RefreshCw size={10} className="spin" /> : <Plus size={10} />}
+                                                                        ₹{pkg.price} ({pkg.coins})
+                                                                    </motion.button>
+                                                                );
+                                                            })}
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             ))}
@@ -384,7 +437,18 @@ const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolder
                                 <div style={{ flex: '1 1 100px' }}><SimpleSelect label="Board" value={dbFilters.syllabus} options={[{ label: 'All', value: '' }, ...['NCERT', 'Kerala'].map(s => ({ label: s, value: s }))]} onChange={v => setDbFilters({ ...dbFilters, syllabus: v })} /></div>
                                 <div style={{ display: 'flex', gap: '8px' }}>
                                     <button onClick={handleRebuildIndex} title="Rebuild Master Index" style={{ height: '40px', padding: '0 10px', background: '#e0f2fe', color: '#0369a1', border: 'none', borderRadius: '8px', cursor: 'pointer' }}><Database size={16} /></button>
-                                    <button onClick={onRefreshPublic} style={{ height: '40px', padding: '0 10px', background: '#f1f5f9', border: 'none', borderRadius: '8px', cursor: 'pointer' }}><RefreshCw size={16} /></button>
+                                    <motion.button
+                                        whileHover={{ scale: 1.05 }}
+                                        whileTap={{ scale: 0.95 }}
+                                        onClick={async () => {
+                                            setLoading(true);
+                                            await onRefreshPublic();
+                                            setLoading(false);
+                                        }}
+                                        style={{ height: '40px', padding: '0 10px', background: '#f1f5f9', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                    >
+                                        <RefreshCw size={16} className={loading && activeSection === 'database' ? 'spin' : ''} />
+                                    </motion.button>
                                 </div>
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '0.75rem' }}>
@@ -448,7 +512,7 @@ const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolder
                     </div>
                 </div>
             )}
-        </div>
+        </motion.div>
     );
 };
 
