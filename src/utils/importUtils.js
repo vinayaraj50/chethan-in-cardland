@@ -56,19 +56,42 @@ export const parseGeminiOutput = (text) => {
     }
 
     // Map to the internal card structure
-    const formattedCards = cards.map(item => ({
-        id: Date.now() + Math.random(),
-        question: {
-            text: item.question || item.q || '',
-            image: '',
-            audio: ''
-        },
-        answer: {
-            text: item.answer || item.a || '',
-            image: '',
-            audio: ''
+    // Map to the internal card structure
+    const formattedCards = cards.map(item => {
+        const isMcq = item.type === 'mcq' || (item.options && Array.isArray(item.options));
+        const type = isMcq ? 'mcq' : 'flashcard';
+
+        // Normalize options for MCQ
+        let options = [];
+        if (isMcq && item.options) {
+            options = item.options.map(opt => ({
+                id: Date.now() + Math.random(),
+                text: typeof opt === 'string' ? opt : (opt.text || ''),
+                isCorrect: item.answer === opt || (typeof opt === 'object' && opt.isCorrect)
+            }));
+
+            // If answer is an index
+            if (typeof item.answer === 'number' && options[item.answer]) {
+                options[item.answer].isCorrect = true;
+            }
         }
-    }));
+
+        return {
+            id: Date.now() + Math.random(),
+            type,
+            question: {
+                text: item.question || item.q || '',
+                image: '',
+                audio: ''
+            },
+            answer: {
+                text: item.answer || item.a || '', // Keep for reference or fallback
+                image: '',
+                audio: ''
+            },
+            options // Only populated for MCQs
+        };
+    });
 
     return {
         title,

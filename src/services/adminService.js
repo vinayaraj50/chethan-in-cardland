@@ -4,8 +4,7 @@
  */
 
 import { saveFile, getFileContent, listFilesInFolder } from './googleDrive';
-import { APPS_SCRIPT_URL } from './publicDrive';
-import { ADMIN_EMAIL } from '../constants/config';
+import { APPS_SCRIPT_URL, PUBLIC_API_KEY, APPS_SCRIPT_KEY, ADMIN_EMAIL } from '../constants/config';
 
 const ADMIN_USERS_FILE = 'admin_users.json';
 
@@ -13,29 +12,46 @@ const ADMIN_USERS_FILE = 'admin_users.json';
 /**
  * Get all user tracking files from the public folder and aggregate them
  */
-export const getUsersData = async (token, publicFolderId) => {
+export const getUsersData = async (token, publicFolderId, offset = 0, limit = 50, search = '') => {
     try {
         if (!publicFolderId) {
             console.warn('No public folder ID provided for user tracking');
             return { data: { users: {} } };
         }
 
-        // List files in the public folder. 
-        // We try the script first as it's most reliable for listing
-        const scriptUrl = `${APPS_SCRIPT_URL}?action=listUsers&folderId=${publicFolderId}`;
+        // List files in the public folder via Universal Proxy with Pagination and Search
+        const scriptUrl = `${APPS_SCRIPT_URL}?action=list&folderId=${publicFolderId}&prefix=user_track_&offset=${offset}&limit=${limit}&search=${encodeURIComponent(search)}&token=${encodeURIComponent(token)}&key=${APPS_SCRIPT_KEY}&t=${Date.now()}`;
         try {
             const response = await fetch(scriptUrl);
             if (response.ok) {
-                const data = await response.json();
-                if (data && data.users) return { data };
+                const result = await response.json();
+                // Check for both { data: [...] } and { data: { files: [...] } }
+                const filesList = Array.isArray(result.data) ? result.data : (result.data?.files || []);
+
+                if (filesList && filesList.length > 0) {
+                    const usersMap = filesList.reduce((acc, u) => {
+                        // Extract email from property or filename
+                        const email = u.email || (u.name ? u.name.replace('user_track_', '').replace('.json', '') : null);
+                        if (email) {
+                            acc[email] = {
+                                email,
+                                lastSeen: u.lastSeen || u.modifiedTime || new Date().toISOString(),
+                                totalLogins: u.totalLogins || 1,
+                                ...u
+                            };
+                        }
+                        return acc;
+                    }, {});
+                    return { data: { users: usersMap }, hasMore: result.hasMore, nextOffset: result.nextOffset };
+                }
             }
         } catch (e) {
-            console.warn('Script list failed, falling back to public API');
+            console.warn('Script list failed, falling back to public API', e);
         }
 
         // Fallback: List files via public API key
         const query = `'${publicFolderId}' in parents and name contains 'user_track_' and trashed = false`;
-        const listUrl = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id, name)&key=${import.meta.env.VITE_PUBLIC_API_KEY}`;
+        const listUrl = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id, name, modifiedTime, createdTime)&key=${PUBLIC_API_KEY}`;
 
         const response = await fetch(listUrl);
         if (!response.ok) {
@@ -55,33 +71,30 @@ export const getUsersData = async (token, publicFolderId) => {
  * Helper to fetch content for discovered files
  */
 const fetchFilesContent = async (files, token) => {
-    if (!files || files.length === 0) {
-        return { data: { users: {} } };
-    }
+    if (!files || files.length === 0) return { data: { users: {} } };
 
     const users = {};
-    const filesToFetch = files.slice(0, 100); // Increased limit as we scale
+    const filesToFetch = files.slice(0, 50);
 
     await Promise.all(filesToFetch.map(async (file) => {
         try {
-            // Try fetching via Apps Script (fastest/bypass CORS)
-            const scriptUrl = `${APPS_SCRIPT_URL}?action=getFile&id=${file.id}`;
-            let contentRes = await fetch(scriptUrl);
-
-            // Fallback: Public API
-            if (!contentRes.ok) {
-                const publicUrl = `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media&key=${import.meta.env.VITE_PUBLIC_API_KEY}`;
-                contentRes = await fetch(publicUrl);
+            // 1. Try Authenticated Download (Best for Admin)
+            const userData = await getFileContent(token, file.id);
+            const email = userData.email || file.name.replace('user_track_', '').replace('.json', '');
+            if (email) {
+                users[email] = { ...file, ...userData, email };
             }
-
-            if (contentRes.ok) {
-                const userData = await contentRes.json();
-                if (userData && userData.email) {
-                    users[userData.email] = userData;
+        } catch (apiError) {
+            // 2. Fallback to Proxy
+            try {
+                const scriptUrl = `${APPS_SCRIPT_URL}?action=read&id=${file.id}&token=${encodeURIComponent(token)}&key=${APPS_SCRIPT_KEY}`;
+                const contentRes = await fetch(scriptUrl);
+                if (contentRes.ok) {
+                    const userData = await contentRes.json();
+                    const email = userData.email || file.name.replace('user_track_', '').replace('.json', '');
+                    if (email) users[email] = { ...file, ...userData, email };
                 }
-            }
-        } catch (e) {
-            // Silently skip failed files
+            } catch (e) { }
         }
     }));
 
@@ -97,7 +110,7 @@ export const checkInUser = async (token, userEmail, publicFolderId) => {
 
     try {
         // 1. Try Apps Script Proxy (Preferred - Handles Permissions)
-        await checkInViaProxy(userEmail, publicFolderId);
+        await checkInViaProxy(userEmail, publicFolderId, token);
     } catch (proxyError) {
         // 2. Fallback: Direct Write (Only for Admin)
         // This is a client-side check, but server-side permissions (Google Drive) 
@@ -110,16 +123,8 @@ export const checkInUser = async (token, userEmail, publicFolderId) => {
     }
 };
 
-const checkInViaProxy = async (email, folderId) => {
-    const timestamp = new Date().toISOString();
-    const payload = JSON.stringify({
-        action: 'checkIn',
-        email,
-        folderId,
-        timestamp
-    });
-
-    const url = `${APPS_SCRIPT_URL}?payload=${encodeURIComponent(payload)}`;
+const checkInViaProxy = async (email, folderId, token) => {
+    const url = `${APPS_SCRIPT_URL}?action=checkIn&email=${encodeURIComponent(email)}&folderId=${folderId}&token=${encodeURIComponent(token)}&key=${APPS_SCRIPT_KEY}&t=${Date.now()}`;
     const response = await fetch(url);
 
     if (!response.ok) {
@@ -154,10 +159,10 @@ export const getUserStats = (usersData) => {
 
     return users.map(user => ({
         email: user.email,
-        firstSeen: new Date(user.firstSeen),
-        lastSeen: new Date(user.lastSeen),
-        totalLogins: user.totalLogins,
-        loginHistory: user.loginHistory
+        firstSeen: new Date(user.firstSeen || user.createdTime || Date.now()),
+        lastSeen: new Date(user.lastSeen || user.modifiedTime || Date.now()),
+        totalLogins: user.totalLogins || 0,
+        loginHistory: user.loginHistory || []
     }));
 };
 
@@ -252,9 +257,20 @@ export const rebuildPublicIndex = async (token, publicFolderId) => {
 
         await Promise.all(stackFiles.map(async (file) => {
             try {
-                const content = await getFileContent(token, file.id);
-                // Only add if it's a valid stack
-                if (content && content.cards) {
+                // 1. Try Authenticated Fetch (Admin context)
+                let content;
+                try {
+                    content = await getFileContent(token, file.id);
+                } catch (apiError) {
+                    // 2. Fallback to Proxy
+                    const response = await fetch(`${APPS_SCRIPT_URL}?action=read&id=${file.id}&token=${encodeURIComponent(token)}&key=${APPS_SCRIPT_KEY}&t=${Date.now()}`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data && !data.error) content = data;
+                    }
+                }
+
+                if (content && !content.error && content.cards) {
                     index.push({
                         id: content.id,
                         title: content.title,
@@ -284,5 +300,87 @@ export const rebuildPublicIndex = async (token, publicFolderId) => {
     } catch (e) {
         console.error(e);
         throw e;
+    }
+};
+
+/**
+ * Save custom AI prompts to the public folder
+ */
+export const saveAdminPrompts = async (token, publicFolderId, prompts) => {
+    try {
+        const files = await listFilesInFolder(token, publicFolderId);
+        const existingFile = files.find(f => f.name === 'admin_prompts.json' && !f.trashed);
+
+        await saveFile(
+            token,
+            'admin_prompts.json',
+            prompts,
+            existingFile ? existingFile.id : null,
+            'application/json',
+            publicFolderId
+        );
+        return true;
+    } catch (error) {
+        console.error('Failed to save admin prompts:', error);
+        return false;
+    }
+};
+
+/**
+ * Get custom AI prompts from the public folder
+ */
+export const getAdminPrompts = async (token, publicFolderId) => {
+    try {
+        const files = await listFilesInFolder(token, publicFolderId);
+        const promptFile = files.find(f => f.name === 'admin_prompts.json' && !f.trashed);
+
+        if (promptFile) {
+            return await getFileContent(token, promptFile.id);
+        }
+        return null;
+    } catch (error) {
+        console.error('Failed to get admin prompts:', error);
+        return null;
+    }
+};
+
+/**
+ * Save admin workflow settings to the cloud
+ */
+export const saveAdminSettings = async (token, publicFolderId, settings) => {
+    try {
+        const files = await listFilesInFolder(token, publicFolderId);
+        const existingFile = files.find(f => f.name === 'admin_settings.json' && !f.trashed);
+
+        await saveFile(
+            token,
+            'admin_settings.json',
+            settings,
+            existingFile ? existingFile.id : null,
+            'application/json',
+            publicFolderId
+        );
+        return true;
+    } catch (error) {
+        console.error('Failed to save admin settings:', error);
+        return false;
+    }
+};
+
+/**
+ * Get admin workflow settings from the cloud
+ */
+export const getAdminSettings = async (token, publicFolderId) => {
+    try {
+        const files = await listFilesInFolder(token, publicFolderId);
+        const settingsFile = files.find(f => f.name === 'admin_settings.json' && !f.trashed);
+
+        if (settingsFile) {
+            return await getFileContent(token, settingsFile.id);
+        }
+        return null;
+    } catch (error) {
+        console.error('Failed to get admin settings:', error);
+        return null;
     }
 };

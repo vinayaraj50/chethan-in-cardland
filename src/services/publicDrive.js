@@ -4,7 +4,7 @@
  * We use gapi instead of raw fetch to avoid CORS issues with 'alt=media' downloads.
  */
 
-import { APPS_SCRIPT_URL as CONFIG_SCRIPT_URL } from '../constants/config';
+import { APPS_SCRIPT_URL as CONFIG_SCRIPT_URL, APPS_SCRIPT_KEY } from '../constants/config';
 
 export const APPS_SCRIPT_URL = CONFIG_SCRIPT_URL;
 
@@ -74,44 +74,26 @@ export const listPublicStacks = async (apiKey, folderId) => {
 };
 
 export const getPublicFileContent = async (apiKey, fileId, token = null, skipLocal = false) => {
-    // 1. Try Google Apps Script Proxy first (Primary & Latest Version)
-    // This ensures that any edits made by the admin on Drive are reflected immediately.
+    // 1. Try Google Apps Script Proxy (Primary - Bypasses CORS and AdBlockers)
+    // This is the ONLY reliable method for public fetching on the web.
     try {
-        const response = await fetch(`${APPS_SCRIPT_URL}?id=${fileId}&t=${Date.now()}`);
-
+        const tokenParam = token ? `&token=${encodeURIComponent(token)}` : '';
+        const response = await fetch(`${APPS_SCRIPT_URL}?action=read&id=${fileId}&key=${APPS_SCRIPT_KEY}${tokenParam}&t=${Date.now()}`);
         if (response.ok) {
             const data = await response.json();
-            if (data && !data.error) {
-                // console.log("Success: Fetched latest content from Drive");
-                return data;
-            }
+            // Important: Handle cases where proxy returns a 200 OK but body has {error: ...}
+            if (data && !data.error) return data;
+            if (data?.error) console.error("Proxy returned error:", data.error);
         }
     } catch (e) {
-        // Silently proceed to fallback
+        console.error("Critical: Proxy fetch failed. This may be due to an AdBlocker or Backend configuration.", e);
     }
 
-    // 2. Fallback to Local/GitHub Pages (Bundled content)
-    // We try the local folder if Drive fetch failed or was skipped.
-    const localUrl = `./stacks/${fileId}.json`;
-
-    if (!skipLocal) {
-        try {
-            const response = await fetch(localUrl);
-            const contentType = response.headers.get("content-type");
-
-            if (response.ok && contentType && contentType.includes("application/json")) {
-                // console.log("Found local backup stack file!");
-                return await response.json();
-            }
-        } catch (e) {
-            // Ignore local fetch errors
-        }
-    }
-
+    // Direct API fetch fallback removed as it fails CORS for 'alt=media' on localhost/web.
     return null;
 };
 
-export const getPublicIndex = async (apiKey, folderId) => {
+export const getPublicIndex = async (apiKey, folderId, token = null) => {
     // Try to fetch the index file
     // We first need to find the file ID of 'public_index.json'
     try {
@@ -125,10 +107,12 @@ export const getPublicIndex = async (apiKey, folderId) => {
         if (files && files.length > 0) {
             // Found the index file, now fetch its content with cache busting
             const indexId = files[0].id;
-            const url = `${APPS_SCRIPT_URL}?id=${indexId}&t=${Date.now()}`;
+            const tokenParam = token ? `&token=${encodeURIComponent(token)}` : '';
+            const url = `${APPS_SCRIPT_URL}?action=read&id=${indexId}&key=${APPS_SCRIPT_KEY}${tokenParam}&t=${Date.now()}`;
             const fetchResponse = await fetch(url);
             if (fetchResponse.ok) {
-                return await fetchResponse.json();
+                const data = await fetchResponse.json();
+                return data && !data.error ? data : null;
             }
             return null;
         }

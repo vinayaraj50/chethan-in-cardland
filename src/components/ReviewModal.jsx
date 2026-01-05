@@ -1,14 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Edit2, Copy, Star, Play, SkipForward, Square, Pause, Download, Mic, Trash2, Layers, AlertCircle } from 'lucide-react';
+import { X, Edit2, Star, Play, SkipForward, Square, Pause, Download, Mic, Trash2, Layers, AlertCircle, Brain, BookOpen, Sparkles } from 'lucide-react';
 import { saveStack } from '../services/googleDrive';
 import { downloadStackAsZip } from '../utils/zipUtils';
 import CloseButton from './common/CloseButton';
 import ImageViewer from './ImageViewer';
 import confetti from 'canvas-confetti';
-import { playTada, playSwoosh, playTing, playCompletion } from '../utils/soundEffects';
+import { playTada, playSwoosh, playTing, playCompletion, playDopamine, playPartial } from '../utils/soundEffects';
 import congratulationsImg from '../assets/congratulations.png';
 import { ADMIN_EMAIL } from '../constants/config';
+import { getRandomPhrase } from '../constants/phrases';
 
 const AudioPlayer = ({ audioData }) => {
     const [isPlaying, setIsPlaying] = useState(false);
@@ -135,7 +136,7 @@ const AudioPlayer = ({ audioData }) => {
     );
 };
 
-const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, showAlert, userCoins, onDeductCoins, isPreviewMode = false, onLoginRequired, previewProgress = null, onReviewStart }) => {
+const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, showAlert, userCoins, onDeductCoins, isPreviewMode = false, onLoginRequired, previewProgress = null, onReviewStart, displayName }) => {
     // Check if there are any previous ratings to decide initial mode
     const hasPreviousRatings = stack.cards.some(card => card.lastRating !== undefined);
 
@@ -153,6 +154,11 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
     const recordedAudioRef = useRef(null);
     const mediaRecorderRef = useRef(null);
     const chunksRef = useRef([]);
+
+    const [feedback, setFeedback] = useState(null);
+    const [masteredCount, setMasteredCount] = useState(0);
+    const [firstRatings, setFirstRatings] = useState({}); // Tracking first rating for SRS
+    const [totalOriginalCards, setTotalOriginalCards] = useState(hasPreviousRatings ? 0 : stack.cards.length);
 
     // Coin Logic
     const [reviewedCountSession, setReviewedCountSession] = useState(0);
@@ -253,36 +259,65 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
     const currentCard = studyCards[currentIndex];
 
     const handleStartReview = (mode) => {
+        let baseCards = [...stack.cards];
+
+        // Sort by difficulty: cards with lower/missing ratings first
+        baseCards.sort((a, b) => {
+            const rA = a.lastRating !== undefined ? a.lastRating : -2;
+            const rB = b.lastRating !== undefined ? b.lastRating : -2;
+            return rA - rB;
+        });
+
+        let selected = [];
         if (mode === 'all') {
-            setStudyCards(stack.cards);
+            selected = baseCards;
         } else if (mode === 'difficult') {
-            // Filter cards with rating < 4 (or undefined if we treat unrated as difficult, but usually it's rated ones)
-            // Actually, let's treat unrated as something that should be in "All" mostly.
-            // "Difficult" implies we struggled with it last time.
-            const difficult = stack.cards.filter(c => c.lastRating !== undefined && c.lastRating < 4);
-            setStudyCards(difficult);
+            selected = baseCards.filter(c => c.lastRating !== undefined && c.lastRating < 2);
         }
+
+        setStudyCards(selected);
+        setTotalOriginalCards(selected.length);
         setShowModeSelection(false);
         setCurrentIndex(0);
         setSessionRatings([]);
         setSessionResult(null);
+        setMasteredCount(0);
+        setFirstRatings({});
+        setFeedback(null);
     };
 
-    const handleNext = async (val) => {
-        const newRatings = [...sessionRatings, val];
-        const isLast = currentIndex === studyCards.length - 1;
+    const handleNextSession = async () => {
+        const val = rating;
+        const isByHeart = val === 2;
+
+        // Reset feedback and proceed
+        setFeedback(null);
+
+        const newMasteredCount = isByHeart ? masteredCount + 1 : masteredCount;
+        if (isByHeart) setMasteredCount(newMasteredCount);
+
+        const isLast = newMasteredCount === totalOriginalCards;
 
         if (isLast) {
-            // Marks Calculation
-            const totalMarks = newRatings.reduce((a, b) => a + b, 0);
-            const maxPossibleMarks = studyCards.length * 2;
-            const avg = (totalMarks / studyCards.length).toFixed(1); // Keep avg for internal logic mostly, or just use marks
+            // Marks Calculation using firstRatings
+            const finalRatings = studyCards.slice(0, totalOriginalCards).map((card) => {
+                const cardId = card.id || card.question.text;
+                return firstRatings[cardId] ?? 0;
+            });
 
-            // Adjust "All Correct" logic to be "Full Marks"
+            const totalMarks = finalRatings.reduce((a, b) => a + b, 0);
+            const maxPossibleMarks = totalOriginalCards * 2;
+            const avg = (totalMarks / totalOriginalCards).toFixed(1);
+
             const fullMarks = totalMarks === maxPossibleMarks;
-            const lowRatedCards = studyCards.filter((_, idx) => newRatings[idx] < 2); // < 2 means not "By heart"
 
-            // Show summary immediately
+            // For the summary, "low rated" are those that were tough *initially*
+            const lowRatedCards = stack.cards.filter((card) => {
+                const cardId = card.id || card.question.text;
+                const r = firstRatings[cardId];
+                return r !== undefined && r < 2;
+            });
+
             setSessionResult({
                 avg,
                 totalMarks,
@@ -306,72 +341,36 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                 });
             }
 
-            // DO NOT update SRS or Last Reviewed if it's a prompt for weak cards
-            // Check if we are reviewing the full stack or just a subset (weak cards)
-            // A simple heuristic is: if studyCards.length < stack.cards.length, it's a partial review.
-            // Or passing a flag. But "Focus on weak cards" definitely limits the set.
-            // Wait, "difficult" mode earlier also limits it.
-            // Requirement: "Dont count as another review if user uses ' focus on weak cards' button of the 'study summary' popup."
-            // This button calls `restartSession(sessionResult.lowRatedCards)`.
-            // So if `studyCards.length !== stack.cards.length`, we skip SRS update? 
-            // Validating against `stack.cards.length` is decent, assuming deck isn't 1 card.
-            // Alternatively, check if we are in a "re-study" mode.
-            // But simpler: if (studyCards.length < stack.cards.length), do not save SRS.
-
-            if (studyCards.length < stack.cards.length) {
-                // Partial review (weak cards or difficult mode), do NOT update SRS stats
+            if (totalOriginalCards < stack.cards.length) {
                 return;
             }
 
-            // Update individual card ratings in the original stack
-            // We need to map the new ratings back to the original cards in the stack
-            // unique ID for cards would be better, but assuming order/reference or simple update here.
-            // Since studyCards is a subset or full set, we need to match them back.
-            // A safer way is to update 'stack.cards' by finding the cards we just studied.
-            // But we don't have stable IDs on cards necessarily.
-            // If we assume studyCards hold the *same* object references as stack.cards, we can mutate them or find them.
-
-            const updatedCards = stack.cards.map(card => {
-                // Find if this card was in our study session
-                const studyIndex = studyCards.findIndex(sc => sc === card); // strict equality check
-                if (studyIndex !== -1) {
-                    return {
-                        ...card,
-                        lastRating: newRatings[studyIndex]
-                    };
+            const updatedCards = stack.cards.map((card) => {
+                const cardId = card.id || card.question.text;
+                const fRating = firstRatings[cardId];
+                if (fRating !== undefined) {
+                    return { ...card, lastRating: fRating };
                 }
                 return card;
             });
 
-            // Calculate SRS for the Stack
             const currentStage = stack.reviewStage || -1;
             let nextReviewDate = new Date();
             let nextStage = currentStage;
 
-            // New Threshold: Avg >= 1.5 (Mostly 'By heart' or 'Partly')
             if (avg >= 1.5) {
-                // Success: Advance stage
                 nextStage = currentStage + 1;
-                const daysToAdd = getNextInterval(nextStage); // Use NEXT stage for interval
+                const daysToAdd = getNextInterval(nextStage);
                 nextReviewDate.setDate(nextReviewDate.getDate() + daysToAdd);
             } else {
-                // Fail: Review immediately (Today)
-                // "try agin the ltough cards immediately aafter a review"
-                // nextReviewDate stays as NOW
-                nextStage = -1; // Reset to beginning (-1 assumes first review puts it to 0? Or 0 puts it to 1?)
-                // If stages are 0 index based: [1d, 3d, 7d, 30d]
-                // First successful review -> stage 0 (1 day wait)
-                // Second -> stage 1 (3 days)
-                // If fail, reset to -1 so next success goes to 0 (1 day).
+                nextStage = -1;
             }
 
-
-            // Save in background only if owned by me
             const updatedStack = {
                 ...stack,
                 cards: updatedCards,
                 lastMarks: totalMarks,
-                cardsCountAtLastReview: studyCards.length,
+                cardsCountAtLastReview: totalOriginalCards,
                 lastReviewed: new Date().toLocaleDateString(),
                 nextReview: nextReviewDate.toISOString(),
                 reviewStage: nextStage
@@ -379,20 +378,12 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
 
             if (stack.ownedByMe) {
                 saveStack(user.token, updatedStack, stack.driveFileId)
-                    .then(() => {
-                        onUpdate(updatedStack);
-                    })
-                    .catch((error) => {
-                        // SECURITY FIX (VULN-006): Don't log error details to user
-                        console.warn('Background save failed', error);
-                        // showAlert('Save failed, but your session is complete.'); // Suppressed per user request to "fix" the interruption
-                    });
+                    .then(() => onUpdate(updatedStack))
+                    .catch((error) => console.warn('Background save failed', error));
             } else {
                 onUpdate(updatedStack);
             }
         } else {
-            setSessionRatings(newRatings);
-            // Reset flip state first, then change card after a brief delay
             setIsFlipped(false);
             setRating(0);
             deleteRecording();
@@ -404,36 +395,56 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
 
     const restartSession = (cardsToUse) => {
         setStudyCards(cardsToUse);
+        setTotalOriginalCards(cardsToUse.length);
         setCurrentIndex(0);
         setIsFlipped(false);
         setRating(0);
         setSessionRatings([]);
         setSessionResult(null);
+        setMasteredCount(0);
+        setFirstRatings({});
+        setFeedback(null);
         deleteRecording();
     };
 
-    const handleRating = (val) => {
-        playTing();
+    const handleRating = (val, customFeedbackMsg = null) => {
+        const isByHeart = val === 2;
+        const isPartial = val === 1;
+
+        if (isByHeart) {
+            playDopamine();
+        } else if (isPartial) {
+            playPartial();
+        } else {
+            playTing();
+        }
         setRating(val);
 
-        // Preview Limit Logic (10 cards)
-        // Applies if user is NOT owner (public/demo) OR user is guest
-        // Requirement: "Make the first 10 flashcard preview free in all stacks."
-        // "If user is not logged in, ask to login to continue before 11th card."
-        // "If user logged in and is previewing the ready-made cards, ask to add to 'my cards' to continue."
+        const cardId = currentCard.id || currentCard.question.text;
 
+        // Track first rating for SRS
+        if (firstRatings[cardId] === undefined) {
+            setFirstRatings(prev => ({ ...prev, [cardId]: val }));
+        }
+
+        if (!isByHeart) {
+            // Add back to queue
+            setStudyCards(prev => [...prev, currentCard]);
+        }
+
+        // Set feedback
+        const msg = customFeedbackMsg || getRandomPhrase(isByHeart ? 'mastered' : 'retry');
+        setFeedback({ message: msg, type: isByHeart ? 'success' : 'retry' });
+
+        // Preview Limit Logic
         const isPublicOrDemo = stack.isPublic || stack.id === 'demo-stack';
         const isOwnedByMe = stack.ownedByMe;
 
-        // If it's a stack I don't own (public preview), apply limit
         if (isPublicOrDemo && !isOwnedByMe) {
-            // Check if next card would exceed limit (index 9 is 10th card, so next index 10 is 11th)
             const nextIndex = currentIndex + 1;
             const limit = 10;
-
             if (nextIndex >= limit) {
                 if (!user) {
-                    // Guest -> trigger login
                     if (onLoginRequired) {
                         onLoginRequired({
                             stack,
@@ -441,54 +452,21 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                             sessionRatings: [...sessionRatings, val]
                         });
                     }
-                    return;
-                } else {
-                    // Logged in -> ask to add to my cards
-                    // Trigger a confirm dialog
-                    if (onUpdate) { // Re-using onUpdate as a signal or need a new callback? 
-                        // App.jsx needs to handle this. Let's use showAlert with confirm logic or a custom callback if available.
-                        // Actually, simpler to just use the existing `onDuplicate` logic but forced?
-                        // Or pass a new callback `onLimitReached`.
-                        // Since I can't easily add a new prop to App.jsx without editing it too (which I will), let's call `onDuplicate` for now?
-                        // No, `onDuplicate` copies it. 
-                        // I'll emit a special event via existing props or just show a blocking alert that they need to add it.
-                        // Better yet, I'll update App.jsx to pass `onAddToLibrary`.
-                        // For now, assume a prop `onAddToLibrary` exists or I'll implement it.
-                        showAlert({
-                            type: 'confirm',
-                            message: "You've reached the preview limit. Add this stack to 'My Cards' to continue?",
-                            onConfirm: () => {
-                                if (onDuplicate) onDuplicate(stack); // This handles the import/copy
-                                onClose(); // Close this modal so they can open the new one or it auto-opens?
-                                // Ideally, onDuplicate handles the flow.
-                            }
-                        });
-                        return;
-                    }
+                } else if (onUpdate) {
+                    showAlert({
+                        type: 'confirm',
+                        message: "You've reached the preview limit. Add this stack to 'My Cards' to continue?",
+                        onConfirm: () => {
+                            if (onDuplicate) onDuplicate(stack);
+                            onClose();
+                        }
+                    });
                 }
+                return;
             }
         }
 
-        /* 
-        Original logic replaced with simpler checked limits above.
-        // Check if we've reached preview limit BEFORE processing the rating
-        if (isPreviewMode && sessionRatings.length + 1 >= previewLimit) {
-            // User has reached the preview limit, trigger login
-            if (onLoginRequired) {
-                onLoginRequired({
-                    stack,
-                    currentIndex: currentIndex + 1, // Next card index
-                    sessionRatings: [...sessionRatings, val]
-                });
-            }
-            return;
-        }
-        */
-
-        // Coin deduction logic removed in new model
         setReviewedCountSession(prev => prev + 1);
-
-        setTimeout(() => handleNext(val), 500);
     };
 
     const handleDownload = async () => {
@@ -600,12 +578,42 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
 
                         {sessionResult.fullMarks ? (
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem', width: '100%' }}>
+                                <div style={{ position: 'relative' }}>
+                                    <motion.div
+                                        initial={{ scale: 0 }}
+                                        animate={{ scale: [0, 1.2, 1], rotate: [0, -10, 10, 0] }}
+                                        transition={{ duration: 0.8, ease: "backOut" }}
+                                    >
+                                        <BookOpen size={64} color="var(--accent-color)" />
+                                    </motion.div>
+                                    {[...Array(8)].map((_, i) => (
+                                        <motion.div
+                                            key={i}
+                                            initial={{ opacity: 0, x: 0, y: 0, scale: 0 }}
+                                            animate={{
+                                                opacity: [0, 1, 0],
+                                                x: (Math.random() - 0.5) * 100,
+                                                y: (Math.random() - 0.5) * 100 - 50,
+                                                scale: [0, 1, 0]
+                                            }}
+                                            transition={{
+                                                duration: 1.5,
+                                                delay: 0.5 + Math.random() * 0.5,
+                                                repeat: Infinity,
+                                                repeatDelay: 1
+                                            }}
+                                            style={{ position: 'absolute', top: '50%', left: '50%', zIndex: 0, pointerEvents: 'none' }}
+                                        >
+                                            <Sparkles size={20} color={['#FFD700', '#FF4500', '#00FF7F'][Math.floor(Math.random() * 3)]} />
+                                        </motion.div>
+                                    ))}
+                                </div>
                                 <motion.img
                                     src={congratulationsImg}
                                     alt="Congratulations"
                                     initial={{ scale: 0.8, opacity: 0 }}
                                     animate={{ scale: 1, opacity: 1 }}
-                                    transition={{ type: 'spring', damping: 12 }}
+                                    transition={{ type: 'spring', damping: 12, delay: 0.3 }}
                                     style={{ maxWidth: '80%', height: 'auto', borderRadius: '12px' }}
                                 />
                                 <div className="neo-inset" style={{ padding: '1.5rem', color: 'var(--accent-color)', borderRadius: '16px', width: '100%', textAlign: 'center' }}>
@@ -651,87 +659,189 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                             <div className="neo-button" style={{ padding: '8px 15px', fontSize: '0.9rem' }}>
                                 {currentIndex + 1} / {studyCards.length}
                             </div>
-                            <div style={{ flex: 1 }} />
+                            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 20px' }}>
+                                {/* Progress Bar */}
+                                <div style={{
+                                    width: '100%', maxWidth: '200px', height: '14px', background: 'rgba(0,0,0,0.05)',
+                                    borderRadius: '10px', position: 'relative', display: 'flex', alignItems: 'center'
+                                }}>
+
+                                    <motion.div
+                                        animate={{
+                                            left: `${totalOriginalCards > 0 ? (masteredCount / totalOriginalCards) * 100 : 0}%`,
+                                            y: rating === 2 ? [0, -15, 0] : rating === 1 ? [0, -5, 0] : 0
+                                        }}
+                                        transition={{
+                                            left: { type: "spring", stiffness: 50, damping: 15 },
+                                            y: { duration: 0.4, ease: "easeOut" }
+                                        }}
+                                        style={{
+                                            position: 'absolute',
+                                            left: 0,
+                                            top: -14,
+                                            zIndex: 10,
+                                            x: '-50%' // Center the icon on the point
+                                        }}
+                                    >
+                                        <Brain size={24} color={rating === 2 ? '#22c55e' : 'var(--accent-color)'} fill={rating === 2 ? '#dcfce7' : 'none'} />
+                                    </motion.div>
+
+                                    <div style={{
+                                        width: `${totalOriginalCards > 0 ? (masteredCount / totalOriginalCards) * 100 : 0}%`,
+                                        height: '100%',
+                                        background: rating === 2 ? 'linear-gradient(90deg, var(--accent-color), #22c55e)' : 'var(--accent-color)',
+                                        borderRadius: '10px',
+                                        transition: 'width 0.5s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s ease'
+                                    }} />
+
+                                    <div style={{ position: 'absolute', right: -28, top: -5, opacity: 0.5 }}>
+                                        <BookOpen size={24} />
+                                    </div>
+                                </div>
+                            </div>
                             <div style={{ display: 'flex', gap: '0.5rem' }}>
                                 {user?.email === ADMIN_EMAIL && (
                                     <button className="neo-button icon-btn" title="Download Stack" onClick={handleDownload}><Download size={18} /></button>
-                                )}
-                                {!isPreviewMode && (!stack.isPublic || user?.email === ADMIN_EMAIL) && stack.id !== 'demo-stack' && (
-                                    <button className="neo-button icon-btn" title="Duplicate" onClick={() => onDuplicate(stack)}><Copy size={18} /></button>
                                 )}
                                 <CloseButton onClick={onClose} size={18} />
                             </div>
                         </div>
 
-                        {/* Card Flip Content */}
-                        <div
-                            style={{ perspective: '1000px', height: '380px', cursor: 'pointer' }}
-                            onClick={() => {
-                                if (isFlipped) {
-                                    setIsFlipped(false);
-                                }
-                            }}
-                        >
-                            <motion.div
-                                style={{
-                                    width: '100%', height: '100%', position: 'relative', transformStyle: 'preserve-3d',
+                        {/* Card Content based on Type */}
+                        {currentCard && currentCard.type === 'mcq' ? (
+                            <div className="neo-flat" style={{
+                                width: '100%', minHeight: '380px',
+                                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start',
+                                padding: '1.5rem', textAlign: 'center', overflowY: 'auto'
+                            }}>
+                                <span style={{ fontSize: '0.8rem', fontWeight: 'bold', opacity: 0.4, marginBottom: '1rem' }}>MULTIPLE CHOICE</span>
+                                {currentCard.question.image && (
+                                    <img
+                                        src={currentCard.question.image}
+                                        style={{ maxWidth: '100%', maxHeight: '180px', objectFit: 'contain', borderRadius: '12px', marginBottom: '1rem', cursor: 'pointer' }}
+                                        alt="Q"
+                                        onClick={() => setViewingImage(currentCard.question.image)}
+                                    />
+                                )}
+                                <h2 style={{ fontSize: '1.4rem', marginBottom: '2rem' }}>{currentCard.question.text}</h2>
+                                {currentCard.question.audio && <AudioPlayer audioData={currentCard.question.audio} />}
+
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', width: '100%', marginTop: 'auto' }}>
+                                    {currentCard.options?.map((opt, i) => {
+                                        const isSelected = false; // Could track selection state if needed
+                                        const showCorrect = feedback && opt.isCorrect;
+                                        const showWrong = feedback && !opt.isCorrect && feedback.type === 'retry'; // Only if we tracked selection
+
+                                        return (
+                                            <button
+                                                key={opt.id || i}
+                                                disabled={!!feedback}
+                                                className="neo-button"
+                                                onClick={() => {
+                                                    if (opt.isCorrect) {
+                                                        const brainImg = new Image();
+                                                        brainImg.src = 'https://cdn-icons-png.flaticon.com/512/2920/2920326.png'; // Fallback or use local asset if available? keeping it simple with internal resources
+                                                        handleRating(2);
+                                                    } else {
+                                                        const rightAnswer = currentCard.options.find(o => o.isCorrect)?.text || 'Unknown';
+                                                        handleRating(0, `Incorrect. The right answer is "${rightAnswer}". I shall ask this again.`);
+                                                    }
+                                                }}
+                                                style={{
+                                                    padding: '1rem', justifyContent: 'center', textAlign: 'center', minHeight: '60px',
+                                                    background: showCorrect ? '#dcfce7' : 'var(--bg-color)',
+                                                    borderColor: showCorrect ? '#22c55e' : 'var(--border-color)',
+                                                    opacity: feedback && !showCorrect ? 0.5 : 1
+                                                }}
+                                            >
+                                                {opt.text}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                                <button
+                                    className="neo-button"
+                                    disabled={!!feedback}
+                                    onClick={() => {
+                                        const rightAnswer = currentCard.options.find(o => o.isCorrect)?.text || 'Unknown';
+                                        handleRating(0, `The right answer is "${rightAnswer}". I shall ask this again.`);
+                                    }}
+                                    style={{ marginTop: '1.5rem', opacity: 0.7, width: '100%', justifyContent: 'center' }}
+                                >
+                                    I don't know
+                                </button>
+                            </div>
+                        ) : currentCard ? (
+                            /* Existing Flashcard Flip Logic */
+                            <div
+                                style={{ perspective: '1000px', height: '380px', cursor: 'pointer' }}
+                                onClick={() => {
+                                    if (isFlipped) {
+                                        setIsFlipped(false);
+                                    }
                                 }}
-                                animate={{ rotateY: isFlipped ? 180 : 0 }}
-                                transition={{ type: 'spring', stiffness: 260, damping: 20 }}
                             >
-                                {/* Front (Question) */}
-                                <div className="neo-flat" style={{
-                                    position: 'absolute', width: '100%', height: '100%', backfaceVisibility: 'hidden',
-                                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start',
-                                    padding: '1.5rem', textAlign: 'center', overflowY: 'auto', overflowX: 'hidden'
-                                }}>
-                                    <div style={{ margin: 'auto 0', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
-                                        <span style={{ fontSize: '0.8rem', fontWeight: 'bold', opacity: 0.4, marginBottom: '1rem', display: 'block' }}>QUESTION</span>
-                                        {currentCard && currentCard.question.image && (
-                                            <img
-                                                src={currentCard.question.image}
-                                                style={{ maxWidth: '100%', maxHeight: '180px', objectFit: 'contain', borderRadius: '12px', marginBottom: '1rem', cursor: 'pointer' }}
-                                                alt="Q"
-                                                onClick={(e) => { e.stopPropagation(); setViewingImage(currentCard.question.image); }}
-                                            />
-                                        )}
-                                        <h2 style={{ fontSize: '1.4rem' }}>{currentCard ? currentCard.question.text : 'No more cards'}</h2>
-                                        {currentCard && currentCard.question.audio && (
-                                            <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }} onClick={(e) => e.stopPropagation()}>
-                                                <AudioPlayer audioData={currentCard.question.audio} />
-                                            </div>
-                                        )}
+                                <motion.div
+                                    style={{
+                                        width: '100%', height: '100%', position: 'relative', transformStyle: 'preserve-3d',
+                                    }}
+                                    animate={{ rotateY: isFlipped ? 180 : 0 }}
+                                    transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+                                >
+                                    {/* Front (Question) */}
+                                    <div className="neo-flat" style={{
+                                        position: 'absolute', width: '100%', height: '100%', backfaceVisibility: 'hidden',
+                                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start',
+                                        padding: '1.5rem', textAlign: 'center', overflowY: 'auto', overflowX: 'hidden'
+                                    }}>
+                                        <div style={{ margin: 'auto 0', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                                            <span style={{ fontSize: '0.8rem', fontWeight: 'bold', opacity: 0.4, marginBottom: '1rem', display: 'block' }}>QUESTION</span>
+                                            {currentCard && currentCard.question.image && (
+                                                <img
+                                                    src={currentCard.question.image}
+                                                    style={{ maxWidth: '100%', maxHeight: '180px', objectFit: 'contain', borderRadius: '12px', marginBottom: '1rem', cursor: 'pointer' }}
+                                                    alt="Q"
+                                                    onClick={(e) => { e.stopPropagation(); setViewingImage(currentCard.question.image); }}
+                                                />
+                                            )}
+                                            <h2 style={{ fontSize: '1.4rem' }}>{currentCard ? currentCard.question.text : 'No more cards'}</h2>
+                                            {currentCard && currentCard.question.audio && (
+                                                <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }} onClick={(e) => e.stopPropagation()}>
+                                                    <AudioPlayer audioData={currentCard.question.audio} />
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
 
-                                {/* Back (Answer) */}
-                                <div className="neo-flat" style={{
-                                    position: 'absolute', width: '100%', height: '100%', backfaceVisibility: 'hidden', transform: 'rotateY(180deg)',
-                                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start',
-                                    padding: '1.5rem', textAlign: 'center', overflowY: 'auto', overflowX: 'hidden'
-                                }}>
-                                    <div style={{ margin: 'auto 0', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
-                                        <span style={{ fontSize: '0.8rem', fontWeight: 'bold', opacity: 0.4, marginBottom: '1rem', display: 'block' }}>ANSWER</span>
-                                        {currentCard && currentCard.answer.image && (
-                                            <img
-                                                src={currentCard.answer.image}
-                                                style={{ maxWidth: '100%', maxHeight: '180px', objectFit: 'contain', borderRadius: '12px', marginBottom: '1rem', cursor: 'pointer' }}
-                                                alt="A"
-                                                onClick={(e) => { e.stopPropagation(); setViewingImage(currentCard.answer.image); }}
-                                            />
-                                        )}
-                                        <h2 style={{ fontSize: '1.4rem', color: 'var(--accent-color)' }}>{currentCard ? currentCard.answer.text : ''}</h2>
-                                        {currentCard && currentCard.answer.audio && (
-                                            <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }} onClick={(e) => e.stopPropagation()}>
-                                                <AudioPlayer audioData={currentCard.answer.audio} />
-                                            </div>
-                                        )}
+                                    {/* Back (Answer) */}
+                                    <div className="neo-flat" style={{
+                                        position: 'absolute', width: '100%', height: '100%', backfaceVisibility: 'hidden', transform: 'rotateY(180deg)',
+                                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start',
+                                        padding: '1.5rem', textAlign: 'center', overflowY: 'auto', overflowX: 'hidden'
+                                    }}>
+                                        <div style={{ margin: 'auto 0', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                                            <span style={{ fontSize: '0.8rem', fontWeight: 'bold', opacity: 0.4, marginBottom: '1rem', display: 'block' }}>ANSWER</span>
+                                            {currentCard && currentCard.answer.image && (
+                                                <img
+                                                    src={currentCard.answer.image}
+                                                    style={{ maxWidth: '100%', maxHeight: '180px', objectFit: 'contain', borderRadius: '12px', marginBottom: '1rem', cursor: 'pointer' }}
+                                                    alt="A"
+                                                    onClick={(e) => { e.stopPropagation(); setViewingImage(currentCard.answer.image); }}
+                                                />
+                                            )}
+                                            <h2 style={{ fontSize: '1.4rem', color: 'var(--accent-color)' }}>{currentCard ? currentCard.answer.text : ''}</h2>
+                                            {currentCard && currentCard.answer.audio && (
+                                                <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }} onClick={(e) => e.stopPropagation()}>
+                                                    <AudioPlayer audioData={currentCard.answer.audio} />
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
-                            </motion.div>
-                        </div>
+                                </motion.div>
+                            </div>
+                        ) : null}
 
-                        {!isFlipped ? (
+                        {!isFlipped && currentCard && currentCard.type !== 'mcq' ? (
                             <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                 {/* Record Answer UI */}
                                 <div className="neo-flat" style={{ padding: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', borderRadius: '16px' }}>
@@ -785,74 +895,119 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                             </div>
                         ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', width: '100%', minHeight: '80px', justifyContent: 'center' }}>
-                                <div className="neo-flat" style={{ padding: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', borderRadius: '16px' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
-                                        <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'var(--accent-color)', opacity: 0.6 }} />
-                                        <span style={{ fontSize: '0.85rem', fontWeight: 'bold', opacity: 0.7 }}>
-                                            SELECT WHAT MATCHES YOUR ANSWER
-                                        </span>
-                                    </div>
-                                    <div style={{ display: 'flex', gap: '0.8rem' }}>
-                                        {recordedAudio && (
+                                <AnimatePresence mode="wait">
+                                    {feedback ? (
+                                        <motion.div
+                                            key="feedback-box"
+                                            initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                                            exit={{ opacity: 0, scale: 0.9, y: 10 }}
+                                            className="neo-flat"
+                                            style={{
+                                                width: '100%', padding: '1.5rem', borderRadius: '24px',
+                                                display: 'flex', flexDirection: 'column', gap: '1.2rem',
+                                                background: feedback.type === 'success' ? 'rgba(34, 197, 94, 0.05)' : 'rgba(59, 130, 246, 0.05)',
+                                                border: feedback.type === 'success' ? '2px solid rgba(34, 197, 94, 0.2)' : '2px solid rgba(59, 130, 246, 0.2)',
+                                                textAlign: 'center'
+                                            }}
+                                        >
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'center' }}>
+                                                {feedback.type === 'success' && <Brain size={40} className="bounce" color="#16a34a" fill="#dcfce7" />}
+                                                <span style={{ fontSize: '0.8rem', fontWeight: 'bold', opacity: 0.4 }}>
+                                                    {displayName ? `${displayName.toUpperCase()} ` : ''}SAYS...
+                                                </span>
+                                                <h3 style={{
+                                                    fontSize: '1.2rem', lineHeight: '1.5',
+                                                    color: feedback.type === 'success' ? '#16a34a' : 'var(--accent-color)'
+                                                }}>
+                                                    "{feedback.message}"
+                                                </h3>
+                                            </div>
                                             <button
-                                                className="neo-button icon-btn"
-                                                onClick={toggleRecordedPlayback}
-                                                style={{ color: 'var(--accent-color)', width: '32px', height: '32px' }}
+                                                className="neo-button neo-glow-blue"
+                                                style={{
+                                                    justifyContent: 'center', padding: '1rem',
+                                                    background: feedback.type === 'success' ? '#16a34a' : 'var(--accent-color)',
+                                                    color: 'white', border: 'none'
+                                                }}
+                                                onClick={handleNextSession}
                                             >
-                                                {isPlayingRecorded ? <Square size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
+                                                Next Question
                                             </button>
-                                        )}
-                                    </div>
-                                </div>
-                                <div style={{ display: 'flex', flexDirection: 'row', gap: '10px', width: '100%', justifyContent: 'center' }}>
-                                    <button
-                                        className="neo-button"
-                                        style={{
-                                            flex: 1, flexDirection: 'column', padding: '12px 5px',
-                                            background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca',
-                                            minWidth: '60px'
-                                        }}
-                                        onClick={(e) => { e.stopPropagation(); handleRating(-1); }}
-                                    >
-                                        <span style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>Wrong</span>
-                                    </button>
+                                        </motion.div>
+                                    ) : (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%' }}>
+                                            <div className="neo-flat" style={{ padding: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', borderRadius: '16px' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+                                                    <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'var(--accent-color)', opacity: 0.6 }} />
+                                                    <span style={{ fontSize: '0.85rem', fontWeight: 'bold', opacity: 0.7 }}>
+                                                        SELECT WHAT MATCHES YOUR ANSWER
+                                                    </span>
+                                                </div>
+                                                <div style={{ display: 'flex', gap: '0.8rem' }}>
+                                                    {recordedAudio && (
+                                                        <button
+                                                            className="neo-button icon-btn"
+                                                            onClick={toggleRecordedPlayback}
+                                                            style={{ color: 'var(--accent-color)', width: '32px', height: '32px' }}
+                                                        >
+                                                            {isPlayingRecorded ? <Square size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div style={{ display: 'flex', flexDirection: 'row', gap: '10px', width: '100%', justifyContent: 'center' }}>
+                                                <button
+                                                    className="neo-button"
+                                                    style={{
+                                                        flex: 1, flexDirection: 'column', padding: '12px 5px',
+                                                        background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca',
+                                                        minWidth: '60px'
+                                                    }}
+                                                    onClick={(e) => { e.stopPropagation(); handleRating(-1); }}
+                                                >
+                                                    <span style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>Wrong</span>
+                                                </button>
 
-                                    <button
-                                        className="neo-button"
-                                        style={{
-                                            flex: 1, flexDirection: 'column', padding: '12px 5px',
-                                            background: '#f3f4f6', color: '#4b5563', border: '1px solid #e5e7eb',
-                                            minWidth: '60px'
-                                        }}
-                                        onClick={(e) => { e.stopPropagation(); handleRating(0); }}
-                                    >
-                                        <span style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>Unsure</span>
-                                    </button>
+                                                <button
+                                                    className="neo-button"
+                                                    style={{
+                                                        flex: 1, flexDirection: 'column', padding: '12px 5px',
+                                                        background: '#f3f4f6', color: '#4b5563', border: '1px solid #e5e7eb',
+                                                        minWidth: '60px'
+                                                    }}
+                                                    onClick={(e) => { e.stopPropagation(); handleRating(0); }}
+                                                >
+                                                    <span style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>Unsure</span>
+                                                </button>
 
-                                    <button
-                                        className="neo-button"
-                                        style={{
-                                            flex: 1, flexDirection: 'column', padding: '12px 5px',
-                                            background: '#e0f2fe', color: '#0284c7', border: '1px solid #bae6fd',
-                                            minWidth: '60px'
-                                        }}
-                                        onClick={(e) => { e.stopPropagation(); handleRating(1); }}
-                                    >
-                                        <span style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>Partly</span>
-                                    </button>
+                                                <button
+                                                    className="neo-button"
+                                                    style={{
+                                                        flex: 1, flexDirection: 'column', padding: '12px 5px',
+                                                        background: '#e0f2fe', color: '#0284c7', border: '1px solid #bae6fd',
+                                                        minWidth: '60px'
+                                                    }}
+                                                    onClick={(e) => { e.stopPropagation(); handleRating(1); }}
+                                                >
+                                                    <span style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>Partly</span>
+                                                </button>
 
-                                    <button
-                                        className="neo-button"
-                                        style={{
-                                            flex: 1, flexDirection: 'column', padding: '12px 5px',
-                                            background: '#dcfce7', color: '#16a34a', border: '1px solid #bbf7d0',
-                                            minWidth: '60px'
-                                        }}
-                                        onClick={(e) => { e.stopPropagation(); handleRating(2); }}
-                                    >
-                                        <span style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>By heart</span>
-                                    </button>
-                                </div>
+                                                <button
+                                                    className="neo-button"
+                                                    style={{
+                                                        flex: 1, flexDirection: 'column', padding: '12px 5px',
+                                                        background: '#dcfce7', color: '#16a34a', border: '1px solid #bbf7d0',
+                                                        minWidth: '60px'
+                                                    }}
+                                                    onClick={(e) => { e.stopPropagation(); handleRating(2); }}
+                                                >
+                                                    <span style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>By heart</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </AnimatePresence>
 
                             </div>
                         )}

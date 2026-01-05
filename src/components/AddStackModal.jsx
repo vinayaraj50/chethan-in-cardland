@@ -168,8 +168,27 @@ const AddStackModal = ({
     const timerRef = useRef(null);
 
     const handleAddCard = () => {
-        setCards([...cards, { id: Date.now(), question: { text: '', image: '', audio: '' }, answer: { text: '', image: '', audio: '' } }]);
-        // Scroll to bottom after state update
+        setCards([...cards, { id: Date.now(), type: 'flashcard', question: { text: '', image: '', audio: '' }, answer: { text: '', image: '', audio: '' } }]);
+        scrollToBottom();
+    };
+
+    const handleAddMCQ = () => {
+        setCards([...cards, {
+            id: Date.now(),
+            type: 'mcq',
+            question: { text: '', image: '', audio: '' },
+            options: [
+                { id: Date.now() + 1, text: '', isCorrect: false },
+                { id: Date.now() + 2, text: '', isCorrect: false },
+                { id: Date.now() + 3, text: '', isCorrect: false },
+                { id: Date.now() + 4, text: '', isCorrect: false }
+            ],
+            answer: { text: '', image: '', audio: '' } // Metadata/redundant
+        }]);
+        scrollToBottom();
+    };
+
+    const scrollToBottom = () => {
         setTimeout(() => {
             if (modalRef.current) {
                 modalRef.current.scrollTo({
@@ -178,6 +197,38 @@ const AddStackModal = ({
                 });
             }
         }, 100);
+    };
+
+    const handleMoveCard = (index, newPosition) => {
+        const newIndex = parseInt(newPosition) - 1; // 1-based to 0-based
+        if (isNaN(newIndex) || newIndex < 0 || newIndex >= cards.length || newIndex === index) return;
+
+        const newCards = [...cards];
+        const [movedCard] = newCards.splice(index, 1);
+        newCards.splice(newIndex, 0, movedCard);
+        setCards(newCards);
+    };
+
+    const handleOptionChange = (cardId, optionId, field, value) => {
+        setCards(cards.map(c => {
+            if (c.id !== cardId) return c;
+
+            if (field === 'isCorrect') {
+                // Radio behavior: set this to true, others to false
+                return {
+                    ...c,
+                    options: c.options.map(opt => ({
+                        ...opt,
+                        isCorrect: opt.id === optionId
+                    }))
+                };
+            }
+
+            return {
+                ...c,
+                options: c.options.map(opt => opt.id === optionId ? { ...opt, [field]: value } : opt)
+            };
+        }));
     };
 
     const handleRemoveCard = (id) => {
@@ -290,8 +341,14 @@ const AddStackModal = ({
             const hasQuestion = card.question.text.trim() || card.question.image || card.question.audio;
             const hasAnswer = card.answer.text.trim() || card.answer.image || card.answer.audio;
 
-            if (!hasQuestion) return showAlert(`Question is required for card ${i + 1}`);
-            if (!hasAnswer) return showAlert(`Answer is required for card ${i + 1}`);
+            if (card.type === 'mcq') {
+                const hasCorrectOption = card.options?.some(o => o.isCorrect);
+                if (!hasQuestion) return showAlert(`Question is required for MCQ ${i + 1}`);
+                if (!hasCorrectOption) return showAlert(`Please select a correct answer for MCQ ${i + 1}`);
+            } else {
+                if (!hasQuestion) return showAlert(`Question is required for card ${i + 1}`);
+                if (!hasAnswer) return showAlert(`Answer is required for card ${i + 1}`);
+            }
         }
 
         const newStack = {
@@ -683,13 +740,48 @@ const AddStackModal = ({
                                     />
                                 </div>
                             )}
-                            <div style={{ position: 'absolute', top: '10px', right: '10px' }}>
-                                <button className="neo-button icon-btn" style={{ width: '30px', height: '30px' }} onClick={() => handleRemoveCard(card.id)}>
-                                    <Trash2 size={14} color="var(--error-color)" />
-                                </button>
-                            </div>
+                            {/* Header: Label, Move, Delete */}
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                                <div style={{ fontSize: '0.9rem', fontWeight: 'bold', opacity: 0.5, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <span>{card.type === 'mcq' ? 'MCQ' : 'CARD'} {index + 1}</span>
+                                </div>
 
-                            <div style={{ fontSize: '0.9rem', fontWeight: 'bold', opacity: 0.5 }}>CARD {index + 1}</div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--bg-color)', padding: '4px 8px', borderRadius: '8px', boxShadow: 'inset 2px 2px 4px var(--shadow-dark), inset -2px -2px 4px var(--shadow-light)' }}>
+                                        <span style={{ fontSize: '0.75rem', opacity: 0.6 }}>Pos:</span>
+                                        <input
+                                            type="number"
+                                            className="neo-input"
+                                            style={{
+                                                width: '40px', padding: '2px', textAlign: 'center',
+                                                boxShadow: 'none', background: 'transparent', height: 'auto',
+                                                fontSize: '0.9rem', fontWeight: 'bold'
+                                            }}
+                                            placeholder="#"
+                                            onBlur={(e) => {
+                                                if (e.target.value) {
+                                                    handleMoveCard(index, e.target.value);
+                                                    e.target.value = '';
+                                                }
+                                            }}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter' && e.target.value) {
+                                                    handleMoveCard(index, e.target.value);
+                                                    e.target.value = '';
+                                                }
+                                            }}
+                                        />
+                                    </div>
+                                    <button
+                                        className="neo-button icon-btn"
+                                        style={{ width: '32px', height: '32px', color: 'var(--error-color)', boxShadow: 'none' }}
+                                        onClick={() => handleRemoveCard(card.id)}
+                                        title="Delete Card"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
+                                </div>
+                            </div>
 
                             {/* Question Section */}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -774,92 +866,130 @@ const AddStackModal = ({
                             </div>
 
                             {/* Answer Section */}
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>ANSWER</span>
-                                    <div style={{ display: 'flex', gap: '5px' }}>
-                                        {!recording ? (
-                                            <div style={{ display: 'flex', gap: '5px' }}>
-                                                <button
-                                                    className="neo-button icon-btn"
-                                                    style={{ width: '32px', height: '32px', color: card.answer.audio ? 'var(--accent-color)' : 'currentColor' }}
-                                                    onClick={() => startRecording(card.id, 'answer')}
-                                                >
-                                                    <Mic size={14} />
-                                                </button>
-                                                {card.answer.audio && (
-                                                    <button className="neo-button icon-btn" style={{ width: '32px', height: '32px' }} onClick={() => handleUpdateCard(card.id, 'answer', { ...card.answer, audio: '' })}>
-                                                        <Trash2 size={12} color="var(--error-color)" />
+                            {card.type === 'mcq' ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                    <span style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>OPTIONS</span>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                        {card.options?.map((opt, i) => (
+                                            <div key={opt.id} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <input
+                                                    type="radio"
+                                                    name={`correct-${card.id}`}
+                                                    checked={opt.isCorrect}
+                                                    onChange={() => handleOptionChange(card.id, opt.id, 'isCorrect', true)}
+                                                    style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: 'var(--accent-color)' }}
+                                                    title="Mark as correct answer"
+                                                />
+                                                <input
+                                                    className="neo-input"
+                                                    placeholder={`Option ${String.fromCharCode(65 + i)}`}
+                                                    value={opt.text}
+                                                    onChange={(e) => handleOptionChange(card.id, opt.id, 'text', sanitizeText(e.target.value))}
+                                                    style={{
+                                                        borderColor: opt.isCorrect ? 'var(--accent-color)' : 'transparent',
+                                                        borderWidth: opt.isCorrect ? '2px' : '1px'
+                                                    }}
+                                                />
+                                            </div>
+                                        ))}
+                                    </div>
+                                    {(!card.options || card.options.length === 0) && (
+                                        <div style={{ color: 'red', fontSize: '0.8rem' }}>Error: No options found. Try re-adding this card.</div>
+                                    )}
+                                </div>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>ANSWER</span>
+                                        <div style={{ display: 'flex', gap: '5px' }}>
+                                            {!recording ? (
+                                                <div style={{ display: 'flex', gap: '5px' }}>
+                                                    <button
+                                                        className="neo-button icon-btn"
+                                                        style={{ width: '32px', height: '32px', color: card.answer.audio ? 'var(--accent-color)' : 'currentColor' }}
+                                                        onClick={() => startRecording(card.id, 'answer')}
+                                                    >
+                                                        <Mic size={14} />
                                                     </button>
-                                                )}
-                                            </div>
-                                        ) : recording.id === card.id && recording.field === 'answer' ? (
-                                            <div className="neo-flat" style={{
-                                                position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 10,
-                                                borderRadius: '12px', display: 'flex', alignItems: 'center', padding: '0 1rem', gap: '1rem',
-                                                background: 'var(--bg-color)'
-                                            }}>
-                                                <div style={{ width: '10px', height: '10px', background: 'red', borderRadius: '50%', animation: 'pulse 1s infinite' }} />
-                                                <span style={{ flex: 1, fontWeight: '600' }}>Recording... {formatTime(recordingTime)}</span>
-                                                <button className="neo-button icon-btn" title="Cancel" style={{ width: '32px', height: '32px' }} onClick={cancelRecording}>
-                                                    <X size={14} color="var(--error-color)" />
-                                                </button>
-                                                <button className="neo-button icon-btn" title="Stop & Save" style={{ width: '32px', height: '32px' }} onClick={stopRecording}>
-                                                    <Check size={14} color="var(--accent-color)" />
-                                                </button>
-                                            </div>
-                                        ) : null}
-                                        <label className="neo-button icon-btn" style={{ width: '32px', height: '32px', cursor: 'pointer' }}>
-                                            <ImageIcon size={14} color={card.answer.image ? 'var(--accent-color)' : 'currentColor'} />
-                                            <input type="file" hidden accept="image/*" onChange={(e) => handleFileUpload(e, (data) => handleUpdateCard(card.id, 'answer', { ...card.answer, image: data }))} />
-                                        </label>
+                                                    {card.answer.audio && (
+                                                        <button className="neo-button icon-btn" style={{ width: '32px', height: '32px' }} onClick={() => handleUpdateCard(card.id, 'answer', { ...card.answer, audio: '' })}>
+                                                            <Trash2 size={12} color="var(--error-color)" />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            ) : recording.id === card.id && recording.field === 'answer' ? (
+                                                <div className="neo-flat" style={{
+                                                    position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 10,
+                                                    borderRadius: '12px', display: 'flex', alignItems: 'center', padding: '0 1rem', gap: '1rem',
+                                                    background: 'var(--bg-color)'
+                                                }}>
+                                                    <div style={{ width: '10px', height: '10px', background: 'red', borderRadius: '50%', animation: 'pulse 1s infinite' }} />
+                                                    <span style={{ flex: 1, fontWeight: '600' }}>Recording... {formatTime(recordingTime)}</span>
+                                                    <button className="neo-button icon-btn" title="Cancel" style={{ width: '32px', height: '32px' }} onClick={cancelRecording}>
+                                                        <X size={14} color="var(--error-color)" />
+                                                    </button>
+                                                    <button className="neo-button icon-btn" title="Stop & Save" style={{ width: '32px', height: '32px' }} onClick={stopRecording}>
+                                                        <Check size={14} color="var(--accent-color)" />
+                                                    </button>
+                                                </div>
+                                            ) : null}
+                                            <label className="neo-button icon-btn" style={{ width: '32px', height: '32px', cursor: 'pointer' }}>
+                                                <ImageIcon size={14} color={card.answer.image ? 'var(--accent-color)' : 'currentColor'} />
+                                                <input type="file" hidden accept="image/*" onChange={(e) => handleFileUpload(e, (data) => handleUpdateCard(card.id, 'answer', { ...card.answer, image: data }))} />
+                                            </label>
+                                        </div>
                                     </div>
-                                </div>
-                                {card.answer.image && (
-                                    <div style={{ position: 'relative', width: '100%', maxHeight: '150px' }}>
-                                        <img
-                                            src={card.answer.image}
-                                            style={{ width: '100%', height: '100%', maxHeight: '150px', objectFit: 'contain', borderRadius: '8px', cursor: 'pointer' }}
-                                            onClick={() => setViewingImage(card.answer.image)}
+                                    {card.answer.image && (
+                                        <div style={{ position: 'relative', width: '100%', maxHeight: '150px' }}>
+                                            <img
+                                                src={card.answer.image}
+                                                style={{ width: '100%', height: '100%', maxHeight: '150px', objectFit: 'contain', borderRadius: '8px', cursor: 'pointer' }}
+                                                onClick={() => setViewingImage(card.answer.image)}
+                                            />
+                                            <button
+                                                className="neo-button icon-btn"
+                                                style={{ position: 'absolute', top: '5px', right: '5px', width: '24px', height: '24px' }}
+                                                onClick={() => handleUpdateCard(card.id, 'answer', { ...card.answer, image: '' })}
+                                            >
+                                                <X size={12} />
+                                            </button>
+                                        </div>
+                                    )}
+                                    <div style={{ position: 'relative' }}>
+                                        <textarea
+                                            className="neo-input"
+                                            rows="3"
+                                            placeholder="The answer... "
+                                            value={card.answer.text}
+                                            onChange={(e) => handleUpdateCard(card.id, 'answer', { ...card.answer, text: sanitizeText(e.target.value) })}
+                                            style={{ paddingRight: '30px', resize: 'vertical' }}
                                         />
-                                        <button
-                                            className="neo-button icon-btn"
-                                            style={{ position: 'absolute', top: '5px', right: '5px', width: '24px', height: '24px' }}
-                                            onClick={() => handleUpdateCard(card.id, 'answer', { ...card.answer, image: '' })}
-                                        >
-                                            <X size={12} />
-                                        </button>
+                                        <span style={{
+                                            position: 'absolute',
+                                            right: '12px',
+                                            top: '12px',
+                                            color: 'red',
+                                            pointerEvents: 'none',
+                                            visibility: (card.answer.text || card.answer.image || card.answer.audio) ? 'hidden' : 'visible'
+                                        }}>*</span>
                                     </div>
-                                )}
-                                <div style={{ position: 'relative' }}>
-                                    <textarea
-                                        className="neo-input"
-                                        rows="3"
-                                        placeholder="The answer... "
-                                        value={card.answer.text}
-                                        onChange={(e) => handleUpdateCard(card.id, 'answer', { ...card.answer, text: sanitizeText(e.target.value) })}
-                                        style={{ paddingRight: '30px', resize: 'vertical' }}
-                                    />
-                                    <span style={{
-                                        position: 'absolute',
-                                        right: '12px',
-                                        top: '12px',
-                                        color: 'red',
-                                        pointerEvents: 'none',
-                                        visibility: (card.answer.text || card.answer.image || card.answer.audio) ? 'hidden' : 'visible'
-                                    }}>*</span>
+                                    {card.answer.audio && (
+                                        <AudioPlayer audioData={card.answer.audio} />
+                                    )}
                                 </div>
-                                {card.answer.audio && (
-                                    <AudioPlayer audioData={card.answer.audio} />
-                                )}
-                            </div>
+                            )}
                         </div>
                     ))}
                 </div>
 
-                <button className="neo-button neo-glow-blue" style={{ justifyContent: 'center', background: 'var(--accent-soft)', color: 'var(--accent-color)' }} onClick={handleAddCard}>
-                    <Plus size={18} /> Add More Q&A
-                </button>
+                <div style={{ display: 'flex', gap: '1rem' }}>
+                    <button className="neo-button neo-glow-blue" style={{ flex: 1, justifyContent: 'center', background: 'var(--accent-soft)', color: 'var(--accent-color)' }} onClick={handleAddCard}>
+                        <Plus size={18} /> Add Flashcard
+                    </button>
+                    <button className="neo-button neo-glow-blue" style={{ flex: 1, justifyContent: 'center', background: 'rgba(255, 215, 0, 0.2)', color: 'var(--accent-text)' }} onClick={handleAddMCQ}>
+                        Add Multiple Choice
+                    </button>
+                </div>
 
                 {/* Split/Merge UI moved to bottom */}
                 {stack && cards.length > 1 && (

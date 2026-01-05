@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Filter, Download, MessageSquare, Plus } from 'lucide-react';
+import { Search, Filter, Download, MessageSquare, Plus, Settings, RefreshCw, X } from 'lucide-react';
 import StackCard from '../components/StackCard';
 import NeoDropdown from '../components/NeoDropdown';
 import logo from '../assets/logo.png';
@@ -19,9 +19,11 @@ const Home = ({
     onShowKnowMore,
     onDelete,
     showConfirm,
-    onAddStack
+    onAddStack,
+    onRefresh
 }) => {
-    const [showSearch, setShowSearch] = useState(false);
+    const [showSettings, setShowSettings] = useState(false);
+    const menuRef = React.useRef(null);
     const standards = ['V', 'VI', 'VII', 'VIII', 'IX', 'X'];
     const syllabuses = ['NCERT', 'Kerala'];
     const mediums = ['Malayalam', 'English'];
@@ -60,53 +62,109 @@ const Home = ({
         setFilters(prev => ({ ...prev, [key]: value }));
     };
 
+    const renderSettingsMenu = (alignRight = true) => (
+        <div style={{ position: 'relative' }} ref={menuRef}>
+            <button
+                className={`neo-button icon-btn ${showSettings ? 'active' : ''}`}
+                onClick={() => setShowSettings(!showSettings)}
+                style={{ borderRadius: '12px', width: '40px', height: '40px' }}
+                title="Menu"
+            >
+                {showSettings ? <X size={20} /> : <Settings size={20} />}
+            </button>
+
+            {showSettings && (
+                <div className="neo-flat settings-dropdown" style={{
+                    position: 'absolute',
+                    top: '100%',
+                    right: alignRight ? 0 : 'auto',
+                    left: alignRight ? 'auto' : 0,
+                    marginTop: '10px',
+                    width: '280px',
+                    padding: '1.25rem',
+                    zIndex: 2000,
+                    borderRadius: '20px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '1.25rem',
+                    boxShadow: 'var(--neo-box-shadow)'
+                }}>
+                    {/* Search */}
+                    <div style={{ position: 'relative' }}>
+                        <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }} />
+                        <input
+                            className="neo-input"
+                            placeholder="Search..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            style={{ width: '100%', paddingLeft: '38px', fontSize: '0.9rem', height: '40px' }}
+                            autoFocus
+                        />
+                    </div>
+
+                    {/* Sort */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 600, opacity: 0.6, marginLeft: '4px' }}>Sort By</span>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                            {(activeTab === 'my' ? [
+                                { label: 'Date', value: 'Creation Date' },
+                                { label: 'Title', value: 'Title' },
+                                { label: 'Marks', value: 'Average Rating' },
+                                { label: 'Reviews', value: 'Upcoming Review' }
+                            ] : [
+                                { label: 'Newest', value: 'Creation Date' },
+                                { label: 'Title', value: 'Title' }
+                            ]).map(opt => (
+                                <button
+                                    key={opt.value}
+                                    className={`neo-button ${sortBy === opt.value ? 'neo-glow-blue' : ''}`}
+                                    onClick={() => onSortChange(opt.value)}
+                                    style={{ padding: '0.5rem', fontSize: '0.8rem' }}
+                                >
+                                    {opt.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Refresh */}
+                    <button
+                        className="neo-button"
+                        onClick={() => {
+                            onRefresh?.();
+                            setShowSettings(false);
+                        }}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '0.75rem' }}
+                    >
+                        <RefreshCw size={16} /> Refresh Stacks
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+
     const renderTabs = () => (
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '2rem' }}>
-            <div className="neo-tabs-container">
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '2rem', gap: '0.5rem', alignItems: 'center' }}>
+            <div className="neo-tabs-container" style={{ margin: 0 }}>
                 <button
                     className={`neo-tab-item ${activeTab === 'my' ? 'active' : ''}`}
-                    onClick={() => {
-                        // console.log('Switching to My Cards');
-                        setActiveTab('my');
-                    }}
+                    onClick={() => setActiveTab('my')}
                 >
                     My Cards
                 </button>
                 <button
                     className={`neo-tab-item ${activeTab === 'ready-made' ? 'active' : ''}`}
-                    onClick={() => {
-                        // console.log('Switching to Ready-made Section');
-                        setActiveTab('ready-made');
-                    }}
+                    onClick={() => setActiveTab('ready-made')}
                 >
                     Ready-made
                 </button>
             </div>
+            {renderSettingsMenu(true)}
         </div>
     );
 
-    const renderSearchBar = () => (
-        <div style={{ position: 'relative', marginBottom: '1.5rem' }}>
-            <Search size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }} />
-            <input
-                className="neo-input"
-                placeholder={`Search ${activeTab === 'my' ? 'my' : 'ready-made'} stacks...`}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                style={{ width: '100%', paddingLeft: '45px' }}
-            />
-        </div>
-    );
 
     const renderMyStacksFilters = () => {
-        const sortOptions = [
-            { label: 'Upcoming Review', value: 'Upcoming Review' },
-            { label: 'Creation Date', value: 'Creation Date' },
-            { label: 'Number of Cards', value: 'Number of Cards' },
-            { label: 'Average Rating', value: 'Average Rating' },
-            { label: 'Last Reviewed', value: 'Last Reviewed' }
-        ];
-
         const labelOptions = [
             { label: 'All Labels', value: null },
             ...availableLabels.map(lbl => ({ label: lbl, value: lbl }))
@@ -114,18 +172,9 @@ const Home = ({
 
         return (
             <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                gap: '1.5rem',
-                marginBottom: '2.5rem',
-                padding: '0.5rem'
+                marginBottom: '2rem',
+                padding: '0 0.5rem'
             }}>
-                <NeoDropdown
-                    label="Sort by"
-                    value={sortBy}
-                    options={sortOptions}
-                    onChange={onSortChange}
-                />
                 <NeoDropdown
                     label="Filter by Label"
                     value={filterLabel}
@@ -196,7 +245,6 @@ const Home = ({
             {(!showIntro || currentLoading) && (
                 <>
                     {renderTabs()}
-                    {renderSearchBar()}
                     {activeTab === 'my' && renderMyStacksFilters()}
                     {activeTab === 'ready-made' && renderReadyMadeFilters()}
                 </>
@@ -306,59 +354,17 @@ const Home = ({
                             position: 'relative',
                             minHeight: '48px'
                         }}>
-                            {showSearch ? (
-                                <div style={{ width: '100%', maxWidth: '600px', position: 'relative', animation: 'fadeIn 0.2s' }}>
-                                    <input
-                                        className="neo-input"
-                                        autoFocus
-                                        placeholder="Search public stacks..."
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        style={{ width: '100%', paddingRight: '40px' }}
-                                        onBlur={() => !searchQuery && setShowSearch(false)}
-                                    />
-                                    <button
-                                        onClick={() => setShowSearch(false)}
-                                        style={{
-                                            position: 'absolute',
-                                            right: '10px',
-                                            top: '50%',
-                                            transform: 'translateY(-50%)',
-                                            background: 'none',
-                                            border: 'none',
-                                            cursor: 'pointer',
-                                            opacity: 0.5
-                                        }}
-                                    >
-                                        ✕
-                                    </button>
-                                </div>
-                            ) : (
-                                <>
-                                    <h2 className="responsive-heading" style={{
-                                        fontSize: '2rem',
-                                        fontWeight: '800',
-                                        color: 'var(--accent-color)',
-                                        flex: 1
-                                    }}>
-                                        Ready-made Flashcards
-                                    </h2>
-                                    <button
-                                        className="neo-button icon-btn"
-                                        onClick={() => setShowSearch(true)}
-                                        style={{
-                                            position: 'absolute',
-                                            right: 0,
-                                            borderRadius: '50%',
-                                            width: '44px',
-                                            height: '44px'
-                                        }}
-                                        title="Search Stacks"
-                                    >
-                                        <Search size={20} />
-                                    </button>
-                                </>
-                            )}
+                            <h2 className="responsive-heading" style={{
+                                fontSize: '2rem',
+                                fontWeight: '800',
+                                color: 'var(--accent-color)',
+                                flex: 1
+                            }}>
+                                Ready-made Flashcards
+                            </h2>
+                            <div style={{ position: 'absolute', right: 0 }}>
+                                {renderSettingsMenu(true)}
+                            </div>
                         </div>
 
                         {renderReadyMadeFilters()}

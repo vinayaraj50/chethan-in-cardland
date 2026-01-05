@@ -23,6 +23,7 @@ import AdminPanel from './components/AdminPanel';
 import CoinPurchaseModal from './components/CoinPurchaseModal';
 import LoginPromptModal from './components/LoginPromptModal';
 import CoinRewardAnimation from './components/CoinRewardAnimation';
+import NamePromptModal from './components/NamePromptModal';
 import { DEMO_STACK } from './constants/data';
 import { checkSubscriptionGrant } from './services/subscriptionService';
 import { ADMIN_EMAIL, PUBLIC_API_KEY, PUBLIC_FOLDER_ID } from './constants/config';
@@ -58,6 +59,26 @@ const App = () => {
     const [showLoginPrompt, setShowLoginPrompt] = useState(false);
     const [reviewStarted, setReviewStarted] = useState(false);
     const [rewardData, setRewardData] = useState(null);
+    const [showNamePrompt, setShowNamePrompt] = useState(false);
+
+    // 0. Version Check (to solve Old UI issues)
+    const APP_VERSION = '1.0.1'; // Increment this whenever UI changes significantly
+    useEffect(() => {
+        const lastVersion = localStorage.getItem('app_version');
+        if (lastVersion && lastVersion !== APP_VERSION) {
+            console.log('New version detected. Clearing old cache...');
+            // Clear only UI/Service related cache, keep theme and sounds
+            const theme = localStorage.getItem('theme');
+            const sounds = localStorage.getItem('soundsEnabled');
+            localStorage.clear();
+            if (theme) localStorage.setItem('theme', theme);
+            if (sounds) localStorage.setItem('soundsEnabled', sounds);
+            localStorage.setItem('app_version', APP_VERSION);
+            window.location.reload(true);
+        } else {
+            localStorage.setItem('app_version', APP_VERSION);
+        }
+    }, []);
 
     const prevModalCount = useRef(0);
 
@@ -80,7 +101,7 @@ const App = () => {
         setPublicLoading(true);
         try {
             const { listPublicStacks, getPublicFileContent, getPublicIndex } = await import('./services/publicDrive');
-            const indexData = await getPublicIndex(PUBLIC_API_KEY, PUBLIC_FOLDER_ID);
+            const indexData = await getPublicIndex(PUBLIC_API_KEY, PUBLIC_FOLDER_ID, user?.token);
 
             if (indexData && Array.isArray(indexData) && indexData.length > 0) {
                 setPublicStacks(indexData);
@@ -201,6 +222,12 @@ const App = () => {
                     }
                 }
             }
+
+            // Check if name is missing
+            if (profile && profile.displayName === null) {
+                setShowNamePrompt(true);
+            }
+
             setUserProfile(profile);
         } catch (e) {
             console.error("Failed to load profile", e);
@@ -383,7 +410,22 @@ const App = () => {
     const getSortedStacks = () => {
         let filtered = filterLabel ? stacks.filter(s => s.label === filterLabel) : stacks;
         if (searchQuery.trim()) filtered = filtered.filter(s => s.title.toLowerCase().includes(searchQuery.toLowerCase()));
-        return [...filtered].sort((a, b) => (b.id || 0) - (a.id || 0));
+
+        return [...filtered].sort((a, b) => {
+            if (sortBy === 'Title') {
+                return a.title.localeCompare(b.title);
+            }
+            if (sortBy === 'Upcoming Review') {
+                const dateA = a.nextReview ? new Date(a.nextReview) : new Date(8640000000000000);
+                const dateB = b.nextReview ? new Date(b.nextReview) : new Date(8640000000000000);
+                return dateA.getTime() - dateB.getTime();
+            }
+            if (sortBy === 'Average Rating') {
+                return (b.rating || 0) - (a.rating || 0);
+            }
+            // Default: Creation Date (Newest first)
+            return (b.id || 0) - (a.id || 0);
+        });
     };
 
     const isUnlimited = userProfile?.unlimitedCoinsExpiry && new Date(userProfile.unlimitedCoinsExpiry).getTime() > Date.now();
@@ -463,6 +505,10 @@ const App = () => {
                         onDelete={handleDeleteStack}
                         showConfirm={(msg, cb) => setNotification({ type: 'confirm', message: msg, onConfirm: cb })}
                         onAddStack={() => { setActiveStack(null); setShowAddModal(true); }}
+                        onRefresh={() => {
+                            if (activeTab === 'my' && user) fetchStacks(user.token);
+                            else fetchPublicStacks();
+                        }}
                     />
                 </main>
 
@@ -532,6 +578,7 @@ const App = () => {
                     previewProgress={previewSession}
                     isUnlimited={isUnlimited}
                     onReviewStart={() => setReviewStarted(true)}
+                    displayName={userProfile?.displayName}
                 />
             )}
 
@@ -587,6 +634,18 @@ const App = () => {
                     />
                 )}
             </AnimatePresence>
+
+            {showNamePrompt && (
+                <NamePromptModal
+                    onSave={async (name) => {
+                        const updated = { ...userProfile, displayName: name };
+                        setUserProfile(updated);
+                        setShowNamePrompt(false);
+                        await saveUserProfile(user.token, updated);
+                        setNotification({ type: 'alert', message: `Nice to meet you, ${name}!` });
+                    }}
+                />
+            )}
         </div>
     );
 };

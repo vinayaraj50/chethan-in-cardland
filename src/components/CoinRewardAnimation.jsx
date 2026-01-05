@@ -6,19 +6,19 @@ import { playCoinSound, playCelebrationSound } from '../utils/soundUtils';
 
 // Simple geometric shapes for particles
 const Circle = ({ color }) => (
-    <svg viewBox="0 0 100 100" className="w-full h-full fill-current" style={{ color }}>
+    <svg viewBox="0 0 100 100" style={{ width: '100%', height: '100%', fill: color }}>
         <circle cx="50" cy="50" r="40" />
     </svg>
 );
 
 const Triangle = ({ color }) => (
-    <svg viewBox="0 0 100 100" className="w-full h-full fill-current" style={{ color }}>
+    <svg viewBox="0 0 100 100" style={{ width: '100%', height: '100%', fill: color }}>
         <path d="M50 15 L90 85 L10 85 Z" />
     </svg>
 );
 
 const Cross = ({ color }) => (
-    <svg viewBox="0 0 100 100" className="w-full h-full fill-current" style={{ color }}>
+    <svg viewBox="0 0 100 100" style={{ width: '100%', height: '100%', fill: color }}>
         <rect x="35" y="10" width="30" height="80" rx="5" />
         <rect x="10" y="35" width="80" height="30" rx="5" />
     </svg>
@@ -37,7 +37,10 @@ const CoinRewardAnimation = ({ amount, onClose, type = 'Daily Login' }) => {
         // Counter animation
         let start = 0;
         const end = parseInt(amount, 10) || 0;
-        if (start === end) return;
+        if (start === end) {
+            setCount(end);
+            return;
+        }
 
         const duration = 1000;
         const startTime = performance.now();
@@ -58,7 +61,7 @@ const CoinRewardAnimation = ({ amount, onClose, type = 'Daily Login' }) => {
         requestAnimationFrame(animateCount);
 
         return () => clearTimeout(timer);
-    }, []); // Empty dependency array ensures this runs strictly ONCE
+    }, [amount]);
 
     // Particle Configuration
     const particleCount = 12;
@@ -66,15 +69,34 @@ const CoinRewardAnimation = ({ amount, onClose, type = 'Daily Login' }) => {
     const particleDistance = 180;
 
     return (
-        // "Invisible" full-screen container to capture clicks outside, but NO background color
         <div
-            className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-auto"
+            style={{
+                position: 'fixed',
+                inset: 0,
+                zIndex: 10000,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                pointerEvents: 'auto',
+                backdropFilter: 'blur(4px)',
+                background: 'rgba(0,0,0,0.3)'
+            }}
             onClick={onClose}
         >
-            <div className="relative" onClick={(e) => e.stopPropagation()}>
-
+            <div
+                style={{ position: 'relative' }}
+                onClick={(e) => e.stopPropagation()}
+            >
                 {/* Geometric Particles Burst */}
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-0 h-0 pointer-events-none">
+                <div style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    width: 0,
+                    height: 0,
+                    pointerEvents: 'none'
+                }}>
                     {[...Array(particleCount)].map((_, i) => {
                         const angle = (i / particleCount) * 360;
                         const Component = [Circle, Triangle, Cross][i % 3];
@@ -82,7 +104,11 @@ const CoinRewardAnimation = ({ amount, onClose, type = 'Daily Login' }) => {
                         return (
                             <motion.div
                                 key={i}
-                                className="absolute w-8 h-8"
+                                style={{
+                                    position: 'absolute',
+                                    width: '32px',
+                                    height: '32px'
+                                }}
                                 initial={{ x: 0, y: 0, scale: 0, rotate: 0 }}
                                 animate={{
                                     x: Math.cos(angle * Math.PI / 180) * particleDistance,
@@ -92,7 +118,7 @@ const CoinRewardAnimation = ({ amount, onClose, type = 'Daily Login' }) => {
                                     opacity: [1, 1, 0]
                                 }}
                                 transition={{
-                                    duration: 1.2,
+                                    duration: 1.5,
                                     ease: "easeOut",
                                     delay: 0.1
                                 }}
@@ -103,20 +129,22 @@ const CoinRewardAnimation = ({ amount, onClose, type = 'Daily Login' }) => {
                     })}
                 </div>
 
-                {/* Floating Content Container */}
+                {/* Main Content */}
                 <motion.div
-                    initial={{ scale: 0, y: 50, rotate: -10 }}
-                    animate={{ scale: 1, y: 0, rotate: 0 }}
-                    exit={{ scale: 0, opacity: 0 }}
-                    transition={{
-                        type: "spring",
-                        stiffness: 400,
-                        damping: 25
+                    initial={{ scale: 0.8, opacity: 0, y: 20 }}
+                    animate={{ scale: 1, opacity: 1, y: 0 }}
+                    exit={{ scale: 0.8, opacity: 0 }}
+                    transition={{ type: "spring", damping: 15 }}
+                    style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: '1.5rem',
+                        textAlign: 'center'
                     }}
-                    className="flex flex-col items-center"
                 >
-                    {/* Floating Coin */}
-                    <div className="relative mb-4">
+                    {/* Coin Group */}
+                    <div style={{ position: 'relative' }}>
                         <motion.div
                             animate={{
                                 y: [-10, 10, -10],
@@ -124,51 +152,119 @@ const CoinRewardAnimation = ({ amount, onClose, type = 'Daily Login' }) => {
                             }}
                             transition={{
                                 y: { duration: 2, repeat: Infinity, ease: "easeInOut" },
-                                rotateY: { duration: 5, repeat: Infinity, ease: "linear" }
+                                rotateY: { duration: 4, repeat: Infinity, ease: "linear" }
+                            }}
+                            style={{
+                                width: '120px',
+                                height: '120px',
+                                background: 'linear-gradient(135deg, #fbbf24, #d97706)',
+                                borderRadius: '50%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                border: '4px solid #fef3c7',
+                                boxShadow: '0 10px 25px rgba(217, 119, 6, 0.4), inset 0 2px 5px rgba(255, 255, 255, 0.5)',
+                                position: 'relative',
+                                zIndex: 2
                             }}
                         >
-                            {/* Glow behind coin */}
-                            <div className="absolute inset-0 bg-yellow-400 blur-xl opacity-30 rounded-full scale-125"></div>
+                            <Coins size={60} color="white" />
+                        </motion.div>
+                        {/* Glow */}
+                        <div style={{
+                            position: 'absolute',
+                            inset: '-20px',
+                            background: 'radial-gradient(circle, rgba(251, 191, 36, 0.4) 0%, transparent 70%)',
+                            borderRadius: '50%',
+                            zIndex: 1
+                        }} />
+                    </div>
 
-                            {/* Coin Icon */}
-                            <div className="relative bg-gradient-to-b from-yellow-300 to-yellow-600 rounded-full p-6 border-4 border-yellow-100 shadow-2xl">
-                                <Coins size={80} className="text-white drop-shadow-md" />
-                                <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 font-bold text-5xl text-yellow-700 opacity-20">$</span>
-                            </div>
+                    {/* Text Container */}
+                    <div>
+                        <motion.h2
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.2 }}
+                            style={{
+                                color: 'white',
+                                fontSize: '1.5rem',
+                                fontWeight: '900',
+                                textTransform: 'uppercase',
+                                letterSpacing: '2px',
+                                textShadow: '0 2px 10px rgba(0,0,0,0.5)',
+                                marginBottom: '0.5rem'
+                            }}
+                        >
+                            {type}
+                        </motion.h2>
+                        <motion.div
+                            initial={{ scale: 0.5, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={{ delay: 0.3, type: 'spring' }}
+                            style={{
+                                color: '#fbbf24',
+                                fontSize: '4rem',
+                                fontWeight: '900',
+                                textShadow: '0 4px 15px rgba(0,0,0,0.5)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                            }}
+                        >
+                            +{count}
                         </motion.div>
                     </div>
 
-                    {/* Text & Count */}
-                    <div className="text-center mb-6">
-                        <h2 className="text-2xl font-black text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)] tracking-wide uppercase mb-1 stroke-black">
-                            {type}
-                        </h2>
-                        <div className="flex items-center gap-2 justify-center">
-                            <span className="text-6xl font-black text-yellow-400 drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)]"
-                                style={{ textShadow: '2px 2px 0 #b45309, -1px -1px 0 #b45309, 1px -1px 0 #b45309, -1px 1px 0 #b45309, 1px 1px 0 #b45309' }}>
-                                +{count}
-                            </span>
-                        </div>
-                    </div>
-
-                    {/* Action Button */}
+                    {/* Neumorphic Button */}
                     <motion.button
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
-                        className="bg-white text-yellow-600 font-extrabold text-lg py-3 px-8 rounded-full shadow-lg border-b-4 border-gray-200 active:border-b-0 active:translate-y-1 active:shadow-none flex items-center gap-2"
                         onClick={onClose}
+                        style={{
+                            background: 'white',
+                            border: 'none',
+                            borderRadius: '50px',
+                            padding: '1rem 3rem',
+                            fontSize: '1.2rem',
+                            fontWeight: '800',
+                            color: '#d97706',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.75rem',
+                            cursor: 'pointer',
+                            boxShadow: '0 10px 20px rgba(0,0,0,0.2), 0 5px 0 #e5e7eb',
+                            marginTop: '1rem'
+                        }}
                     >
                         <Check size={24} strokeWidth={3} />
                         CONTINUE
                     </motion.button>
                 </motion.div>
 
-                {/* Close Button (Floating) */}
+                {/* Close Button */}
                 <button
-                    className="absolute -top-12 right-0 bg-white/20 hover:bg-white/40 backdrop-blur-md text-white p-2 rounded-full transition-colors"
                     onClick={onClose}
+                    style={{
+                        position: 'absolute',
+                        top: '-4rem',
+                        right: '0',
+                        background: 'rgba(255, 255, 255, 0.1)',
+                        border: 'none',
+                        color: 'white',
+                        padding: '0.5rem',
+                        borderRadius: '50%',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backdropFilter: 'blur(5px)',
+                        transition: 'background 0.2s'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'}
                 >
-                    <X size={20} />
+                    <X size={24} />
                 </button>
             </div>
         </div>

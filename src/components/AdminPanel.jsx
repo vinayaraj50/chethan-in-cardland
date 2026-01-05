@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import CloseButton from './common/CloseButton';
 import { X, Upload, Trash2, RefreshCw, Search, User, Database, Zap, ChevronDown, Edit2, Copy, Plus } from 'lucide-react';
-import { getUsersData, getUserStats, sortUsers, rebuildPublicIndex, updatePublicStackIndex } from '../services/adminService';
-import { APPS_SCRIPT_URL, COIN_PACKAGES } from '../constants/config';
+import { getUsersData, getUserStats, sortUsers, rebuildPublicIndex, updatePublicStackIndex, saveAdminPrompts, getAdminPrompts, saveAdminSettings, getAdminSettings } from '../services/adminService';
+import { APPS_SCRIPT_URL, COIN_PACKAGES, APPS_SCRIPT_KEY } from '../constants/config';
 import { parseGeminiOutput } from '../utils/importUtils';
 import { saveStack, saveFile, deleteStack, listFilesInFolder, getFileContent, makeFilePublic } from '../services/googleDrive';
 
@@ -31,24 +31,66 @@ const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolder
     const [activeSection, setActiveSection] = useState('users');
     const [usersData, setUsersData] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [isBlocked, setIsBlocked] = useState(false);
     const [sortBy, setSortBy] = useState('Last Active');
     const [searchQuery, setSearchQuery] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+    const [hasMore, setHasMore] = useState(false);
+    const [offset, setOffset] = useState(0);
+    const [syncingPrompts, setSyncingPrompts] = useState(false);
 
     const [smartPasteText, setSmartPasteText] = useState('');
     const [parsedData, setParsedData] = useState(null);
     const [title, setTitle] = useState('');
     const [label, setLabel] = useState('No label');
     const [importantNote, setImportantNote] = useState('');
-    const [standard, setStandard] = useState(localStorage.getItem('admin_standard') || '');
-    const [syllabus, setSyllabus] = useState(localStorage.getItem('admin_syllabus') || '');
+    const [standard, setStandard] = useState('');
+    const [syllabus, setSyllabus] = useState('');
     const [medium, setMedium] = useState('');
-    const [subject, setSubject] = useState(localStorage.getItem('admin_subject') || '');
+    const [subject, setSubject] = useState('');
     const [cost, setCost] = useState(0);
 
-    // Persist selections
-    useEffect(() => { localStorage.setItem('admin_standard', standard); }, [standard]);
-    useEffect(() => { localStorage.setItem('admin_syllabus', syllabus); }, [syllabus]);
-    useEffect(() => { localStorage.setItem('admin_subject', subject); }, [subject]);
+    // Persist settings to cloud instead of localStorage
+    useEffect(() => {
+        const fetchRemoteSettings = async () => {
+            if (!user?.token || !publicFolderId) return;
+            try {
+                const remoteSettings = await getAdminSettings(user.token, publicFolderId);
+                if (remoteSettings) {
+                    if (remoteSettings.standard) setStandard(remoteSettings.standard);
+                    if (remoteSettings.syllabus) setSyllabus(remoteSettings.syllabus);
+                    if (remoteSettings.subject) setSubject(remoteSettings.subject);
+                    if (remoteSettings.medium) setMedium(remoteSettings.medium);
+                }
+            } catch (e) {
+                console.warn('Failed to sync settings from server');
+            }
+        };
+        fetchRemoteSettings();
+    }, [user?.token, publicFolderId]);
+
+    useEffect(() => {
+        const timer = setTimeout(async () => {
+            if (!user?.token || !publicFolderId) return;
+            // Only save if we have some values
+            if (standard || syllabus || subject || medium) {
+                await saveAdminSettings(user.token, publicFolderId, { standard, syllabus, subject, medium });
+            }
+        }, 3000); // 3-second debounce to avoid excessive writes
+        return () => clearTimeout(timer);
+    }, [standard, syllabus, subject, medium, user?.token, publicFolderId]);
+
+    // Debounce search
+    useEffect(() => {
+        const h = setTimeout(() => {
+            setDebouncedSearch(searchQuery);
+            if (activeSection === 'users') {
+                setOffset(0);
+                setUsersData([]);
+            }
+        }, 300);
+        return () => clearTimeout(h);
+    }, [searchQuery]);
 
     const [dbFilters, setDbFilters] = useState({ standard: '', syllabus: '', medium: '', subject: '' });
 
@@ -56,16 +98,31 @@ const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolder
 
     useEffect(() => {
         if (activeSection === 'users') fetchUsers();
-    }, [activeSection]);
+    }, [activeSection, debouncedSearch]);
 
-    const fetchUsers = async () => {
+    const fetchUsers = async (isNextPage = false) => {
+        if (loading) return;
         setLoading(true);
         try {
-            const { data } = await getUsersData(user.token, publicFolderId);
-            const stats = getUserStats(data);
-            setUsersData(stats);
+            const currentOffset = isNextPage ? offset : 0;
+            const result = await getUsersData(user.token, publicFolderId, currentOffset, 50, debouncedSearch);
+            const stats = getUserStats(result.data);
+
+            if (isNextPage) {
+                setUsersData(prev => [...prev, ...stats]);
+            } else {
+                setUsersData(stats);
+            }
+
+            setHasMore(result.hasMore);
+            setOffset(result.nextOffset || 0);
+            setIsBlocked(false);
         } catch (error) {
-            showAlert('Failed to load user data.');
+            console.error('Fetch error:', error);
+            if (error.message.includes('BLOCKED_BY_CLIENT') || error.name === 'TypeError') {
+                setIsBlocked(true);
+            }
+            showAlert('Failed to load user data. Check if an AdBlocker is blocking Google Scripts.');
         } finally {
             setLoading(false);
         }
@@ -133,13 +190,61 @@ const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolder
     });
 
     useEffect(() => {
-        localStorage.setItem('admin_custom_prompts', JSON.stringify(customPrompts));
-    }, [customPrompts]);
+        const fetchRemotePrompts = async () => {
+            if (!user?.token || !publicFolderId) return;
+            setSyncingPrompts(true);
+            try {
+                const remotePrompts = await getAdminPrompts(user.token, publicFolderId);
+                if (remotePrompts && Array.isArray(remotePrompts)) {
+                    // Update local state if remote is different
+                    setCustomPrompts(remotePrompts);
+                }
+            } catch (e) {
+                console.warn('Failed to sync prompts from server');
+            } finally {
+                setSyncingPrompts(false);
+            }
+        };
+        fetchRemotePrompts();
+    }, [user?.token, publicFolderId]);
 
-    const handleSavePrompt = (id, newTitle, newPrompt) => {
-        setCustomPrompts(prev => prev.map(p => p.id === id ? { ...p, title: newTitle, prompt: newPrompt } : p));
+    const handleSavePrompt = async (id, newTitle, newPrompt) => {
+        const updatedPrompts = customPrompts.map(p => p.id === id ? { ...p, title: newTitle, prompt: newPrompt } : p);
+
+        // Check if it's a new prompt
+        let finalPrompts = updatedPrompts;
+        if (id === 'new') {
+            const nextId = Math.max(0, ...customPrompts.filter(p => typeof p.id === 'number').map(p => p.id)) + 1;
+            finalPrompts = [...customPrompts, { id: nextId, title: newTitle, prompt: newPrompt }];
+        }
+
+        setCustomPrompts(finalPrompts);
         setEditingPrompt(null);
-        showAlert('Prompt updated!');
+        showAlert('Prompt updated locally...');
+
+        // Save to cloud
+        setSyncingPrompts(true);
+        const success = await saveAdminPrompts(user.token, publicFolderId, finalPrompts);
+        setSyncingPrompts(false);
+
+        if (success) {
+            showAlert('Prompts synced to cloud!');
+        } else {
+            showAlert('Synced locally, but cloud save failed.');
+        }
+    };
+
+    const handleDeletePrompt = async (id) => {
+        showConfirm('Delete this prompt?', async () => {
+            const finalPrompts = customPrompts.filter(p => p.id !== id);
+            setCustomPrompts(finalPrompts);
+
+            setSyncingPrompts(true);
+            const success = await saveAdminPrompts(user.token, publicFolderId, finalPrompts);
+            setSyncingPrompts(false);
+
+            if (success) showAlert('Deleted from cloud!');
+        });
     };
 
     const handleDeletePublicStack = async (stack) => {
@@ -160,7 +265,7 @@ const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolder
         setProcessingAction(actionId);
         try {
             // Dynamic import removed, using static import
-            const url = `${APPS_SCRIPT_URL}?action=grantCoins&email=${encodeURIComponent(targetEmail)}&amount=${amount}&adminEmail=${encodeURIComponent(user.email)}`;
+            const url = `${APPS_SCRIPT_URL}?action=grantCoins&email=${encodeURIComponent(targetEmail)}&amount=${amount}&adminEmail=${encodeURIComponent(user.email)}&key=${APPS_SCRIPT_KEY}&t=${Date.now()}`;
             const response = await fetch(url);
             const result = await response.json();
 
@@ -189,7 +294,7 @@ const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolder
     };
 
     const getSortedUsers = () => {
-        const filtered = searchQuery.trim() ? usersData.filter(u => u.email.toLowerCase().includes(searchQuery.toLowerCase())) : usersData;
+        const filtered = debouncedSearch.trim() ? usersData.filter(u => u.email.toLowerCase().includes(debouncedSearch.toLowerCase())) : usersData;
         return sortUsers(filtered, sortBy);
     };
 
@@ -343,7 +448,32 @@ const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolder
                                         </tbody>
                                     </table>
                                 </div>
-                                {getSortedUsers().length === 0 && !loading && <div style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem' }}>No users found.</div>}
+                                {getSortedUsers().length === 0 && !loading && (
+                                    <div style={{ padding: '2rem', textAlign: 'center' }}>
+                                        <div style={{ color: '#94a3b8', fontSize: '0.85rem' }}>No users found.</div>
+                                        {isBlocked && (
+                                            <div style={{ marginTop: '1rem', padding: '1rem', background: '#fef2f2', border: '1px solid #fee2e2', borderRadius: '8px', color: '#b91c1c', fontSize: '0.8rem' }}>
+                                                <strong>Connection Blocked:</strong> Your browser or an extension (like an AdBlocker) is blocking the connection to the user database. Please disable AdBlock for this site.
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                                {hasMore && (
+                                    <div style={{ padding: '1rem', display: 'flex', justifyContent: 'center', borderTop: '1px solid #f1f5f9' }}>
+                                        <motion.button
+                                            whileHover={{ scale: 1.02 }}
+                                            whileTap={{ scale: 0.98 }}
+                                            onClick={() => fetchUsers(true)}
+                                            disabled={loading}
+                                            style={{
+                                                padding: '0.75rem 1.5rem', background: '#3b82f6', color: '#fff',
+                                                border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer'
+                                            }}
+                                        >
+                                            {loading ? 'Loading...' : 'Load More Users'}
+                                        </motion.button>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
@@ -361,7 +491,16 @@ const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolder
                                     />
 
                                     <div style={{ width: '220px', display: 'flex', flexDirection: 'column', gap: '8px', overflowY: 'auto', maxHeight: '400px', paddingRight: '4px' }}>
-                                        <label style={{ fontSize: '0.65rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase' }}>AI Prompts</label>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <label style={{ fontSize: '0.65rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase' }}>AI Prompts</label>
+                                            <button
+                                                onClick={() => setEditingPrompt({ id: 'new', title: '', prompt: '' })}
+                                                style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '2px', fontSize: '0.65rem', fontWeight: '700' }}
+                                            >
+                                                <Plus size={10} /> ADD NEW
+                                            </button>
+                                        </div>
+                                        {syncingPrompts && <div style={{ fontSize: '0.6rem', color: '#3b82f6', textAlign: 'center' }}><RefreshCw size={8} className="spin" /> Syncing...</div>}
                                         {customPrompts.map((p) => (
                                             <div
                                                 key={p.id}
@@ -390,6 +529,13 @@ const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolder
                                                             title="Edit Prompt"
                                                         >
                                                             <Edit2 size={12} />
+                                                        </button>
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); handleDeletePrompt(p.id); }}
+                                                            style={{ background: 'none', border: 'none', padding: '4px', cursor: 'pointer', color: '#ef4444' }}
+                                                            title="Delete Prompt"
+                                                        >
+                                                            <Trash2 size={12} />
                                                         </button>
                                                         <div style={{ color: '#3b82f6', padding: '4px' }}><Copy size={12} /></div>
                                                     </div>

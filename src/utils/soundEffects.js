@@ -141,3 +141,35 @@ export const playCompletion = () => {
     });
 };
 
+export const playDopamine = () => {
+    if (!isSoundsEnabled()) return;
+    const ctx = getContext();
+    if (ctx.state === 'suspended') ctx.resume();
+    const now = ctx.currentTime;
+
+    // Soft, pleasant major chord (C Major: C5, E5, G5, C6) with gentle attack
+    // Staggered slightly for a "chime" effect
+    const notes = [
+        { freq: 523.25, delay: 0, vol: 0.1 },
+        { freq: 659.25, delay: 0.05, vol: 0.1 },
+        { freq: 783.99, delay: 0.1, vol: 0.1 },
+        { freq: 1046.50, delay: 0.15, vol: 0.08 }
+    ];
+
+    notes.forEach(({ freq, delay, vol }) => {
+        createOscillator('sine', freq, now + delay, 1.0, vol);
+    });
+};
+
+export const playPartial = () => {
+    if (!isSoundsEnabled()) return;
+    const ctx = getContext();
+    if (ctx.state === 'suspended') ctx.resume();
+    const now = ctx.currentTime;
+
+    // Muted, neutral/slightly positive block chord
+    // F faded sound
+    createOscillator('triangle', 440, now, 0.3, 0.04); // A4
+    createOscillator('sine', 554.37, now, 0.3, 0.04); // C#5
+};
+

@@ -6,8 +6,42 @@
 const DRIVE_API_URL = 'https://www.googleapis.com/drive/v3/files';
 const UPLOAD_API_URL = 'https://www.googleapis.com/upload/drive/v3/files';
 
-// In-memory cache for file contents to avoid redundant fetches
-const fileContentCache = new Map();
+// Persistent cache for stack contents to avoid redundant fetches
+const CACHE_KEY = 'cic_stack_content_cache';
+
+const getPersistentCache = () => {
+    try {
+        const cached = localStorage.getItem(CACHE_KEY);
+        if (!cached) return new Map();
+        const data = JSON.parse(cached);
+        return new Map(Object.entries(data));
+    } catch (e) {
+        console.warn('Failed to load persistent cache:', e);
+        return new Map();
+    }
+};
+
+const savePersistentCache = (cacheMap) => {
+    try {
+        // Simple size management: if map has more than 50 items, remove oldest (lowest ID)
+        if (cacheMap.size > 50) {
+            const keys = Array.from(cacheMap.keys());
+            // Sort by creation time if we had it, but for now just take the first few
+            const keysToRemove = keys.slice(0, cacheMap.size - 50);
+            keysToRemove.forEach(k => cacheMap.delete(k));
+        }
+
+        const data = Object.fromEntries(cacheMap);
+        localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+    } catch (e) {
+        if (e.name === 'QuotaExceededError') {
+            console.warn('localStorage quota exceeded, clearing cache...');
+            localStorage.removeItem(CACHE_KEY);
+        }
+    }
+};
+
+let fileContentCache = getPersistentCache();
 
 /**
  * Clear cache for a specific file ID
@@ -16,6 +50,7 @@ const fileContentCache = new Map();
 export const clearStackCache = (fileId) => {
     if (fileId) {
         fileContentCache.delete(fileId);
+        savePersistentCache(fileContentCache);
     }
 };
 
@@ -95,6 +130,10 @@ export const listStacks = async (token) => {
             }
         })
     );
+
+    // Persist all cache updates at once
+    savePersistentCache(fileContentCache);
+
     return stacks.filter(stack => stack !== null);
 };
 
@@ -199,6 +238,7 @@ export const saveFile = async (token, name, content, fileId = null, mimeType = '
             content: content,
             modifiedTime: result.modifiedTime || new Date().toISOString()
         });
+        savePersistentCache(fileContentCache);
 
         return result;
     } catch (error) {
