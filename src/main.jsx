@@ -4,6 +4,10 @@ import App from './App.jsx'
 import './index.css'
 import '@fontsource/chilanka';
 
+// Version Logger
+console.log('App Version: Live Update checked at ' + new Date().toLocaleString());
+
+
 ReactDOM.createRoot(document.getElementById('root')).render(
     <React.StrictMode>
         <App />
