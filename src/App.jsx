@@ -462,6 +462,7 @@ const App = () => {
                         availableLabels={[...new Set(stacks.map(s => s.label).filter(l => l && l !== 'No label'))]} onShowKnowMore={() => setShowKnowMore(true)}
                         onDelete={handleDeleteStack}
                         showConfirm={(msg, cb) => setNotification({ type: 'confirm', message: msg, onConfirm: cb })}
+                        onAddStack={() => { setActiveStack(null); setShowAddModal(true); }}
                     />
                 </main>
 

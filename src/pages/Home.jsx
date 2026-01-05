@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Filter, Download, MessageSquare } from 'lucide-react';
+import { Search, Filter, Download, MessageSquare, Plus } from 'lucide-react';
 import StackCard from '../components/StackCard';
 import NeoDropdown from '../components/NeoDropdown';
 import logo from '../assets/logo.png';
@@ -18,7 +18,8 @@ const Home = ({
     availableLabels,
     onShowKnowMore,
     onDelete,
-    showConfirm
+    showConfirm,
+    onAddStack
 }) => {
     const [showSearch, setShowSearch] = useState(false);
     const standards = ['V', 'VI', 'VII', 'VIII', 'IX', 'X'];
@@ -184,7 +185,7 @@ const Home = ({
     const currentLoading = activeTab === 'my' ? loading : publicLoading;
     const currentStacks = activeTab === 'my' ? stacks : filteredPublicStacks;
 
-    const showIntro = activeTab === 'my' && !loading && (!user || stacks.length === 0 || (stacks.length === 1 && stacks[0].id === 'demo-stack'));
+    const showIntro = activeTab === 'my' && !loading && !user;
 
     // We no longer return early here to keep tabs and search bar visible
     // if (currentLoading) { ... }
@@ -436,6 +437,29 @@ const Home = ({
                 </div>
             ) : !showIntro && (
                 <>
+                    {currentStacks.length === 0 && activeTab === 'my' && (
+                        <div style={{
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                            padding: '4rem 2rem', textAlign: 'center', gap: '2rem'
+                        }}>
+                            <div className="neo-flat" style={{ padding: '3rem', borderRadius: '32px' }}>
+                                <img src={logo} alt="Welcome" style={{ width: '120px', height: 'auto' }} />
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                <h3 style={{ fontSize: '1.4rem' }}>Welcome to Chethan in Cardland!</h3>
+                                <p style={{ opacity: 0.7 }}>You don't have any flashcards yet. Create your own or explore our ready-made collection.</p>
+                            </div>
+                            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+                                <button className="neo-button neo-glow-blue" onClick={onAddStack} style={{ padding: '0.8rem 2rem', gap: '8px' }}>
+                                    <Plus size={18} /> Create New Stack
+                                </button>
+                                <button className="neo-button" onClick={() => setActiveTab('ready-made')} style={{ padding: '0.8rem 2rem', gap: '8px' }}>
+                                    <Search size={18} /> Browse Ready-made
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
                     {currentStacks.length === 0 && activeTab === 'ready-made' && (
                         <div style={{
                             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
