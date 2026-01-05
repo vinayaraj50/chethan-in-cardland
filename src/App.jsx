@@ -141,7 +141,22 @@ const App = () => {
         }
         setLoading(true);
         try {
-            const newStack = { ...stack, id: Date.now().toString(), driveFileId: null, isPublic: false, cost: 0 };
+            let stackToSave = { ...stack };
+
+            // FIX: If it's a public stack and we don't have its cards yet, fetch full content
+            if (stackToSave.isPublic && (!stackToSave.cards || stackToSave.cards.length === 0) && stackToSave.driveFileId) {
+                console.log('Fetching full content for shallow public stack before import:', stackToSave.title);
+                const { getPublicFileContent } = await import('./services/publicDrive');
+                const fullContent = await getPublicFileContent(PUBLIC_API_KEY, stackToSave.driveFileId, user?.token, user?.email === ADMIN_EMAIL);
+                if (fullContent && fullContent.cards) {
+                    stackToSave = { ...stackToSave, ...fullContent, isPublic: true, driveFileId: stackToSave.driveFileId };
+                    console.log('Successfully fetched cards for import:', stackToSave.cards.length);
+                } else {
+                    throw new Error('Could not fetch stack cards for import.');
+                }
+            }
+
+            const newStack = { ...stackToSave, id: Date.now().toString(), driveFileId: null, isPublic: false, cost: 0 };
             const result = await saveStack(user.token, newStack);
             if (cost > 0) {
                 handleUpdateCoins(userProfile.coins - cost);
@@ -149,8 +164,9 @@ const App = () => {
             handleUpdateLocalStack({ ...newStack, driveFileId: result.id });
             setNotification({ type: 'alert', message: cost > 0 ? `Purchased "${stack.title}"!` : `Added "${stack.title}"!` });
         } catch (error) {
+            console.error('Import failed:', error);
             if (error.message === 'REAUTH_NEEDED') signIn();
-            else setNotification({ type: 'alert', message: 'Operation failed.' });
+            else setNotification({ type: 'alert', message: `Operation failed: ${error.message}` });
         } finally {
             setLoading(false);
         }
@@ -310,7 +326,7 @@ const App = () => {
         };
 
         const interval = setInterval(() => {
-            if (window.google) {
+            if (window.google?.accounts?.oauth2) {
                 initGoogleAuth(handleAuthUpdate);
                 clearInterval(interval);
             }
@@ -462,11 +478,13 @@ const App = () => {
                     <Home
                         activeTab={activeTab} setActiveTab={setActiveTab}
                         stacks={user ? getSortedStacks() : [DEMO_STACK]}
-                        publicStacks={publicStacks} user={user} onLogin={signIn}
+                        publicStacks={publicStacks} user={user}
+                        onLogin={() => signIn('consent', 0, null, (msg) => setNotification({ type: 'alert', message: msg }))}
                         loading={loading} publicLoading={publicLoading}
                         userCoins={userProfile?.coins || 0}
                         onReview={async (s) => {
                             let stackToReview = s;
+                            // Load full card data if not present (for both public and private stacks with important notes)
                             if ((!stackToReview.cards || stackToReview.cards.length === 0) && stackToReview.isPublic && stackToReview.driveFileId && stackToReview.cardsCount > 0) {
                                 try {
                                     setPublicLoading(true);
@@ -490,11 +508,93 @@ const App = () => {
                                 } finally {
                                     setPublicLoading(false);
                                 }
+                            } else if ((!stackToReview.cards || stackToReview.cards.length === 0) && !stackToReview.isPublic && stackToReview.driveFileId && user?.token) {
+                                // Load private stack cards from Google Drive
+                                console.log('Loading private stack cards from Drive, fileId:', stackToReview.driveFileId);
+                                try {
+                                    setLoading(true);
+                                    const fullStack = await getFileContent(user.token, stackToReview.driveFileId);
+                                    console.log('Loaded fullStack content:', {
+                                        hasCards: !!fullStack?.cards,
+                                        cardsLength: fullStack?.cards?.length,
+                                        title: fullStack?.title
+                                    });
+
+                                    if (fullStack && fullStack.cards && fullStack.cards.length > 0) {
+                                        // Merge content properties, preserve Drive metadata
+                                        stackToReview = {
+                                            ...stackToReview,
+                                            cards: fullStack.cards,
+                                            importantNote: fullStack.importantNote || stackToReview.importantNote,
+                                            title: fullStack.title || stackToReview.title,
+                                            label: fullStack.label || stackToReview.label,
+                                        };
+                                        // Update local state to cache the cards
+                                        handleUpdateLocalStack(stackToReview);
+                                        console.log('Successfully loaded and cached cards for stack:', stackToReview.title);
+                                    } else {
+                                        console.warn('Stack fetch returned no cards from user Drive. Attempting to heal if it was an imported public stack...');
+                                        // HEALING: Look for matching title in public stacks
+                                        const matchingPublic = publicStacks.find(ps => ps.title === stackToReview.title);
+                                        if (matchingPublic && matchingPublic.driveFileId) {
+                                            console.log('Found matching public source for healing:', matchingPublic.title);
+                                            const { getPublicFileContent } = await import('./services/publicDrive');
+                                            const recoveredContent = await getPublicFileContent(PUBLIC_API_KEY, matchingPublic.driveFileId, user?.token, user?.email === ADMIN_EMAIL);
+
+                                            if (recoveredContent && recoveredContent.cards && recoveredContent.cards.length > 0) {
+                                                console.log('Successfully recovered cards from public source. Healing user copy...');
+                                                stackToReview = {
+                                                    ...stackToReview,
+                                                    cards: recoveredContent.cards,
+                                                    importantNote: recoveredContent.importantNote || stackToReview.importantNote
+                                                };
+                                                // Update local state first for immediate UI response
+                                                handleUpdateLocalStack(stackToReview);
+                                                // Save fixed version back to user's Drive in background
+                                                saveStack(user.token, stackToReview, stackToReview.driveFileId)
+                                                    .then(() => console.log('Permanently healed stack on Google Drive'))
+                                                    .catch(err => console.error('Failed to save healed stack back to Drive', err));
+                                            } else {
+                                                console.error('Failed to recover cards from public source');
+                                                setNotification({ type: 'alert', message: 'This stack seems to be empty. Please add cards before reviewing.' });
+                                                return;
+                                            }
+                                        } else {
+                                            setNotification({ type: 'alert', message: 'This stack seems to be empty. Please add cards before reviewing.' });
+                                            return;
+                                        }
+                                    }
+                                } catch (e) {
+                                    console.error('Failed to load stack cards:', e);
+                                    setNotification({ type: 'alert', message: 'Failed to load stack content from Google Drive.' });
+                                    return;
+                                } finally {
+                                    setLoading(false);
+                                }
                             }
+
+                            // Final safety check: if still no cards and it's not a demo stack
+                            if ((!stackToReview.cards || stackToReview.cards.length === 0) && stackToReview.id !== 'demo-stack' && stackToReview.cardsCount !== undefined && stackToReview.cardsCount > 0) {
+                                console.error('Final check failed: Stack has card count but no cards array', stackToReview);
+                                setNotification({ type: 'alert', message: 'Something went wrong loading the cards. Please try again.' });
+                                return;
+                            }
+
+                            // For guest users, always open review directly
                             if (!user && stackToReview.isPublic) {
                                 setReviewStack(stackToReview);
                                 return;
                             }
+
+                            // Debug logging
+                            console.log('Stack to review final state:', {
+                                title: stackToReview.title,
+                                hasCards: !!stackToReview.cards,
+                                cardsLength: stackToReview.cards?.length,
+                                hasImportantNote: !!stackToReview.importantNote
+                            });
+
+                            // Show important note popup if present, ReviewModal will handle empty cards gracefully
                             stackToReview.importantNote ? setNoteStack(stackToReview) : setReviewStack(stackToReview);
                         }}
                         onEdit={handleEditStack}
@@ -541,7 +641,8 @@ const App = () => {
                     }}
                     onShowFeedback={() => { setShowMenu(false); setShowFeedback(true); }}
                     onShowReferral={() => { setShowMenu(false); setShowReferralModal(true); }}
-                    onClose={() => window.history.back()} onLogout={() => signOut(setUser)} onLogin={signIn}
+                    onClose={() => window.history.back()} onLogout={() => signOut(setUser)}
+                    onLogin={() => signIn('consent', 0, null, (msg) => setNotification({ type: 'alert', message: msg }))}
                     onShowAdminPanel={() => { setShowMenu(false); setShowAdminPanel(true); }}
                 />
             )}
@@ -587,7 +688,7 @@ const App = () => {
             </AnimatePresence>
 
             {showFeedback && <FeedbackModal user={user} onClose={() => window.history.back()} showAlert={(m) => setNotification({ type: 'alert', message: m })} />}
-            <KnowMoreModal isOpen={showKnowMore} onClose={() => window.history.back()} onLogin={() => { setShowKnowMore(false); signIn(); }} />
+            <KnowMoreModal isOpen={showKnowMore} onClose={() => window.history.back()} onLogin={() => { setShowKnowMore(false); signIn('consent', 0, null, (msg) => setNotification({ type: 'alert', message: msg })); }} />
 
             {showCoinModal && (
                 <CoinPurchaseModal
@@ -618,7 +719,7 @@ const App = () => {
 
             {showLoginPrompt && previewSession && (
                 <LoginPromptModal
-                    onLogin={() => { setShowLoginPrompt(false); signIn(); }}
+                    onLogin={() => { setShowLoginPrompt(false); signIn('consent', 0, null, (msg) => setNotification({ type: 'alert', message: msg })); }}
                     onCancel={() => { setShowLoginPrompt(false); setPreviewSession(null); setReviewStack(null); }}
                     cardsReviewed={previewSession.sessionRatings?.length || 0}
                     totalCards={previewSession.stack?.cards?.length || 0}

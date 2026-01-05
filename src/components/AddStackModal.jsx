@@ -390,7 +390,7 @@ const AddStackModal = ({
             onSave({ ...newStack, driveFileId: result.id }, true, isPublishing);
         } catch (error) {
             if (error.message === 'REAUTH_NEEDED') {
-                signIn();
+                signIn('consent', 0, null, showAlert);
             } else {
                 // SECURITY FIX (VULN-006): Don't log error details
                 showAlert('Failed to save stack.');
@@ -483,7 +483,7 @@ const AddStackModal = ({
 
             } catch (error) {
                 if (error.message === 'REAUTH_NEEDED') {
-                    signIn();
+                    signIn('consent', 0, null, showAlert);
                 } else {
                     // SECURITY FIX (VULN-006): Don't log error details
                     showAlert('Failed to split stack.');
@@ -527,7 +527,7 @@ const AddStackModal = ({
                 // SECURITY FIX (VULN-008): Parent component will refresh stacks automatically
             } catch (error) {
                 if (error.message === 'REAUTH_NEEDED') {
-                    signIn();
+                    signIn('consent', 0, null, showAlert);
                 } else {
                     // SECURITY FIX (VULN-006): Don't log error details
                     showAlert('Failed to merge stacks.');

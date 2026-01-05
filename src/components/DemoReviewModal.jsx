@@ -259,7 +259,17 @@ const DemoReviewModal = ({ onClose, onLogin }) => {
                     </div>
                 </motion.div>
             ) : (
-                <div className="review-container" style={{ width: '100%', maxWidth: '400px', display: 'flex', flexDirection: 'column', gap: '2rem', position: 'relative' }}>
+                <div className="review-container" style={{
+                    width: '100%',
+                    maxWidth: '560px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '2rem',
+                    position: 'relative',
+                    padding: 'max(20px, 4vh) 30px',
+                    maxHeight: '100%',
+                    overflowY: 'auto'
+                }}>
 
                     {/* Top bar */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>

@@ -138,14 +138,14 @@ const AudioPlayer = ({ audioData }) => {
 
 const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, showAlert, userCoins, onDeductCoins, isPreviewMode = false, onLoginRequired, previewProgress = null, onReviewStart, displayName }) => {
     // Check if there are any previous ratings to decide initial mode
-    const hasPreviousRatings = stack.cards.some(card => card.lastRating !== undefined);
+    const hasPreviousRatings = stack.cards?.some(card => card.lastRating !== undefined) || false;
 
     const [showModeSelection, setShowModeSelection] = useState(hasPreviousRatings);
     const [currentIndex, setCurrentIndex] = useState(previewProgress?.currentIndex || 0);
     const [isFlipped, setIsFlipped] = useState(false);
     const [rating, setRating] = useState(0);
     const [sessionRatings, setSessionRatings] = useState(previewProgress?.sessionRatings || []);
-    const [studyCards, setStudyCards] = useState(hasPreviousRatings ? [] : stack.cards);
+    const [studyCards, setStudyCards] = useState(hasPreviousRatings ? [] : (stack.cards || []));
     const [sessionResult, setSessionResult] = useState(null);
     const [viewingImage, setViewingImage] = useState(null);
     const [isRecording, setIsRecording] = useState(false);
@@ -158,13 +158,13 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
     const [feedback, setFeedback] = useState(null);
     const [masteredCount, setMasteredCount] = useState(0);
     const [firstRatings, setFirstRatings] = useState({}); // Tracking first rating for SRS
-    const [totalOriginalCards, setTotalOriginalCards] = useState(hasPreviousRatings ? 0 : stack.cards.length);
+    const [totalOriginalCards, setTotalOriginalCards] = useState(hasPreviousRatings ? 0 : (stack.cards?.length || 0));
 
     // Coin Logic
     const [reviewedCountSession, setReviewedCountSession] = useState(0);
 
     // Preview Mode Logic
-    const previewLimit = isPreviewMode ? Math.floor(stack.cards.length / 2) : stack.cards.length;
+    const previewLimit = isPreviewMode ? Math.floor((stack.cards?.length || 0) / 2) : (stack.cards?.length || 0);
 
     //SRS Intervals (Days): 1, 3, 7, 30, 30...
     const getNextInterval = (currentStage) => {
@@ -259,7 +259,7 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
     const currentCard = studyCards[currentIndex];
 
     const handleStartReview = (mode) => {
-        let baseCards = [...stack.cards];
+        let baseCards = [...(stack.cards || [])];
 
         // Sort by difficulty: cards with lower/missing ratings first
         baseCards.sort((a, b) => {
@@ -479,13 +479,14 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
         }
     };
 
-    const difficultCardsCount = stack.cards.filter(c => c.lastRating !== undefined && c.lastRating < 2).length;
+    const difficultCardsCount = (stack.cards || []).filter(c => c.lastRating !== undefined && c.lastRating < 2).length;
 
     return (
         <div className="modal-overlay" style={{
             position: 'fixed', top: 0, right: 0, bottom: 0, left: 0,
-            backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', background: 'rgba(255,255,255,0.01)', zIndex: 2000,
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem'
+            backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', background: 'rgba(255,255,255,0.01)', zIndex: 2000,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            padding: 'max(1rem, 2vh)'
         }}>
             <AnimatePresence mode="wait">
                 {showModeSelection ? (
@@ -516,7 +517,7 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                                 </div>
                                 <div style={{ textAlign: 'left' }}>
                                     <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>Review All Cards</div>
-                                    <div style={{ fontSize: '0.85rem', opacity: 0.6 }}>Go through the entire stack ({stack.cards.length} cards)</div>
+                                    <div style={{ fontSize: '0.85rem', opacity: 0.6 }}>Go through the entire stack ({stack.cards?.length || 0} cards)</div>
                                 </div>
                             </button>
 
@@ -547,6 +548,33 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                         <button className="neo-button" style={{ justifyContent: 'center', opacity: 0.6, marginTop: '1rem' }} onClick={onClose}>
                             Cancel
                         </button>
+                    </motion.div>
+                ) : (!studyCards || studyCards.length === 0) && !sessionResult ? (
+                    <motion.div
+                        key="empty-stack"
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="neo-flat"
+                        style={{
+                            width: '100%', maxWidth: '400px', padding: '2.5rem',
+                            display: 'flex', flexDirection: 'column', gap: '2rem', textAlign: 'center'
+                        }}
+                    >
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center' }}>
+                            <div className="neo-inset" style={{ padding: '20px', borderRadius: '50%', color: '#94a3b8' }}>
+                                <Layers size={48} />
+                            </div>
+                            <h2 style={{ fontSize: '1.5rem' }}>No Cards Found</h2>
+                            <p style={{ opacity: 0.6 }}>This stack appears to be empty. Would you like to add some cards?</p>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            <button className="neo-button neo-glow-blue" style={{ justifyContent: 'center', padding: '1rem' }} onClick={onEdit}>
+                                <Edit2 size={18} style={{ marginRight: '8px' }} /> Add Cards Now
+                            </button>
+                            <button className="neo-button" style={{ justifyContent: 'center', opacity: 0.6 }} onClick={onClose}>
+                                Close
+                            </button>
+                        </div>
                     </motion.div>
                 ) : sessionResult ? (
                     <motion.div
@@ -652,18 +680,27 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                         </div>
                     </motion.div>
                 ) : (
-                    <div className="review-container" style={{ width: '100%', maxWidth: '500px', display: 'flex', flexDirection: 'column', gap: '2rem', position: 'relative' }}>
+                    <div className="review-container" style={{
+                        width: '100%', maxWidth: '560px',
+                        display: 'flex', flexDirection: 'column',
+                        gap: 'clamp(1rem, 3vh, 1.5rem)',
+                        position: 'relative',
+                        maxHeight: '100%',
+                        overflowY: 'auto',
+                        padding: 'max(20px, 4vh) 30px'
+                    }}>
 
                         {/* Top bar */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                            <div className="neo-button" style={{ padding: '8px 15px', fontSize: '0.9rem' }}>
+                            <div className="neo-button" style={{ height: '36px', padding: '0 15px', fontSize: '1rem', justifyContent: 'center', minWidth: '80px' }}>
                                 {currentIndex + 1} / {studyCards.length}
                             </div>
                             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 20px' }}>
                                 {/* Progress Bar */}
                                 <div style={{
-                                    width: '100%', maxWidth: '200px', height: '14px', background: 'rgba(0,0,0,0.05)',
-                                    borderRadius: '10px', position: 'relative', display: 'flex', alignItems: 'center'
+                                    width: '100%', maxWidth: '220px', height: '16px', background: 'rgba(0,0,0,0.05)',
+                                    borderRadius: '10px', position: 'relative', display: 'flex', alignItems: 'center',
+                                    boxShadow: 'inset 2px 2px 4px var(--shadow-dark), inset -1px -1px 2px var(--shadow-light)'
                                 }}>
 
                                     <motion.div
@@ -678,7 +715,7 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                                         style={{
                                             position: 'absolute',
                                             left: 0,
-                                            top: -14,
+                                            top: -4, // (16 - 24) / 2 = -4 to center 24px icon on 16px bar
                                             zIndex: 10,
                                             x: '-50%' // Center the icon on the point
                                         }}
@@ -691,17 +728,18 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                                         height: '100%',
                                         background: rating === 2 ? 'linear-gradient(90deg, var(--accent-color), #22c55e)' : 'var(--accent-color)',
                                         borderRadius: '10px',
-                                        transition: 'width 0.5s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s ease'
+                                        transition: 'width 0.5s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s ease',
+                                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
                                     }} />
 
-                                    <div style={{ position: 'absolute', right: -28, top: -5, opacity: 0.5 }}>
-                                        <BookOpen size={24} />
+                                    <div style={{ position: 'absolute', right: -12, top: -4, opacity: 0.7 }}>
+                                        <BookOpen size={24} color="var(--text-color)" />
                                     </div>
                                 </div>
                             </div>
                             <div style={{ display: 'flex', gap: '0.5rem' }}>
                                 {user?.email === ADMIN_EMAIL && (
-                                    <button className="neo-button icon-btn" title="Download Stack" onClick={handleDownload}><Download size={18} /></button>
+                                    <button className="neo-button icon-btn" style={{ width: '36px', height: '36px' }} title="Download Stack" onClick={handleDownload}><Download size={18} /></button>
                                 )}
                                 <CloseButton onClick={onClose} size={18} />
                             </div>
@@ -710,9 +748,9 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                         {/* Card Content based on Type */}
                         {currentCard && currentCard.type === 'mcq' ? (
                             <div className="neo-flat" style={{
-                                width: '100%', minHeight: '380px',
+                                width: '100%', minHeight: 'clamp(320px, 45vh, 400px)',
                                 display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start',
-                                padding: '1.5rem', textAlign: 'center', overflowY: 'auto'
+                                padding: '1.25rem', textAlign: 'center', overflowY: 'auto'
                             }}>
                                 <span style={{ fontSize: '0.8rem', fontWeight: 'bold', opacity: 0.4, marginBottom: '1rem' }}>MULTIPLE CHOICE</span>
                                 {currentCard.question.image && (
@@ -774,7 +812,7 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                         ) : currentCard ? (
                             /* Existing Flashcard Flip Logic */
                             <div
-                                style={{ perspective: '1000px', height: '380px', cursor: 'pointer' }}
+                                style={{ perspective: '1000px', height: 'clamp(320px, 45vh, 400px)', cursor: 'pointer' }}
                                 onClick={() => {
                                     if (isFlipped) {
                                         setIsFlipped(false);
@@ -904,17 +942,27 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                                             exit={{ opacity: 0, scale: 0.9, y: 10 }}
                                             className="neo-flat"
                                             style={{
-                                                width: '100%', padding: '1.5rem', borderRadius: '24px',
-                                                display: 'flex', flexDirection: 'column', gap: '1.2rem',
-                                                background: feedback.type === 'success' ? 'rgba(34, 197, 94, 0.05)' : 'rgba(59, 130, 246, 0.05)',
-                                                border: feedback.type === 'success' ? '2px solid rgba(34, 197, 94, 0.2)' : '2px solid rgba(59, 130, 246, 0.2)',
-                                                textAlign: 'center'
+                                                width: '100%', padding: '1.75rem', borderRadius: '28px',
+                                                display: 'flex', flexDirection: 'column', gap: '1.25rem',
+                                                background: feedback.type === 'success' ? 'rgba(255, 255, 255, 0.92)' : 'rgba(242, 247, 255, 0.92)',
+                                                backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
+                                                border: feedback.type === 'success' ? '2px solid rgba(34, 197, 94, 0.4)' : '2px solid rgba(59, 130, 246, 0.4)',
+                                                textAlign: 'center',
+                                                boxShadow: '0 12px 30px rgba(0,0,0,0.12)',
+                                                margin: '0.5rem 0'
                                             }}
                                         >
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'center' }}>
                                                 {feedback.type === 'success' && <Brain size={40} className="bounce" color="#16a34a" fill="#dcfce7" />}
-                                                <span style={{ fontSize: '0.8rem', fontWeight: 'bold', opacity: 0.4 }}>
-                                                    {displayName ? `${displayName.toUpperCase()} ` : ''}SAYS...
+                                                <span style={{
+                                                    fontSize: '0.9rem',
+                                                    fontWeight: '800',
+                                                    color: 'var(--accent-color)',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '6px'
+                                                }}>
+                                                    <span style={{ opacity: 0.6 }}>Hey</span> {displayName || 'there'}! 👋
                                                 </span>
                                                 <h3 style={{
                                                     fontSize: '1.2rem', lineHeight: '1.5',
