@@ -62,7 +62,7 @@ const App = () => {
     const [showNamePrompt, setShowNamePrompt] = useState(false);
 
     // 0. Version Check (to solve Old UI issues)
-    const APP_VERSION = '1.0.2'; // Increment this whenever UI changes significantly
+    const APP_VERSION = '1.0.3'; // Increment this whenever UI changes significantly
     useEffect(() => {
         const lastVersion = localStorage.getItem('app_version');
         if (lastVersion && lastVersion !== APP_VERSION) {
