@@ -720,7 +720,7 @@ const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolder
                     display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
                 }} onClick={() => setEditingPrompt(null)}>
                     <div
-                        style={{ background: '#fff', width: '100%', maxWidth: '500px', borderRadius: '12px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}
+                        style={{ background: '#fff', width: '90vw', height: '90vh', maxWidth: 'none', borderRadius: '12px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}
                         onClick={e => e.stopPropagation()}
                     >
                         <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '700' }}>Edit Prompt</h3>
@@ -732,12 +732,12 @@ const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolder
                                 style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', outline: 'none' }}
                             />
                         </div>
-                        <div>
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                             <label style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '4px', display: 'block' }}>Prompt Text</label>
                             <textarea
                                 value={editingPrompt.prompt}
                                 onChange={e => setEditingPrompt({ ...editingPrompt, prompt: e.target.value })}
-                                style={{ width: '100%', height: '150px', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', outline: 'none', fontSize: '0.9rem' }}
+                                style={{ flex: 1, width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', outline: 'none', fontSize: '0.9rem', resize: 'none' }}
                             />
                         </div>
                         <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>

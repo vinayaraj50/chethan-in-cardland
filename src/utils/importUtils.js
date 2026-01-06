@@ -1,6 +1,11 @@
 export const parseGeminiOutput = (text) => {
     if (!text || !text.trim()) return { title: '', label: '', importantNote: '', cards: [] };
 
+    let rawData = null;
+    let title = '';
+    let label = '';
+    let importantNote = '';
+    let cards = [];
     let standard = '';
     let syllabus = '';
     let medium = '';
