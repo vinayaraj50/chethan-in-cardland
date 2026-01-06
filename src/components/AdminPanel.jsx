@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import CloseButton from './common/CloseButton';
-import { X, Upload, Trash2, RefreshCw, Search, User, Database, Zap, ChevronDown, Edit2, Copy, Plus } from 'lucide-react';
-import { getUsersData, getUserStats, sortUsers, rebuildPublicIndex, updatePublicStackIndex, saveAdminPrompts, getAdminPrompts, saveAdminSettings, getAdminSettings } from '../services/adminService';
+import { X, Upload, Trash2, RefreshCw, Search, User, Database, Zap, ChevronDown, Edit2, Copy, Plus, Download } from 'lucide-react';
+import { getUsersData, getUserStats, sortUsers, rebuildPublicIndex, updatePublicStackIndex, saveAdminPrompts, getAdminPrompts, saveAdminSettings, getAdminSettings, grantCoinsSecurely } from '../services/adminService';
 import { APPS_SCRIPT_URL, COIN_PACKAGES, APPS_SCRIPT_KEY } from '../constants/config';
 import { parseGeminiOutput } from '../utils/importUtils';
 import { saveStack, saveFile, deleteStack, listFilesInFolder, getFileContent, makeFilePublic } from '../services/googleDrive';
@@ -27,7 +27,7 @@ const SimpleSelect = ({ label, value, options, onChange }) => (
     </div>
 );
 
-const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolderId, showAlert, showConfirm }) => {
+const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolderId, showAlert, showConfirm, onEditStack }) => {
     const [activeSection, setActiveSection] = useState('users');
     const [usersData, setUsersData] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -38,6 +38,14 @@ const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolder
     const [hasMore, setHasMore] = useState(false);
     const [offset, setOffset] = useState(0);
     const [syncingPrompts, setSyncingPrompts] = useState(false);
+    const [toast, setToast] = useState(null); // { message, actionLabel, onAction }
+    const toastTimeoutRef = React.useRef();
+
+    const showNotification = (message, actionLabel = null, onAction = null) => {
+        if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+        setToast({ message, actionLabel, onAction });
+        toastTimeoutRef.current = setTimeout(() => setToast(null), actionLabel ? 5000 : 3000);
+    };
 
     const [smartPasteText, setSmartPasteText] = useState('');
     const [parsedData, setParsedData] = useState(null);
@@ -95,6 +103,7 @@ const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolder
     const [dbFilters, setDbFilters] = useState({ standard: '', syllabus: '', medium: '', subject: '' });
 
     const [processingAction, setProcessingAction] = useState(null); // format: 'email-action' e.g. 'john@doe.com-grant'
+    const [grantConfirmData, setGrantConfirmData] = useState(null); // { user, amount }
 
     useEffect(() => {
         if (activeSection === 'users') fetchUsers();
@@ -133,10 +142,14 @@ const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolder
         try {
             const result = parseGeminiOutput(smartPasteText);
             if (!result.cards.length) return showAlert('No cards found');
-            setParsedData(result);
-            setTitle(result.title || '');
-            setLabel(result.label || 'No label');
-            setImportantNote(result.importantNote || '');
+
+            // Open existing 'New Flashcard Stack' UI (AddStackModal)
+            onEditStack({
+                ...result,
+                id: Date.now().toString(),
+                owner: user.email
+            });
+            onClose(); // Close admin panel to show the modal
         } catch (e) { showAlert('Parse failed'); }
     };
 
@@ -166,7 +179,7 @@ const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolder
 
     const copyToClipboard = (text) => {
         navigator.clipboard.writeText(text);
-        showAlert('Prompt copied to clipboard!');
+        showNotification('Prompt copied to clipboard!');
     };
 
     const [editingPrompt, setEditingPrompt] = useState(null);
@@ -189,6 +202,25 @@ const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolder
         return saved ? JSON.parse(saved) : defaultPrompts;
     });
 
+    const handleSyncPrompts = async () => {
+        if (!user?.token || !publicFolderId) return;
+        setSyncingPrompts(true);
+        try {
+            const remotePrompts = await getAdminPrompts(user.token, publicFolderId);
+            if (remotePrompts && Array.isArray(remotePrompts)) {
+                setCustomPrompts(remotePrompts);
+                showAlert('Prompts successfully synced from cloud!');
+            } else {
+                showAlert('No custom prompts found in cloud.');
+            }
+        } catch (e) {
+            console.error(e);
+            showAlert('Sync failed: ' + (e.message || 'Unknown error'));
+        } finally {
+            setSyncingPrompts(false);
+        }
+    };
+
     useEffect(() => {
         const fetchRemotePrompts = async () => {
             if (!user?.token || !publicFolderId) return;
@@ -200,7 +232,7 @@ const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolder
                     setCustomPrompts(remotePrompts);
                 }
             } catch (e) {
-                console.warn('Failed to sync prompts from server');
+                console.warn('Failed to auto-sync prompts:', e);
             } finally {
                 setSyncingPrompts(false);
             }
@@ -220,31 +252,60 @@ const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolder
 
         setCustomPrompts(finalPrompts);
         setEditingPrompt(null);
-        showAlert('Prompt updated locally...');
 
         // Save to cloud
         setSyncingPrompts(true);
-        const success = await saveAdminPrompts(user.token, publicFolderId, finalPrompts);
-        setSyncingPrompts(false);
-
-        if (success) {
-            showAlert('Prompts synced to cloud!');
-        } else {
-            showAlert('Synced locally, but cloud save failed.');
-        }
+        saveAdminPrompts(user.token, publicFolderId, finalPrompts)
+            .then(success => {
+                if (success) showNotification('Saved to cloud!');
+                else showNotification('Saved locally (cloud failed)');
+            })
+            .finally(() => setSyncingPrompts(false));
     };
 
-    const handleDeletePrompt = async (id) => {
-        showConfirm('Delete this prompt?', async () => {
-            const finalPrompts = customPrompts.filter(p => p.id !== id);
-            setCustomPrompts(finalPrompts);
 
-            setSyncingPrompts(true);
-            const success = await saveAdminPrompts(user.token, publicFolderId, finalPrompts);
-            setSyncingPrompts(false);
 
-            if (success) showAlert('Deleted from cloud!');
+    const handleDeletePrompt = (id) => {
+        const promptToDelete = customPrompts.find(p => p.id === id);
+        const originalIndex = customPrompts.findIndex(p => p.id === id);
+        if (!promptToDelete) return;
+
+        // 1. Optimistic Delete
+        const remainingPrompts = customPrompts.filter(p => p.id !== id);
+        setCustomPrompts(remainingPrompts);
+
+        // 2. Show Undo Toast
+        showNotification('Prompt deleted.', 'UNDO', async () => {
+            // Undo Logic
+            const restored = [...remainingPrompts];
+            restored.splice(originalIndex, 0, promptToDelete);
+            setCustomPrompts(restored);
+            showNotification('Deletion undone.');
+
+            // Sync restored state
+            await saveAdminPrompts(user.token, publicFolderId, restored);
         });
+
+        // 3. Sync deletion (Fire and forget, allow Undo to overwrite later)
+        setSyncingPrompts(true);
+        saveAdminPrompts(user.token, publicFolderId, remainingPrompts)
+            .finally(() => setSyncingPrompts(false));
+    };
+
+    const handleReorder = (newOrder) => {
+        setCustomPrompts(newOrder);
+    };
+
+    const handleDragEnd = async () => {
+        // Save new order to cloud on drag end
+        setSyncingPrompts(true);
+        try {
+            await saveAdminPrompts(user.token, publicFolderId, customPrompts);
+        } catch (e) {
+            showNotification('Failed to sync order');
+        } finally {
+            setSyncingPrompts(false);
+        }
     };
 
     const handleDeletePublicStack = async (stack) => {
@@ -257,20 +318,36 @@ const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolder
 
     // Unlimited grant function removed as per request
 
-    const handleGrantCoins = async (targetEmail, amount) => {
-        // Amount is now passed directly
+    const handleGrantRequest = (u, amount) => {
+        setGrantConfirmData({
+            user: u,
+            amount: amount,
+            email: u.email
+        });
+    };
+
+    const confirmGrantCoins = async () => {
+        if (!grantConfirmData) return;
+        const { user: targetUser, amount, email } = grantConfirmData;
+
+        // Close modal immediately
+        setGrantConfirmData(null);
+
         if (!amount || isNaN(amount)) return showAlert('Invalid amount');
+        if (!targetUser.id) return showAlert('User file ID not found inside object.');
 
-        const actionId = `${targetEmail}-coins`;
-        setProcessingAction(actionId);
+        setProcessingAction(`${email}-coins`);
+
         try {
-            // Dynamic import removed, using static import
-            const url = `${APPS_SCRIPT_URL}?action=grantCoins&email=${encodeURIComponent(targetEmail)}&amount=${amount}&adminEmail=${encodeURIComponent(user.email)}&key=${APPS_SCRIPT_KEY}&t=${Date.now()}`;
-            const response = await fetch(url);
-            const result = await response.json();
+            // 1. Read current data (Secure Read via Drive API is fine as Admin has read access)
+            const currentData = await getFileContent(user.token, targetUser.id);
 
-            if (result.error) throw new Error(result.error);
-            showAlert(`Successfully granted ${amount} coins to ${targetEmail}!`);
+            // 2. Secure Write via Proxy
+            // We pass the current data so the helper function can append the history and new balance
+            // The actual write happens on the server via the Proxy 'write' action which is Admin-gated.
+            const result = await grantCoinsSecurely(email, amount, user.token, targetUser.id, currentData);
+
+            showNotification(`Granted ${amount} coins to ${email}. New Balance: ${result.newBalance}`);
         } catch (e) {
             console.error(e);
             showAlert('Failed to grant coins: ' + e.message);
@@ -422,8 +499,7 @@ const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolder
                                                                         whileHover={{ scale: 1.05, filter: 'brightness(1.1)' }}
                                                                         whileTap={{ scale: 0.95 }}
                                                                         onClick={() => {
-                                                                            setProcessingAction(actionId);
-                                                                            handleGrantCoins(u.email, pkg.coins).finally(() => setProcessingAction(null));
+                                                                            handleGrantRequest(u, pkg.coins);
                                                                         }}
                                                                         disabled={!!processingAction}
                                                                         title={`Grant ${pkg.coins} Coins (₹${pkg.price})`}
@@ -490,58 +566,81 @@ const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolder
                                         style={{ flex: 1, padding: '0.75rem', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.85rem', outline: 'none', resize: 'vertical' }}
                                     />
 
-                                    <div style={{ width: '220px', display: 'flex', flexDirection: 'column', gap: '8px', overflowY: 'auto', maxHeight: '400px', paddingRight: '4px' }}>
+                                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', overflowY: 'auto', maxHeight: '420px', paddingRight: '4px' }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <label style={{ fontSize: '0.65rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase' }}>AI Prompts</label>
-                                            <button
-                                                onClick={() => setEditingPrompt({ id: 'new', title: '', prompt: '' })}
-                                                style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '2px', fontSize: '0.65rem', fontWeight: '700' }}
-                                            >
-                                                <Plus size={10} /> ADD NEW
-                                            </button>
+                                            <label style={{ fontSize: '0.65rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase' }}>AI Prompts (Click to copy)</label>
+                                            <div style={{ display: 'flex', gap: '8px' }}>
+                                                <button
+                                                    onClick={handleSyncPrompts}
+                                                    disabled={syncingPrompts}
+                                                    style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '2px', fontSize: '0.65rem', fontWeight: '700' }}
+                                                    title="Sync from Cloud"
+                                                >
+                                                    <Download size={10} /> {syncingPrompts ? '...' : 'SYNC'}
+                                                </button>
+                                                <button
+                                                    onClick={() => setEditingPrompt({ id: 'new', title: '', prompt: '' })}
+                                                    style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '2px', fontSize: '0.65rem', fontWeight: '700' }}
+                                                >
+                                                    <Plus size={10} /> ADD NEW
+                                                </button>
+                                            </div>
                                         </div>
                                         {syncingPrompts && <div style={{ fontSize: '0.6rem', color: '#3b82f6', textAlign: 'center' }}><RefreshCw size={8} className="spin" /> Syncing...</div>}
-                                        {customPrompts.map((p) => (
-                                            <div
-                                                key={p.id}
-                                                style={{
-                                                    padding: '10px',
-                                                    background: '#f8fafc',
-                                                    border: '1px solid #e2e8f0',
-                                                    borderRadius: '8px',
-                                                    display: 'flex',
-                                                    flexDirection: 'column',
-                                                    gap: '8px',
-                                                    position: 'relative',
-                                                    transition: 'all 0.2s',
-                                                    cursor: 'pointer'
-                                                }}
-                                                onClick={() => copyToClipboard(p.prompt)}
-                                                onMouseOver={(e) => e.currentTarget.style.borderColor = '#3b82f6'}
-                                                onMouseOut={(e) => e.currentTarget.style.borderColor = '#e2e8f0'}
-                                            >
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                    <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '140px' }}>{p.title}</span>
-                                                    <div style={{ display: 'flex', gap: '4px' }}>
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); setEditingPrompt(p); }}
-                                                            style={{ background: 'none', border: 'none', padding: '4px', cursor: 'pointer', color: '#64748b' }}
-                                                            title="Edit Prompt"
-                                                        >
-                                                            <Edit2 size={12} />
-                                                        </button>
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); handleDeletePrompt(p.id); }}
-                                                            style={{ background: 'none', border: 'none', padding: '4px', cursor: 'pointer', color: '#ef4444' }}
-                                                            title="Delete Prompt"
-                                                        >
-                                                            <Trash2 size={12} />
-                                                        </button>
-                                                        <div style={{ color: '#3b82f6', padding: '4px' }}><Copy size={12} /></div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))}
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                            <div style={{ fontSize: '0.65rem', color: '#94a3b8', fontStyle: 'italic', paddingLeft: '4px' }}>Drag to reorder</div>
+                                            <Reorder.Group axis="y" values={customPrompts} onReorder={handleReorder} style={{ display: 'flex', flexDirection: 'column', gap: '10px', listStyle: 'none', padding: 0, margin: 0 }}>
+                                                {customPrompts.map((p) => (
+                                                    <Reorder.Item
+                                                        key={p.id}
+                                                        value={p}
+                                                        onDragEnd={handleDragEnd}
+                                                        style={{
+                                                            padding: '12px',
+                                                            background: '#f8fafc',
+                                                            border: '1px solid #e2e8f0',
+                                                            borderRadius: '10px',
+                                                            display: 'flex',
+                                                            flexDirection: 'column',
+                                                            gap: '8px',
+                                                            position: 'relative',
+                                                            cursor: 'grab'
+                                                        }}
+                                                        onMouseOver={(e) => e.currentTarget.style.borderColor = '#3b82f6'}
+                                                        onMouseOut={(e) => e.currentTarget.style.borderColor = '#e2e8f0'}
+                                                    >
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                            <div
+                                                                onClick={() => copyToClipboard(p.prompt)}
+                                                                style={{ display: 'flex', flexDirection: 'column', flex: 1, cursor: 'pointer' }}
+                                                            >
+                                                                <span style={{ fontSize: '0.8rem', fontWeight: '700', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '140px' }}>{p.title}</span>
+                                                            </div>
+                                                            <div style={{ display: 'flex', gap: '8px' }}>
+                                                                <button
+                                                                    onClick={(e) => { e.stopPropagation(); setEditingPrompt(p); }}
+                                                                    style={{ background: 'none', border: 'none', padding: '4px', cursor: 'pointer', color: '#64748b' }}
+                                                                    title="Edit Prompt"
+                                                                >
+                                                                    <Edit2 size={14} />
+                                                                </button>
+                                                                <button
+                                                                    onClick={(e) => { e.stopPropagation(); handleDeletePrompt(p.id); }}
+                                                                    style={{ background: 'none', border: 'none', padding: '4px', cursor: 'pointer', color: '#ef4444' }}
+                                                                    title="Delete Prompt"
+                                                                >
+                                                                    <Trash2 size={14} />
+                                                                </button>
+                                                                <div
+                                                                    onClick={() => copyToClipboard(p.prompt)}
+                                                                    style={{ color: '#3b82f6', padding: '4px', cursor: 'pointer' }}
+                                                                ><Copy size={14} /></div>
+                                                            </div>
+                                                        </div>
+                                                    </Reorder.Item>
+                                                ))}
+                                            </Reorder.Group>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -658,6 +757,81 @@ const AdminPanel = ({ user, onClose, publicStacks, onRefreshPublic, publicFolder
                     </div>
                 </div>
             )}
+
+            {/* Grant Coins Confirmation Modal */}
+            {grantConfirmData && (
+                <div style={{
+                    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 20000,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
+                }} onClick={() => setGrantConfirmData(null)}>
+                    <div
+                        style={{ background: '#fff', width: '100%', maxWidth: '400px', borderRadius: '12px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '700' }}>Confirm Coin Grant</h3>
+
+                        <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 'bold', textTransform: 'uppercase' }}>User</div>
+                            <div style={{ fontSize: '0.9rem', fontWeight: '600' }}>{grantConfirmData.email}</div>
+                        </div>
+
+                        <div>
+                            <label style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '4px', display: 'block' }}>Amount to Grant</label>
+                            <input
+                                type="number"
+                                value={grantConfirmData.amount}
+                                onChange={e => setGrantConfirmData({ ...grantConfirmData, amount: e.target.value })}
+                                style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '2px solid #3b82f6', outline: 'none', fontSize: '1.2rem', fontWeight: '700', color: '#3b82f6' }}
+                            />
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
+                            <button
+                                onClick={confirmGrantCoins}
+                                style={{ flex: 1, padding: '0.75rem', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', fontSize: '1rem' }}
+                            >
+                                Grant Coins
+                            </button>
+                            <button
+                                onClick={() => setGrantConfirmData(null)}
+                                style={{ padding: '0.75rem 1.25rem', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Toast Notification */}
+            <AnimatePresence>
+                {toast && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 50 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 50 }}
+                        style={{
+                            position: 'fixed', bottom: '2rem', left: '50%', transform: 'translateX(-50%)',
+                            background: '#1e293b', color: '#fff', padding: '0.75rem 1.5rem', borderRadius: '50px',
+                            fontSize: '0.85rem', fontWeight: '600', zIndex: 30000,
+                            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)',
+                            display: 'flex', alignItems: 'center', gap: '1rem'
+                        }}
+                    >
+                        <span>{toast.message}</span>
+                        {toast.actionLabel && (
+                            <button
+                                onClick={toast.onAction}
+                                style={{
+                                    background: 'none', border: 'none', color: '#60a5fa', fontWeight: 'bold',
+                                    fontSize: '0.85rem', cursor: 'pointer', padding: '0 4px'
+                                }}
+                            >
+                                {toast.actionLabel}
+                            </button>
+                        )}
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </motion.div>
     );
 };

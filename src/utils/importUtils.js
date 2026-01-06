@@ -1,11 +1,11 @@
 export const parseGeminiOutput = (text) => {
     if (!text || !text.trim()) return { title: '', label: '', importantNote: '', cards: [] };
 
-    let rawData = null;
-    let title = '';
-    let label = '';
-    let importantNote = '';
-    let cards = [];
+    let standard = '';
+    let syllabus = '';
+    let medium = '';
+    let subject = '';
+    let cost = 0;
 
     // Try parsing as JSON first
     try {
@@ -22,13 +22,17 @@ export const parseGeminiOutput = (text) => {
             cards = rawData;
         } else {
             title = rawData.title || '';
-            label = rawData.label || '';
+            label = rawData.label || rawData.tag || '';
             importantNote = rawData.importantNote || rawData.note || '';
+            standard = rawData.standard || rawData.Standard || '';
+            syllabus = rawData.syllabus || rawData.Syllabus || '';
+            medium = rawData.medium || rawData.Medium || '';
+            subject = rawData.subject || rawData.Subject || '';
+            cost = rawData.cost || rawData.Cost || 0;
             cards = rawData.cards || [];
         }
     } else {
-        // Plain text parsing
-        // Extract Title, Label, Note if present
+        // Plain text parsing (keeping existing logic for backward compatibility)
         const titleMatch = text.match(/^(?:Title|Stack Title|Name):\s*(.*)$/im);
         const labelMatch = text.match(/^(?:Label|Category|Tag):\s*(.*)$/im);
         const noteMatch = text.match(/^(?:Important Note|Note|Description):\s*(.*)$/im);
@@ -56,24 +60,35 @@ export const parseGeminiOutput = (text) => {
     }
 
     // Map to the internal card structure
-    // Map to the internal card structure
     const formattedCards = cards.map(item => {
-        const isMcq = item.type === 'mcq' || (item.options && Array.isArray(item.options));
+        // MCQ detection: either explicit type, or presence of 'choices' or 'options'
+        const choices = item.choices || item.options || [];
+        const isMcq = item.type === 'mcq' || (choices && Array.isArray(choices) && choices.length > 0);
         const type = isMcq ? 'mcq' : 'flashcard';
 
         // Normalize options for MCQ
         let options = [];
-        if (isMcq && item.options) {
-            options = item.options.map(opt => ({
-                id: Date.now() + Math.random(),
-                text: typeof opt === 'string' ? opt : (opt.text || ''),
-                isCorrect: item.answer === opt || (typeof opt === 'object' && opt.isCorrect)
-            }));
+        if (isMcq) {
+            const correctMarker = item.correctAnswer || item.answer; // Can be text or index
+            options = choices.map((opt, idx) => {
+                const optText = typeof opt === 'string' ? opt : (opt.text || '');
+                let isCorrect = false;
 
-            // If answer is an index
-            if (typeof item.answer === 'number' && options[item.answer]) {
-                options[item.answer].isCorrect = true;
-            }
+                if (typeof correctMarker === 'number') {
+                    isCorrect = idx === correctMarker;
+                } else if (typeof opt === 'object' && opt.isCorrect !== undefined) {
+                    isCorrect = opt.isCorrect;
+                } else if (correctMarker) {
+                    // Match text (loosely)
+                    isCorrect = optText.trim().toLowerCase() === String(correctMarker).trim().toLowerCase();
+                }
+
+                return {
+                    id: Date.now() + Math.random(),
+                    text: optText,
+                    isCorrect
+                };
+            });
         }
 
         return {
@@ -85,7 +100,7 @@ export const parseGeminiOutput = (text) => {
                 audio: ''
             },
             answer: {
-                text: item.answer || item.a || '', // Keep for reference or fallback
+                text: item.answer || item.a || '',
                 image: '',
                 audio: ''
             },
@@ -97,6 +112,11 @@ export const parseGeminiOutput = (text) => {
         title,
         label,
         importantNote,
+        standard,
+        syllabus,
+        medium,
+        subject,
+        cost: parseInt(cost) || 0,
         cards: formattedCards
     };
 };

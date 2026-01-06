@@ -7,8 +7,15 @@ const HamburgerMenu = ({ user, theme, onToggleTheme, soundsEnabled, onToggleSoun
     onDeleteData,
     onDeleteAndLogout,
     onShowAdminPanel,
-    onShowReferral
+    onShowReferral,
+    appVersion
 }) => {
+
+    const handleCheckUpdate = () => {
+        if (window.confirm("Check for updates? This will refresh the page.")) {
+            window.location.reload(true);
+        }
+    };
 
     return (
         <div className="fixed inset-0" style={{ position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, zIndex: 5000, pointerEvents: 'none', display: 'flex', justifyContent: 'flex-end' }}>
@@ -29,10 +36,10 @@ const HamburgerMenu = ({ user, theme, onToggleTheme, soundsEnabled, onToggleSoun
                     background: 'var(--bg-color)',
                     boxShadow: '-5px 0 25px rgba(0,0,0,0.1)',
                     padding: '2rem',
-                    paddingBottom: '4rem', // Extra padding for scroll
+                    paddingBottom: '2rem',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '1.5rem',
+                    gap: '1.25rem',
                     pointerEvents: 'auto',
                     borderLeft: '1px solid var(--border-color)',
                     animation: 'slideIn 0.3s ease-out',
@@ -142,6 +149,32 @@ const HamburgerMenu = ({ user, theme, onToggleTheme, soundsEnabled, onToggleSoun
                             <User size={18} /> Sign in with Google
                         </button>
                     )}
+                </div>
+
+                {/* Version Info */}
+                <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '4px',
+                    marginTop: '0.5rem',
+                    opacity: 0.5
+                }}>
+                    <span style={{ fontSize: '0.7rem', fontWeight: '500' }}>v{appVersion}</span>
+                    <button
+                        onClick={handleCheckUpdate}
+                        style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--accent-color)',
+                            fontSize: '0.65rem',
+                            textDecoration: 'underline',
+                            cursor: 'pointer',
+                            padding: '4px'
+                        }}
+                    >
+                        Check for updates
+                    </button>
                 </div>
             </div>
             <style>{`

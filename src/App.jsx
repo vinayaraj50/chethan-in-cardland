@@ -62,7 +62,7 @@ const App = () => {
     const [showNamePrompt, setShowNamePrompt] = useState(false);
 
     // 0. Version Check (to solve Old UI issues)
-    const APP_VERSION = '1.0.1'; // Increment this whenever UI changes significantly
+    const APP_VERSION = '1.0.2'; // Increment this whenever UI changes significantly
     useEffect(() => {
         const lastVersion = localStorage.getItem('app_version');
         if (lastVersion && lastVersion !== APP_VERSION) {
@@ -331,8 +331,21 @@ const App = () => {
                 clearInterval(interval);
             }
         }, 500);
-        return () => clearInterval(interval);
-    }, [fetchStacks, loadUserProfile]);
+
+        // Multi-device sync: Re-fetch when window gains focus
+        const handleFocus = () => {
+            if (user?.token) {
+                console.log('App focused, checking for updates from other devices...');
+                fetchStacks(user.token);
+            }
+        };
+        window.addEventListener('focus', handleFocus);
+
+        return () => {
+            clearInterval(interval);
+            window.removeEventListener('focus', handleFocus);
+        };
+    }, [fetchStacks, loadUserProfile, user]);
 
     useEffect(() => {
         if (user && PUBLIC_FOLDER_ID) {
@@ -644,6 +657,7 @@ const App = () => {
                     onClose={() => window.history.back()} onLogout={() => signOut(setUser)}
                     onLogin={() => signIn('consent', 0, null, (msg) => setNotification({ type: 'alert', message: msg }))}
                     onShowAdminPanel={() => { setShowMenu(false); setShowAdminPanel(true); }}
+                    appVersion={APP_VERSION}
                 />
             )}
 
@@ -714,6 +728,7 @@ const App = () => {
                     publicFolderId={PUBLIC_FOLDER_ID}
                     showAlert={(m) => setNotification({ type: 'alert', message: m })}
                     showConfirm={(m, c) => setNotification({ type: 'confirm', message: m, onConfirm: c })}
+                    onEditStack={handleEditStack}
                 />
             )}
 

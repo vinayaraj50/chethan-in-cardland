@@ -56,19 +56,41 @@ const Home = ({
         const matchesMedium = !filters.medium || stack.medium === filters.medium;
         const matchesSubject = !filters.subject || stack.subject === filters.subject;
         return matchesSearch && matchesStandard && matchesSyllabus && matchesMedium && matchesSubject;
+    }).sort((a, b) => {
+        if (sortBy === 'Title') {
+            return a.title.localeCompare(b.title);
+        }
+        // Default: Newest first (using ID as proxy for creation date)
+        return (parseInt(b.id || 0) || 0) - (parseInt(a.id || 0) || 0);
     });
 
     const handleFilterChange = (key, value) => {
         setFilters(prev => ({ ...prev, [key]: value }));
     };
 
-    const renderSettingsMenu = (alignRight = true) => (
-        <div style={{ position: 'relative' }} ref={menuRef}>
+    const renderSettingsMenu = () => (
+        <div style={{ position: 'relative', display: 'inline-flex' }} ref={menuRef}>
             <button
-                className={`neo-button icon-btn ${showSettings ? 'active' : ''}`}
-                onClick={() => setShowSettings(!showSettings)}
-                style={{ borderRadius: '12px', width: '40px', height: '40px' }}
-                title="Menu"
+                className={`icon-btn ${showSettings ? 'active' : ''}`}
+                onClick={(e) => {
+                    e.stopPropagation();
+                    setShowSettings(!showSettings);
+                }}
+                style={{
+                    background: 'none',
+                    border: 'none',
+                    boxShadow: 'none',
+                    width: '32px',
+                    height: '32px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--accent-color)',
+                    cursor: 'pointer',
+                    opacity: 0.6,
+                    padding: 0
+                }}
+                title="Settings"
             >
                 {showSettings ? <X size={20} /> : <Settings size={20} />}
             </button>
@@ -76,36 +98,43 @@ const Home = ({
             {showSettings && (
                 <div className="neo-flat settings-dropdown" style={{
                     position: 'absolute',
-                    top: '100%',
-                    right: alignRight ? 0 : 'auto',
-                    left: alignRight ? 'auto' : 0,
-                    marginTop: '10px',
+                    top: 'calc(100% + 10px)',
+                    right: 0,
                     width: '280px',
-                    padding: '1.25rem',
+                    padding: '2rem 1.5rem',
                     zIndex: 2000,
-                    borderRadius: '20px',
+                    borderRadius: '24px',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '1.25rem',
+                    gap: '1.75rem',
+                    border: '1px solid rgba(255,255,255,0.4)',
                     boxShadow: 'var(--neo-box-shadow)'
                 }}>
                     {/* Search */}
-                    <div style={{ position: 'relative' }}>
-                        <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }} />
-                        <input
-                            className="neo-input"
-                            placeholder="Search..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            style={{ width: '100%', paddingLeft: '38px', fontSize: '0.9rem', height: '40px' }}
-                            autoFocus
-                        />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                        <div style={{ position: 'relative' }}>
+                            <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }} />
+                            <input
+                                className="neo-input"
+                                placeholder="Search..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                style={{
+                                    width: '100%',
+                                    paddingLeft: '38px',
+                                    fontSize: '0.9rem',
+                                    height: '44px',
+                                    boxShadow: 'inset 3px 3px 6px var(--shadow-dark), inset -3px -3px 6px var(--shadow-light)'
+                                }}
+                                autoFocus
+                            />
+                        </div>
                     </div>
 
                     {/* Sort */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        <span style={{ fontSize: '0.8rem', fontWeight: 600, opacity: 0.6, marginLeft: '4px' }}>Sort By</span>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 700, opacity: 0.5, marginLeft: '4px' }}>Sort By</span>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                             {(activeTab === 'my' ? [
                                 { label: 'Date', value: 'Creation Date' },
                                 { label: 'Title', value: 'Title' },
@@ -119,7 +148,12 @@ const Home = ({
                                     key={opt.value}
                                     className={`neo-button ${sortBy === opt.value ? 'neo-glow-blue' : ''}`}
                                     onClick={() => onSortChange(opt.value)}
-                                    style={{ padding: '0.5rem', fontSize: '0.8rem' }}
+                                    style={{
+                                        padding: '0.6rem 0.4rem',
+                                        fontSize: '0.8rem',
+                                        borderRadius: '10px',
+                                        justifyContent: 'center'
+                                    }}
                                 >
                                     {opt.label}
                                 </button>
@@ -134,9 +168,16 @@ const Home = ({
                             onRefresh?.();
                             setShowSettings(false);
                         }}
-                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '0.75rem' }}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '10px',
+                            padding: '0.9rem',
+                            borderRadius: '14px'
+                        }}
                     >
-                        <RefreshCw size={16} /> Refresh Stacks
+                        <RefreshCw size={18} /> Refresh Stacks
                     </button>
                 </div>
             )}
@@ -159,7 +200,6 @@ const Home = ({
                     Ready-made
                 </button>
             </div>
-            {renderSettingsMenu(true)}
         </div>
     );
 
@@ -173,10 +213,16 @@ const Home = ({
         return (
             <div style={{
                 marginBottom: '2rem',
-                padding: '0 0.5rem'
+                padding: '0 0.5rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.5rem'
             }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginLeft: '4px', paddingRight: '10px' }}>
+                    <span style={{ fontSize: '0.85rem', opacity: 0.6, fontWeight: '600' }}>Filter by Label</span>
+                    {renderSettingsMenu()}
+                </div>
                 <NeoDropdown
-                    label="Filter by Label"
                     value={filterLabel}
                     options={labelOptions}
                     onChange={onLabelChange}
@@ -190,12 +236,17 @@ const Home = ({
     const renderReadyMadeFilters = () => (
         <div className="filter-bar neo-inset" style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
             gap: '1.25rem',
             padding: '1.25rem',
+            paddingTop: '2.5rem', // Space for the gear
             marginBottom: '2.5rem',
-            borderRadius: '20px'
+            borderRadius: '20px',
+            position: 'relative'
         }}>
+            <div style={{ position: 'absolute', top: '12px', right: '10px', zIndex: 10 }}>
+                {renderSettingsMenu()}
+            </div>
             <NeoDropdown
                 label="Standard"
                 value={filters.standard}
@@ -362,9 +413,6 @@ const Home = ({
                             }}>
                                 Ready-made Flashcards
                             </h2>
-                            <div style={{ position: 'absolute', right: 0 }}>
-                                {renderSettingsMenu(true)}
-                            </div>
                         </div>
 
                         {renderReadyMadeFilters()}

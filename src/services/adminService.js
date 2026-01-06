@@ -159,6 +159,7 @@ export const getUserStats = (usersData) => {
 
     return users.map(user => ({
         email: user.email,
+        id: user.id || user.fileId, // Ensure we have the file ID for updates
         firstSeen: new Date(user.firstSeen || user.createdTime || Date.now()),
         lastSeen: new Date(user.lastSeen || user.modifiedTime || Date.now()),
         totalLogins: user.totalLogins || 0,
@@ -330,18 +331,14 @@ export const saveAdminPrompts = async (token, publicFolderId, prompts) => {
  * Get custom AI prompts from the public folder
  */
 export const getAdminPrompts = async (token, publicFolderId) => {
-    try {
-        const files = await listFilesInFolder(token, publicFolderId);
-        const promptFile = files.find(f => f.name === 'admin_prompts.json' && !f.trashed);
+    // Remove try-catch to let UI handle network/auth errors specifically
+    const files = await listFilesInFolder(token, publicFolderId);
+    const promptFile = files.find(f => f.name === 'admin_prompts.json' && !f.trashed);
 
-        if (promptFile) {
-            return await getFileContent(token, promptFile.id);
-        }
-        return null;
-    } catch (error) {
-        console.error('Failed to get admin prompts:', error);
-        return null;
+    if (promptFile) {
+        return await getFileContent(token, promptFile.id);
     }
+    return null;
 };
 
 /**
@@ -381,6 +378,52 @@ export const getAdminSettings = async (token, publicFolderId) => {
         return null;
     } catch (error) {
         console.error('Failed to get admin settings:', error);
-        return null;
     }
 };
+
+/**
+ * Securely grant coins via Apps Script Proxy (Server-side)
+ */
+/**
+ * Securely grant coins via Apps Script Proxy using the ADMIN-only 'write' action.
+ * This reads the user's file, modifies the balance, and overwrites it via the Proxy.
+ * Since the Proxy enforces isAdmin for 'write', this is secure.
+ */
+export const grantCoinsSecurely = async (targetEmail, amount, adminToken, targetFileId, currentData) => {
+    // 1. Calculate new state
+    const newBalance = (currentData.coins || 0) + parseInt(amount);
+    const updatedData = {
+        ...currentData,
+        coins: newBalance,
+        coinHistory: [
+            ...(currentData.coinHistory || []),
+            {
+                date: new Date().toISOString(),
+                amount: parseInt(amount),
+                type: 'admin_grant',
+                reason: 'Admin Grant',
+                by: 'Admin'
+            }
+        ]
+    };
+
+    // 2. Overwrite via Proxy (Secure Write)
+    // The proxy expects: action=write, id=FileId, data=JSONString, token=AdminToken
+    const url = `${APPS_SCRIPT_URL}?action=write&id=${targetFileId}&token=${encodeURIComponent(adminToken)}&key=${APPS_SCRIPT_KEY}&t=${Date.now()}`;
+
+    // We must use POST for data payload usually, but let's check how the proxy handles it.
+    // Proxy: const data = p.data || (e.postData ? JSON.parse(e.postData.contents).data : null);
+    // So we can send it in body.
+
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: updatedData })
+    });
+
+    const result = await response.json();
+    if (result.error) throw new Error(result.error);
+
+    return { success: true, newBalance };
+};
+
