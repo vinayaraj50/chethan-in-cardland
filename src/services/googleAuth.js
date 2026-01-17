@@ -121,7 +121,6 @@ class IdentityManager {
                     client_id: this.clientId,
                     callback: (res) => this.#handleIdentityResponse(res),
                     auto_select: true,
-                    use_fedcm_for_prompt: false,
                     cancel_on_tap_outside: false
                 });
 
@@ -283,8 +282,13 @@ class IdentityManager {
             await signInWithCredential(auth, credential);
             console.log('[IdentityManager] Bridged to Firebase as:', auth.currentUser.uid);
 
-            // Automatically get a token after ID verification
-            this.signIn({ prompt: 'none', elevated: false });
+            // Automatically attempt to get a token after ID verification
+            // We use prompt: 'none' to try and get a token silently.
+            // If it fails (e.g. first time on domain), we don't throw, just let the user 
+            // click the login button manually for full consent.
+            this.signIn({ prompt: 'none', elevated: false }).catch(e => {
+                console.log('[IdentityManager] Silent token acquisition skipped (consent required)');
+            });
         } catch (err) {
             this.#handleSystemError(err);
         }
