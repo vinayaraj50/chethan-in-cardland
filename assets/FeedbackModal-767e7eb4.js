@@ -1,4 +1,4 @@
-import{c as h,r,j as e,C as u,p as b,q as y}from"./index-d043e65b.js";const g=h("Send",[["path",{d:"m22 2-7 20-4-9-9-4Z",key:"1q3vgg"}],["path",{d:"M22 2 11 13",key:"nzbqef"}]]),v=({user:i,onClose:s,showAlert:o})=>{const[t,d]=r.useState(""),[n,l]=r.useState(!1),c=async()=>{if(!t.trim())return o("Please provide some feedback text.");l(!0);try{const a=b(t),p=y(i.email)?i.email:"Unknown";let m=`*New Feedback for Chethan in Cardland*
+import{c as h,r,j as e,C as u,p as b,q as y}from"./index-9a3e1dd9.js";const g=h("Send",[["path",{d:"m22 2-7 20-4-9-9-4Z",key:"1q3vgg"}],["path",{d:"M22 2 11 13",key:"nzbqef"}]]),v=({user:i,onClose:s,showAlert:o})=>{const[t,d]=r.useState(""),[n,l]=r.useState(!1),c=async()=>{if(!t.trim())return o("Please provide some feedback text.");l(!0);try{const a=b(t),p=y(i.email)?i.email:"Unknown";let m=`*New Feedback for Chethan in Cardland*
 
 *From:* ${i.name||"Anonymous"} (${p})
 
