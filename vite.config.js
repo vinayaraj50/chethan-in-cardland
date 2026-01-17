@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react()],
   base: '/chethan-in-cardland/',
   server: {
-    port: 5173,
+    port: 6160,
     strictPort: true,
   },
 })

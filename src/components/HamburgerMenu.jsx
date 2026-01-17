@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import CloseButton from './common/CloseButton';
-import { X, LogOut, Trash2, Sun, Moon, Volume2, VolumeX, MessageCircle, Settings, User, ChevronDown, MessageSquare, ExternalLink, Users } from 'lucide-react';
+import { X, LogOut, Trash2, Sun, Moon, Volume2, VolumeX, MessageCircle, Settings, User, ChevronDown, MessageSquare, ExternalLink, Users, Sparkles } from 'lucide-react';
 import { ADMIN_EMAIL } from '../constants/config';
 
 const HamburgerMenu = ({ user, theme, onToggleTheme, soundsEnabled, onToggleSounds, onShowFeedback, onClose, onLogout, onLogin,
     onDeleteData,
-    onDeleteAndLogout,
     onShowAdminPanel,
     onShowReferral,
+    onShowTour,
     appVersion
 }) => {
 
@@ -134,14 +134,14 @@ const HamburgerMenu = ({ user, theme, onToggleTheme, soundsEnabled, onToggleSoun
                     )}
                     {user ? (
                         <>
+                            <button className="neo-button" style={{ width: '100%', color: '#8b5cf6' }} onClick={onShowTour}>
+                                <Sparkles size={18} /> Beginner's Guide
+                            </button>
                             <button className="neo-button" style={{ width: '100%' }} onClick={onLogout}>
                                 <LogOut size={18} /> Logout
                             </button>
                             <button className="neo-button neo-glow-red" style={{ width: '100%', color: 'var(--error-color)' }} onClick={onDeleteData}>
                                 <Trash2 size={18} /> Delete Data
-                            </button>
-                            <button className="neo-button neo-glow-red" style={{ width: '100%', color: 'var(--error-color)', fontWeight: 'bold' }} onClick={onDeleteAndLogout}>
-                                <Trash2 size={18} /> Wipe & Logout
                             </button>
                         </>
                     ) : (

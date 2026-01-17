@@ -3,7 +3,7 @@
  * Handles checking for subscription grants in the public drive.
  */
 
-import { APPS_SCRIPT_URL } from './publicDrive';
+import { APPS_SCRIPT_URL } from '../constants/config';
 
 /**
  * Check if a grant file exists for the user in the public folder.

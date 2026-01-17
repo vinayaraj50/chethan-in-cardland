@@ -15,6 +15,16 @@
   --accent-soft: rgba(var(--accent-rgb), 0.1);
   --error-color: #ef4444;
   --star-color: #FFD700;
+
+  /* Tour System variables */
+  --tour-z-index: 10000;
+  --tour-overlay-bg: rgba(0, 0, 0, 0.4);
+  --tour-bg: rgba(255, 255, 255, 0.75);
+  --tour-text: #111827;
+  --tour-text-muted: #6b7280;
+  --tour-accent: #58cc02;
+  --tour-accent-dark: #46a302;
+  --tour-border: rgba(255, 255, 255, 0.6);
 }
 
 [data-theme='dark'] {
@@ -28,6 +38,12 @@
   /* Added primary color */
   --accent-soft: rgba(var(--accent-rgb), 0.1);
   --star-color: #FFD700;
+
+  /* Tour System variables */
+  --tour-bg: rgba(31, 41, 55, 0.75);
+  --tour-text: #f9fafb;
+  --tour-text-muted: #9ca3af;
+  --tour-border: rgba(255, 255, 255, 0.1);
 }
 
 * {
@@ -119,46 +135,48 @@ body {
 
 .neo-flat {
   background: var(--bg-color);
-  border-radius: 20px;
-  box-shadow: 6px 6px 12px var(--shadow-dark), -6px -6px 12px var(--shadow-light);
+  border-radius: 1.25rem;
+  box-shadow: 0.4rem 0.4rem 0.8rem var(--shadow-dark), -0.4rem -0.4rem 0.8rem var(--shadow-light);
   padding: 1.5rem;
   transition: all 0.3s ease;
 }
 
 .neo-inset {
   background: var(--bg-color);
-  box-shadow: inset 6px 6px 12px var(--shadow-dark), inset -6px -6px 12px var(--shadow-light);
-  border-radius: 16px;
+  border-radius: 1.25rem;
+  box-shadow: inset 0.4rem 0.4rem 0.8rem var(--shadow-dark), inset -0.4rem -0.4rem 0.8rem var(--shadow-light);
+  padding: 1.5rem;
+  transition: all 0.3s ease;
 }
 
 .neo-button {
   border: none;
   background: var(--bg-color);
-  box-shadow: 4px 4px 8px var(--shadow-dark), -4px -4px 8px var(--shadow-light);
-  border-radius: 12px;
-  padding: 10px 20px;
+  box-shadow: 0.25rem 0.25rem 0.5rem var(--shadow-dark), -0.25rem -0.25rem 0.5rem var(--shadow-light);
+  border-radius: 0.75rem;
+  padding: 0.6rem 1.2rem;
   cursor: pointer;
   color: var(--text-color);
   font-weight: 600;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0.5rem;
   outline: none;
 }
 
 .neo-button:active {
-  box-shadow: inset 4px 4px 8px var(--shadow-dark), inset -4px -4px 8px var(--shadow-light);
+  box-shadow: inset 0.25rem 0.25rem 0.5rem var(--shadow-dark), inset -0.25rem -0.25rem 0.5rem var(--shadow-light);
 }
 
 .neo-tabs-container {
   display: flex;
   background: var(--bg-color);
-  padding: 8px;
-  border-radius: 16px;
-  box-shadow: inset 4px 4px 8px var(--shadow-dark), inset -4px -4px 8px var(--shadow-light);
-  gap: 8px;
+  padding: 0.5rem;
+  border-radius: 1rem;
+  box-shadow: inset 0.25rem 0.25rem 0.5rem var(--shadow-dark), inset -0.25rem -0.25rem 0.5rem var(--shadow-light);
+  gap: 0.5rem;
   width: fit-content;
-  min-width: 280px;
+  min-width: 17.5rem;
   max-width: 100%;
 }
 
@@ -172,8 +190,8 @@ body {
 
 .neo-tab-item {
   flex: 1;
-  padding: 10px 20px;
-  border-radius: 10px;
+  padding: 0.625rem 1.25rem;
+  border-radius: 0.625rem;
   border: none;
   background: transparent;
   color: var(--text-color);
@@ -197,7 +215,7 @@ body {
 
 .neo-tab-item.active {
   background: var(--bg-color);
-  box-shadow: 4px 4px 8px var(--shadow-dark), -4px -4px 8px var(--shadow-light);
+  box-shadow: 0.25rem 0.25rem 0.5rem var(--shadow-dark), -0.25rem -0.25rem 0.5rem var(--shadow-light);
   color: var(--accent-color);
   font-weight: 700;
 }
@@ -206,22 +224,9 @@ body {
 .neo-select {
   border: none;
   background: var(--bg-color);
-  box-shadow: inset 4px 4px 8px var(--shadow-dark), inset -4px -4px 8px var(--shadow-light);
-  border-radius: 12px;
-  padding: 12px 16px;
-  color: var(--text-color);
-  outline: none;
-  width: 100%;
-  font-family: inherit;
-}
-
-.neo-select {
-  appearance: none;
-  border: none;
-  background: var(--bg-color);
-  box-shadow: inset 4px 4px 8px var(--shadow-dark), inset -4px -4px 8px var(--shadow-light);
-  border-radius: 12px;
-  padding: 12px 16px;
+  box-shadow: inset 0.25rem 0.25rem 0.5rem var(--shadow-dark), inset -0.25rem -0.25rem 0.5rem var(--shadow-light);
+  border-radius: 0.75rem;
+  padding: 0.75rem 1rem;
   color: var(--text-color);
   outline: none;
   width: 100%;
@@ -229,10 +234,11 @@ body {
 }
 
 .icon-btn {
-  width: 40px;
-  height: 40px;
+  width: 2.5rem;
+  height: 2.5rem;
   padding: 0;
   justify-content: center;
+  border-radius: 50%;
 }
 
 h1,
@@ -320,11 +326,11 @@ button {
 
 .neo-checkbox {
   appearance: none;
-  width: 22px;
-  height: 22px;
+  width: 1.375rem;
+  height: 1.375rem;
   background: var(--bg-color);
-  box-shadow: 3px 3px 6px var(--shadow-dark), -3px -3px 6px var(--shadow-light);
-  border-radius: 6px;
+  box-shadow: 0.1875rem 0.1875rem 0.375rem var(--shadow-dark), -0.1875rem -0.1875rem 0.375rem var(--shadow-light);
+  border-radius: 0.375rem;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -344,8 +350,7 @@ button {
   content: '✓';
   color: var(--accent-color);
   font-weight: bold;
-  font-size: 16px;
-
+  font-size: 1rem;
 }
 
 
@@ -367,8 +372,13 @@ button {
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .spin {
@@ -429,6 +439,25 @@ button {
     inset 4px 4px 8px var(--shadow-dark),
     inset -4px -4px 8px var(--shadow-light);
   border-radius: 24px;
+}
+
+.hero-btn-group {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: nowrap;
+  justify-content: center;
+}
+
+
+.google-icon-wrapper {
+  background: white;
+  padding: 6px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.03);
 }
 
 .landing-feature-line {
@@ -505,39 +534,114 @@ button {
   align-items: center;
   justify-content: center;
   width: 100%;
-  max-width: 500px;
+  max-width: 650px;
   margin: 0 auto;
 }
 
 .hero-btn {
-  flex: 1;
-  padding: 1rem 2rem;
-  border-radius: 50px;
-  font-size: 1rem;
+  height: 3.5rem;
+  padding: 0 1.5rem;
+  border-radius: 1.1rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.01rem;
   justify-content: center;
-  min-width: 0;
-  /* Allow shrinking */
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: none;
+  width: 17.5rem;
+  max-width: 100%;
+  box-sizing: border-box;
   white-space: nowrap;
 }
 
 .hero-btn.primary-btn {
-  background: var(--accent-color);
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
   color: white;
-  font-weight: bold;
+  box-shadow:
+    0 8px 16px -4px rgba(99, 102, 241, 0.4),
+    0 4px 8px -2px rgba(99, 102, 241, 0.1);
+}
+
+.hero-btn.primary-btn:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 15px 25px -5px rgba(99, 102, 241, 0.5),
+    0 8px 12px -3px rgba(99, 102, 241, 0.2);
 }
 
 .hero-btn.secondary-btn {
-  font-weight: 600;
+  font-weight: 500;
 }
 
-@media (max-width: 480px) {
-  .hero-cta-container {
-    gap: 0.8rem;
+.hero-btn-google {
+  background: var(--bg-color) !important;
+  box-shadow: 6px 6px 12px var(--shadow-dark), -6px -6px 12px var(--shadow-light) !important;
+  border: 1px solid rgba(255, 255, 255, 0.4) !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.hero-btn-google:hover {
+  transform: translateY(-2px);
+  box-shadow: 8px 8px 16px var(--shadow-dark), -8px -8px 16px var(--shadow-light) !important;
+}
+
+.hero-btn-google:active {
+  box-shadow: inset 4px 4px 8px var(--shadow-dark), inset -4px -4px 8px var(--shadow-light) !important;
+  transform: translateY(1px);
+}
+
+@media (max-width: 48rem) {
+  .hero-btn-group {
+    flex-direction: column !important;
+    width: 100%;
+    align-items: center;
+    gap: 1rem;
+    display: flex;
   }
 
   .hero-btn {
-    padding: 0.8rem 1rem;
-    font-size: 0.9rem;
+    width: 100% !important;
+    max-width: 20rem;
+    height: 3.5rem;
+    white-space: normal;
+    font-size: 1rem;
+  }
+
+  .hero-cta-container {
+    flex-direction: column;
+    padding: 0 1rem;
+    gap: 1.5rem;
+  }
+
+  .neo-tab-container {
+    padding: 0.4rem;
+    gap: 0.4rem;
+  }
+}
+
+/* Surface Duo and Foldable Optimization */
+@media (min-width: 540px) and (max-width: 1114px) and (min-height: 720px) {
+  .landing-title {
+    font-size: 3.5rem;
+  }
+
+  .hero-cta-container {
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .hero-btn-group {
+    flex-direction: column !important;
+    width: 100%;
+    max-width: 400px;
+    margin: 0 auto;
+  }
+
+  .hero-btn {
+    width: 100% !important;
   }
 }
 
@@ -680,9 +784,17 @@ button {
 
 /* Bounce Animation */
 @keyframes bounce {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
 }
+
 .bounce {
   animation: bounce 1s infinite alternate;
 }

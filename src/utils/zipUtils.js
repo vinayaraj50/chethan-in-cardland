@@ -17,6 +17,14 @@ export const downloadStackAsZip = async (stack) => {
         const stackData = {
             id: stack.id,
             title: stack.title,
+            label: stack.label,
+            importantNote: stack.importantNote,
+            standard: stack.standard,
+            syllabus: stack.syllabus,
+            medium: stack.medium,
+            subject: stack.subject,
+            cost: stack.cost,
+            sections: stack.sections,
             cards: stack.cards,
             createdAt: stack.createdAt || new Date().toISOString(),
             exportedAt: new Date().toISOString(),
@@ -105,9 +113,7 @@ export const uploadStackFromZip = async (file) => {
         return importedStack;
     } catch (error) {
         console.error('Error extracting zip file:', error);
-        if (error.message.includes('Invalid')) {
-            throw error;
-        }
+        if (error.message?.includes('Invalid')) throw error;
         throw new Error('Failed to extract zip file. Please ensure it\'s a valid Chethan in Cardland export.');
     }
 };

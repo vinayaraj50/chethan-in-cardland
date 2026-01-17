@@ -1,20 +1,17 @@
-/**
- * Google Drive Picker Service
- * Allows users to explicitly select files shared with them.
- */
+import { scriptLoader } from '../utils/scriptLoader';
 
 const PICKER_API_URL = 'https://apis.google.com/js/api.js';
 
-export const loadPicker = () => {
-    return new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        script.src = PICKER_API_URL;
-        script.onload = () => {
-            window.gapi.load('picker', { callback: resolve });
-        };
-        script.onerror = reject;
-        document.body.appendChild(script);
-    });
+export const loadPicker = async () => {
+    try {
+        const gapi = await scriptLoader.waitForGlobal('gapi', 15000);
+        return new Promise((resolve) => {
+            gapi.load('picker', { callback: resolve });
+        });
+    } catch (error) {
+        console.warn('[Picker] Google API unavailable:', error.message);
+        throw error;
+    }
 };
 
 export const showPicker = (token, onFilePicked) => {

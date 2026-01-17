@@ -4,9 +4,9 @@
  */
 
 // Google API Configuration
-export const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-export const PUBLIC_API_KEY = import.meta.env.VITE_PUBLIC_API_KEY || import.meta.env.VITE_GOOGLE_API_KEY;
-export const PUBLIC_FOLDER_ID = import.meta.env.VITE_PUBLIC_FOLDER_ID;
+export const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '3124844364-rpsgos6belof4b0j49tj7ml1dqaiu0l2.apps.googleusercontent.com';
+export const PUBLIC_API_KEY = import.meta.env.VITE_PUBLIC_API_KEY || import.meta.env.VITE_GOOGLE_API_KEY || 'AIzaSyBpuk4WC23PTJkQS-IbRQoXxZRFt6XIvU';
+export const PUBLIC_FOLDER_ID = import.meta.env.VITE_PUBLIC_FOLDER_ID || '12_SY42jlKrH7qYNzolw1H9Ss9zLbyGN5';
 export const APPS_SCRIPT_URL = import.meta.env.VITE_APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbzkKAFTN9yV0JryQS7J3J_iaCpZRD9vU8jyw21fL_mZbL13pO5iAEaasYq234hYT4Ylfg/exec';
 export const APPS_SCRIPT_KEY = import.meta.env.VITE_APPS_SCRIPT_KEY || 'chethan_cArdlAnd_unIvErsAl_2026';
 

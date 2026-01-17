@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layers, Calendar, Star, Plus, Edit2, Coins } from 'lucide-react';
+import { Layers, Calendar, Star, Plus, Edit2, Coins, Trash2 } from 'lucide-react';
 import { sanitizeStackTitle, validateDataURI } from '../utils/securityUtils';
 import { ADMIN_EMAIL } from '../constants/config';
 
@@ -9,6 +9,7 @@ const StackCard = ({ stack, onReview, onEdit, onImport, user, onDelete, showConf
     const safeTitleForUrl = sanitizeStackTitle(stack.title);
 
     const isAdmin = user?.email === ADMIN_EMAIL;
+    const canEdit = isAdmin || !stack.isPublic;
 
     // Validate titleImage if it exists
     let titleImage = null;
@@ -21,31 +22,85 @@ const StackCard = ({ stack, onReview, onEdit, onImport, user, onDelete, showConf
         titleImage = `https://ui-avatars.com/api/?name=${encodeURIComponent(safeTitleForUrl)}&background=random&color=fff&size=128`;
     }
 
+    // Loading Skeleton
+    if (stack.loading) {
+        return (
+            <div className="neo-flat stack-card" style={{ height: '100%', position: 'relative', overflow: 'hidden' }}>
+                <div className="shimmer-wrapper">
+                    <div className="shimmer" style={{ width: '40px', height: '20px', borderRadius: '12px', marginBottom: '1rem' }}></div>
+                    <div className="shimmer" style={{ width: '100%', height: '140px', borderRadius: '12px', marginBottom: '1rem' }}></div>
+                    {stack.title && stack.title !== 'Loading...' ? (
+                        <div style={{
+                            marginBottom: '0.5rem',
+                            height: '40px', // Approximate height of 2 lines
+                            fontWeight: '600',
+                            fontSize: '0.95rem',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden'
+                        }}>
+                            {stack.title}
+                        </div>
+                    ) : (
+                        <>
+                            <div className="shimmer" style={{ width: '80%', height: '20px', borderRadius: '4px', marginBottom: '0.5rem' }}></div>
+                            <div className="shimmer" style={{ width: '60%', height: '20px', borderRadius: '4px' }}></div>
+                        </>
+                    )}
+                </div>
+                <style>{`
+                    .shimmer-wrapper { padding: 0.5rem; width: 100%; height: 100%; }
+                    .shimmer {
+                        background: linear-gradient(90deg, var(--bg-color) 0%, var(--neo-shadow-light) 50%, var(--bg-color) 100%);
+                        background-size: 200% 100%;
+                        animation: shimmer 1.5s infinite;
+                    }
+                    @keyframes shimmer {
+                        0% { background-position: -200% 0; }
+                        100% { background-position: 200% 0; }
+                    }
+                `}</style>
+            </div>
+        );
+    }
+
     return (
         <div
             className="neo-flat stack-card"
+            id={stack.id === 'demo-stack' ? 'stack-card-demo-stack' : undefined}
             onClick={() => onReview(stack)}
             style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%' }}
         >
-            {isAdmin && (
-                <button
-                    className="neo-button icon-btn"
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onEdit(stack);
-                    }}
-                    style={{
-                        position: 'absolute',
-                        top: '10px',
-                        right: '10px',
-                        zIndex: 2,
-                        background: 'var(--bg-color)',
-                        opacity: 0.8
-                    }}
-                    title="Edit Stack"
-                >
-                    <Edit2 size={18} color="var(--accent-color)" />
-                </button>
+            {canEdit && (
+                <div style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 2, display: 'flex', gap: '8px' }}>
+                    <button
+                        className="neo-button icon-btn"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onEdit(stack);
+                        }}
+                        style={{ background: 'var(--bg-color)', opacity: 0.8 }}
+                        title="Edit Stack"
+                    >
+                        <Edit2 size={18} color="var(--accent-color)" />
+                    </button>
+                    <button
+                        className="neo-button icon-btn"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if (showConfirm) {
+                                showConfirm(`Delete "${stack.title}"?`, () => onDelete(stack));
+                            } else {
+                                if (window.confirm(`Delete "${stack.title}"?`)) onDelete(stack);
+                            }
+                        }}
+                        style={{ background: 'var(--bg-color)', opacity: 0.8, color: '#ef4444' }}
+                        title="Delete Stack"
+                    >
+                        <Trash2 size={18} />
+                    </button>
+                </div>
             )}
 
             <div className="neo-flat" style={{
@@ -94,8 +149,8 @@ const StackCard = ({ stack, onReview, onEdit, onImport, user, onDelete, showConf
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', gap: '1rem', paddingTop: '1rem' }}>
                 {stack.isPublic && (
                     <button
-                        className="neo-button icon-btn"
-                        style={{ flex: 1, padding: '0.5rem', background: stack.cost > 0 ? '#f59e0b' : 'var(--accent-color)', color: 'white', border: 'none', fontSize: '0.85rem', display: 'flex', gap: '6px', alignItems: 'center', justifyContent: 'center' }}
+                        className="neo-button"
+                        style={{ flex: 1, padding: '0.6rem', background: stack.cost > 0 ? '#f59e0b' : 'var(--accent-color)', color: 'white', border: 'none', fontSize: '0.85rem', display: 'flex', gap: '6px', alignItems: 'center', justifyContent: 'center', borderRadius: '12px' }}
                         onClick={(e) => {
                             e.stopPropagation();
                             if (user) {
@@ -106,7 +161,11 @@ const StackCard = ({ stack, onReview, onEdit, onImport, user, onDelete, showConf
                         }}
                     >
                         {stack.cost > 0 ? <Coins size={14} /> : <Plus size={14} />}
-                        {user ? (stack.cost > 0 ? `Buy for ${stack.cost}` : 'Add to My Cards') : 'Preview'}
+                        {user ? (
+                            stack.cost > 0 ? `Buy for ${stack.cost}` : 'Free - Add to My Cards'
+                        ) : (
+                            `Preview (${stack.cost > 0 ? `Price: ${stack.cost}` : 'Free'})`
+                        )}
                     </button>
                 )}
                 {!stack.isPublic && (
@@ -140,7 +199,9 @@ const StackCard = ({ stack, onReview, onEdit, onImport, user, onDelete, showConf
                             <Calendar size={12} />
                             <span>Review in</span>
                         </div>
-                        <NextReviewDisplay nextReview={stack.nextReview} />
+                        <div id={stack.id === 'demo-stack' ? 'next-review-indicator-demo-stack' : undefined}>
+                            <NextReviewDisplay nextReview={stack.nextReview} />
+                        </div>
                     </div>
                 )}
 

@@ -4,6 +4,9 @@ import StackCard from '../components/StackCard';
 import NeoDropdown from '../components/NeoDropdown';
 import logo from '../assets/logo.png';
 
+import { useTour } from '../components/TourContext';
+import { useAuth } from '../components/AuthProvider';
+
 const Home = ({
     activeTab, setActiveTab,
     stacks, publicStacks,
@@ -22,12 +25,42 @@ const Home = ({
     onAddStack,
     onRefresh
 }) => {
+    const { isActive: isTourActive, startTour } = useTour();
+    const { error: authError, isReady: isAuthReady, user: authUser } = useAuth();
+
+    // Derived state moved to top for absolute safety
+    const currentLoading = activeTab === 'my' ? loading : publicLoading;
+    const showIntro = activeTab === 'my' && !loading && !user && !isTourActive;
+
     const [showSettings, setShowSettings] = useState(false);
     const menuRef = React.useRef(null);
-    const standards = ['V', 'VI', 'VII', 'VIII', 'IX', 'X'];
-    const syllabuses = ['NCERT', 'Kerala'];
-    const mediums = ['Malayalam', 'English'];
-    const subjects = ['Maths', 'Social Science', 'Science', 'English', 'Malayalam', 'Hindi'];
+
+    // Dynamically extract filter options from loaded stacks' metadata
+    const filterOptions = React.useMemo(() => {
+        const options = {
+            standards: new Set(),
+            syllabuses: new Set(),
+            mediums: new Set(),
+            subjects: new Set()
+        };
+
+        publicStacks.forEach(stack => {
+            if (stack.standard) options.standards.add(stack.standard);
+            if (stack.syllabus) options.syllabuses.add(stack.syllabus);
+            if (stack.medium) options.mediums.add(stack.medium);
+            if (stack.subject) options.subjects.add(stack.subject);
+        });
+
+        return {
+            standards: Array.from(options.standards).sort(),
+            syllabuses: Array.from(options.syllabuses).sort(),
+            mediums: Array.from(options.mediums).sort(),
+            subjects: Array.from(options.subjects).sort()
+        };
+    }, [publicStacks]);
+
+    const { standards, syllabuses, mediums, subjects } = filterOptions;
+
 
     const getSortedStacks = () => {
         let filtered = filterLabel ? stacks.filter(s => s.label === filterLabel) : stacks;
@@ -63,6 +96,11 @@ const Home = ({
         // Default: Newest first (using ID as proxy for creation date)
         return (parseInt(b.id || 0) || 0) - (parseInt(a.id || 0) || 0);
     });
+
+    const currentStacks = activeTab === 'my' ? stacks : filteredPublicStacks;
+
+    // We have moved away from official renderButton to custom Neomorphic Button
+    // for design consistency and better origin-authorization reliability on localhost.
 
     const handleFilterChange = (key, value) => {
         setFilters(prev => ({ ...prev, [key]: value }));
@@ -126,7 +164,6 @@ const Home = ({
                                     height: '44px',
                                     boxShadow: 'inset 3px 3px 6px var(--shadow-dark), inset -3px -3px 6px var(--shadow-light)'
                                 }}
-                                autoFocus
                             />
                         </div>
                     </div>
@@ -186,14 +223,16 @@ const Home = ({
 
     const renderTabs = () => (
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '2rem', gap: '0.5rem', alignItems: 'center' }}>
-            <div className="neo-tabs-container" style={{ margin: 0 }}>
+            <div id="tabs-container" className="neo-tabs-container" style={{ margin: 0 }}>
                 <button
+                    id="tab-my-cards"
                     className={`neo-tab-item ${activeTab === 'my' ? 'active' : ''}`}
                     onClick={() => setActiveTab('my')}
                 >
                     My Cards
                 </button>
                 <button
+                    id="tab-ready-made"
                     className={`neo-tab-item ${activeTab === 'ready-made' ? 'active' : ''}`}
                     onClick={() => setActiveTab('ready-made')}
                 >
@@ -282,11 +321,6 @@ const Home = ({
         </div>
     );
 
-    const currentLoading = activeTab === 'my' ? loading : publicLoading;
-    const currentStacks = activeTab === 'my' ? stacks : filteredPublicStacks;
-
-    const showIntro = activeTab === 'my' && !loading && !user;
-
     // We no longer return early here to keep tabs and search bar visible
     // if (currentLoading) { ... }
 
@@ -351,45 +385,59 @@ const Home = ({
                             </p>
                         </div>
 
-                        <div className="hero-cta-container" style={{
-                            display: 'flex',
-                            gap: '1.25rem',
-                            alignItems: 'center',
-                            marginTop: '1.2rem',
-                            flexWrap: 'wrap',
-                            justifyContent: 'center'
-                        }}>
-                            <button
-                                className="neo-button neo-glow-blue hero-btn primary-btn"
-                                onClick={() => onReview(stacks.find(s => s.id === 'demo-stack'))}
-                                style={{
-                                    padding: '1rem 2rem',
-                                    whiteSpace: 'nowrap',
-                                    minWidth: '180px'
-                                }}
-                            >
-                                See how it works
-                            </button>
+                        <div className="hero-cta-container">
+                            <div className="hero-btn-group">
+                                <button
+                                    className="hero-btn primary-btn"
+                                    onClick={startTour}
+                                >
+                                    Beginner’s Guide
+                                </button>
 
-                            <button
-                                className="neo-button hero-btn secondary-btn"
-                                onClick={() => onLogin()}
-                                style={{
-                                    padding: '1rem 2rem',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '8px',
-                                    whiteSpace: 'nowrap',
-                                    minWidth: '180px'
-                                }}
-                            >
-                                <span style={{ fontSize: '1rem' }}>Get started with</span>
-                                <img
-                                    src="https://upload.wikimedia.org/wikipedia/commons/2/2f/Google_2015_logo.svg"
-                                    alt="Google"
-                                    style={{ height: '18px', marginTop: '2px' }}
-                                />
-                            </button>
+                                {authUser && !user?.hasDrive ? (
+                                    <button
+                                        className="hero-btn primary-btn neo-glow-blue"
+                                        onClick={() => onLogin('consent')}
+                                        style={{ background: 'var(--accent-color)', color: 'white' }}
+                                    >
+                                        <RefreshCw size={20} className={loading ? 'spin' : ''} />
+                                        Complete Sync Setup
+                                    </button>
+                                ) : !authUser ? (
+                                    <button
+                                        className="hero-btn hero-btn-google"
+                                        onClick={() => onLogin(user?.needsAuth ? 'consent' : 'select_account')}
+                                        style={{ color: 'var(--text-color)' }}
+                                    >
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
+                                            Continue with
+                                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '1px', fontWeight: '700', fontSize: '1.2rem', letterSpacing: '-0.02em', marginLeft: '2px' }}>
+                                                <span style={{ color: '#4285F4' }}>G</span>
+                                                <span style={{ color: '#EA4335' }}>o</span>
+                                                <span style={{ color: '#FBBC05' }}>o</span>
+                                                <span style={{ color: '#4285F4' }}>g</span>
+                                                <span style={{ color: '#34A853' }}>l</span>
+                                                <span style={{ color: '#EA4335' }}>e</span>
+                                            </div>
+                                        </div>
+                                    </button>
+                                ) : null}
+                            </div>
+                            {authError && (
+                                <div style={{
+                                    padding: '1rem',
+                                    background: 'var(--error-soft)',
+                                    borderRadius: '16px',
+                                    border: '1px solid var(--error-color)',
+                                    color: 'var(--error-color)',
+                                    fontSize: '0.85rem',
+                                    marginTop: '1rem',
+                                    maxWidth: '350px',
+                                    textAlign: 'left'
+                                }}>
+                                    <strong>Connectivity Notice:</strong> {authError}
+                                </div>
+                            )}
                         </div>
                     </div>
 

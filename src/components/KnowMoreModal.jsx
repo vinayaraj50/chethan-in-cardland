@@ -1,24 +1,33 @@
 import React from 'react';
 import CloseButton from './common/CloseButton';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Brain, Zap, Mic, Camera, BookOpen, TrendingUp, Sparkles, LogIn } from 'lucide-react';
+import { X, Zap, Mic, Camera, BookOpen, TrendingUp, Sparkles, LogIn, Target, PenTool, Keyboard } from 'lucide-react';
+import avatar from '../assets/avatar_guide_new.png';
 
 const KnowMoreModal = ({ isOpen, onClose, onLogin }) => {
     const sections = [
         {
-            icon: <Brain size={28} />,
-            text: "This is a science-based learning app designed around how the brain learns and stays motivated."
+            icon: <img src={avatar} alt="Chethan" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />,
+            title: "Built for how you learn",
+            text: "Science-based learning, designed to keep you focused and motivated."
         },
         {
-            icon: <TrendingUp size={28} />,
-            text: "Powered by an advanced learning algorithm, the app understands your memory strength, tracks progress, and guides you through a personalised and efficient learning journey. This helps you improve faster and retain information longer."
+            icon: <Zap size={28} />,
+            title: "Learns how you remember",
+            text: "A smart algorithm understands your memory, tracks progress, and adapts automatically."
         },
         {
-            icon: <Sparkles size={28} />,
+            icon: <Target size={28} />,
+            title: "Learns. Adapts. Guides.",
+            text: "The app creates a personalised learning path that adapts to your memory and progress."
+        },
+        {
+            icon: <PenTool size={28} />,
+            title: "Create flashcards your way",
             content: (
                 <div>
-                    <p style={{ margin: '0 0 1rem 0' }}>You can quickly create your own flashcards using your own questions and answers using one or more of these options.</p>
-                    <div style={{ display: 'flex', gap: '1.5rem', justifyContent: 'center', marginBottom: '1rem', marginTop: '0.5rem' }}>
+                    <p style={{ margin: '0 0 1rem 0', lineHeight: '1.5', fontSize: '0.95rem', opacity: 0.8 }}>Make flashcards using one or more options:</p>
+                    <div style={{ display: 'flex', gap: '2.5rem', justifyContent: 'flex-start', marginBottom: '0.5rem', marginTop: '1rem' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
                             <div className="neo-inset" style={{
                                 width: '50px',
@@ -29,7 +38,7 @@ const KnowMoreModal = ({ isOpen, onClose, onLogin }) => {
                                 justifyContent: 'center',
                                 color: 'var(--accent-color)'
                             }}>
-                                <Zap size={22} />
+                                <Keyboard size={22} />
                             </div>
                             <span style={{ fontSize: '0.85rem', fontWeight: '500', opacity: 0.8 }}>Typing</span>
                         </div>
@@ -62,17 +71,13 @@ const KnowMoreModal = ({ isOpen, onClose, onLogin }) => {
                             <span style={{ fontSize: '0.85rem', fontWeight: '500', opacity: 0.8 }}>Photo</span>
                         </div>
                     </div>
-                    <p style={{ margin: '0', lineHeight: '1.6', fontSize: '1rem', fontWeight: '500', opacity: 0.9 }}>The app then intelligently adapts and guides you with the most efficient learning path for it.</p>
                 </div>
             )
         },
         {
-            icon: <Zap size={28} />,
-            text: "The app then leads you through an optimal learning flow, helping you spend less time revising while getting better results."
-        },
-        {
             icon: <BookOpen size={28} />,
-            text: "Prefer expert-prepared material? Explore the Ready-made section to study flashcard stacks built from real previous question papers and common exam patterns, curated by subject experts."
+            title: "Ready-made expert content",
+            text: "Study curated flashcard stacks built from real previous question papers and exam patterns."
         }
     ];
 
@@ -122,7 +127,12 @@ const KnowMoreModal = ({ isOpen, onClose, onLogin }) => {
                                         {section.icon}
                                     </div>
                                     <div style={{ flex: 1 }}>
-                                        {section.text && <p style={{ margin: 0, lineHeight: '1.6', fontSize: '1rem', fontWeight: '500', opacity: 0.9 }}>
+                                        {section.title && (
+                                            <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1.1rem', fontWeight: '700', color: 'var(--text-color)' }}>
+                                                {section.title}
+                                            </h3>
+                                        )}
+                                        {section.text && <p style={{ margin: 0, lineHeight: '1.5', fontSize: '0.95rem', opacity: 0.8 }}>
                                             {section.text}
                                         </p>}
                                         {section.content}

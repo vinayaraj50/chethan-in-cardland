@@ -261,14 +261,13 @@ const DemoReviewModal = ({ onClose, onLogin }) => {
             ) : (
                 <div className="review-container" style={{
                     width: '100%',
-                    maxWidth: '560px',
+                    maxWidth: '35rem',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '2rem',
+                    gap: '1rem',
                     position: 'relative',
-                    padding: 'max(20px, 4vh) 30px',
-                    maxHeight: '100%',
-                    overflowY: 'auto'
+                    padding: '1rem',
+                    maxHeight: '100dvh'
                 }}>
 
                     {/* Top bar */}
@@ -284,7 +283,7 @@ const DemoReviewModal = ({ onClose, onLogin }) => {
 
                     {/* Card Flip Content */}
                     <div
-                        style={{ perspective: '1000px', height: '380px', cursor: 'pointer', position: 'relative' }}
+                        style={{ perspective: '1000px', height: '26rem', cursor: 'pointer', position: 'relative' }}
                         onClick={() => {
                             if (isFlipped) {
                                 setIsFlipped(false);
@@ -300,29 +299,30 @@ const DemoReviewModal = ({ onClose, onLogin }) => {
                                     exit={{ opacity: 0 }}
                                     className="neo-flat"
                                     style={{
-                                        position: 'absolute', top: '-70px', left: '50%', transform: 'translateX(-50%)',
-                                        padding: '0.8rem 1.2rem',
-                                        borderRadius: '12px',
+                                        position: 'absolute', top: '-4rem', left: '50%', transform: 'translateX(-50%)',
+                                        padding: '0.6rem 1rem',
+                                        borderRadius: '0.75rem',
                                         background: 'var(--bg-color)',
                                         border: '1px solid var(--accent-color)',
                                         zIndex: 10,
                                         pointerEvents: 'none',
                                         width: 'fit-content',
-                                        maxWidth: '280px'
+                                        maxWidth: '18rem',
+                                        boxShadow: '0 0.5rem 1.5rem rgba(0,0,0,0.1)'
                                     }}
                                 >
                                     <div style={{
                                         position: 'absolute',
-                                        bottom: '-6px',
+                                        bottom: '-0.4rem',
                                         left: '50%',
                                         transform: 'translateX(-50%) rotate(45deg)',
-                                        width: '10px',
-                                        height: '10px',
+                                        width: '0.6rem',
+                                        height: '0.6rem',
                                         background: 'var(--bg-color)',
                                         borderRight: '1px solid var(--accent-color)',
                                         borderBottom: '1px solid var(--accent-color)'
                                     }}></div>
-                                    <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: '500', lineHeight: '1.4', color: 'var(--accent-color)', textAlign: 'center' }}>
+                                    <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: '600', lineHeight: '1.4', color: 'var(--accent-color)', textAlign: 'center' }}>
                                         Try to answer in your head.
                                     </p>
                                 </motion.div>
@@ -340,20 +340,24 @@ const DemoReviewModal = ({ onClose, onLogin }) => {
                             <div className="neo-flat" style={{
                                 position: 'absolute', width: '100%', height: '100%', backfaceVisibility: 'hidden',
                                 display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                                padding: '2rem', textAlign: 'center'
+                                padding: '1.5rem', textAlign: 'center'
                             }}>
-                                <span style={{ fontSize: '0.8rem', fontWeight: 'bold', opacity: 0.4, marginBottom: '1rem' }}>QUESTION</span>
-                                <h2 style={{ fontSize: '1.6rem' }}>{currentCard.question.text}</h2>
+                                <div style={{ flex: 1, overflowY: 'auto', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }} className="custom-scrollbar">
+                                    <span style={{ fontSize: '0.8rem', fontWeight: 'bold', opacity: 0.4, marginBottom: '0.75rem', display: 'block' }}>QUESTION</span>
+                                    <h2 style={{ fontSize: '1.8rem', fontWeight: '800', margin: 0 }}>{currentCard.question.text}</h2>
+                                </div>
                             </div>
 
                             {/* Back (Answer) */}
                             <div className="neo-flat" style={{
                                 position: 'absolute', width: '100%', height: '100%', backfaceVisibility: 'hidden', transform: 'rotateY(180deg)',
                                 display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                                padding: '2rem', textAlign: 'center'
+                                padding: '1.5rem', textAlign: 'center'
                             }}>
-                                <span style={{ fontSize: '0.8rem', fontWeight: 'bold', opacity: 0.4, marginBottom: '1rem' }}>ANSWER</span>
-                                <h2 style={{ fontSize: '1.6rem', color: 'var(--accent-color)' }}>{currentCard.answer.text}</h2>
+                                <div style={{ flex: 1, overflowY: 'auto', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }} className="custom-scrollbar">
+                                    <span style={{ fontSize: '0.8rem', fontWeight: 'bold', opacity: 0.4, marginBottom: '0.75rem', display: 'block' }}>ANSWER</span>
+                                    <h2 style={{ fontSize: '2rem', color: 'var(--accent-color)', fontWeight: '800', margin: 0 }}>{currentCard.answer.text}</h2>
+                                </div>
                             </div>
                         </motion.div>
                     </div>

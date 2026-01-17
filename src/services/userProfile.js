@@ -1,7 +1,7 @@
 /**
  * User Profile Service
  * Manages user data including Coin Balance and Daily Login tracking.
- * Stored securely via Google Apps Script Proxy (Centralized Admin Storage).
+ * Stored securely via Google Apps Script Proxy.
  */
 
 import { APPS_SCRIPT_URL, APPS_SCRIPT_KEY } from '../constants/config';
@@ -18,22 +18,53 @@ const DEFAULT_PROFILE = {
 };
 
 /**
+ * Standardized Fetch Wrapper for Apps Script Logic
+ * Uses POST to strictly avoid token logging in server query parameters.
+ */
+const proxyFetch = async (action, payload) => {
+    try {
+        const response = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            redirect: 'follow', // Important for Apps Script redirects
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+                ...payload,
+                action: action,
+                key: APPS_SCRIPT_KEY
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`Server returned ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        if (data.error) throw new Error(data.error);
+        return data;
+    } catch (error) {
+        throw error;
+    }
+};
+
+/**
  * Fetch or Initialize User Profile via Proxy
  */
 export const getUserProfile = async (token) => {
     try {
-        console.log("getUserProfile: Fetching profile with token verification");
-        const url = `${APPS_SCRIPT_URL}?action=getUserProfile&token=${encodeURIComponent(token)}&key=${APPS_SCRIPT_KEY}&t=${Date.now()}`;
-        const response = await fetch(url);
-        const data = await response.json();
-
-        if (data.error) throw new Error(data.error);
+        console.log("getUserProfile: Fetching profile securely via POST");
+        const data = await proxyFetch('getUserProfile', { token });
 
         // Merge with default to ensure consistency
         return { ...DEFAULT_PROFILE, ...data };
 
     } catch (error) {
-        console.error("Profile Fetch Error:", error);
+        console.error("Profile Fetch Error:", error.message);
+        // On auth failure, rethrow so UI can handle (e.g., logout)
+        if (error.message.includes('Invalid') || error.message.includes('Token')) {
+            throw error;
+        }
         return DEFAULT_PROFILE;
     }
 };
@@ -44,25 +75,18 @@ export const getUserProfile = async (token) => {
 export const saveUserProfile = async (token, profile) => {
     try {
         const dataStr = JSON.stringify(profile);
-        console.log("saveUserProfile: Saving profile with token verification");
+        console.log("saveUserProfile: Saving profile securely");
 
-        const response = await fetch(APPS_SCRIPT_URL, {
-            method: 'POST',
-            body: new URLSearchParams({
-                action: 'saveUserProfile',
-                data: dataStr,
-                token: token,
-                key: APPS_SCRIPT_KEY
-            })
+        const result = await proxyFetch('saveUserProfile', {
+            token,
+            data: dataStr
         });
-
-        const result = await response.json();
-        if (result.error) throw new Error(result.error);
 
         return { ...profile, ...result.profile };
 
     } catch (e) {
         console.error("Profile Save Error:", e);
+        // Optimistic update: Return the profile we tried to save, or the original if critical failure
         return profile;
     }
 };
@@ -72,12 +96,9 @@ export const saveUserProfile = async (token, profile) => {
  */
 export const checkDailyLogin = async (token, profile) => {
     try {
-        console.log("checkDailyLogin: Attempting claim with token verification");
-        const url = `${APPS_SCRIPT_URL}?action=claimDailyBonus&token=${encodeURIComponent(token)}&key=${APPS_SCRIPT_KEY}&t=${Date.now()}`;
-        const response = await fetch(url);
-        const result = await response.json();
+        console.log("checkDailyLogin: Attempting claim");
 
-        if (result.error) throw new Error(result.error);
+        const result = await proxyFetch('claimDailyBonus', { token });
 
         if (result.awarded) {
             return {

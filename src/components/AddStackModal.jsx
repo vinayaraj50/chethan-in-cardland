@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import CloseButton from './common/CloseButton';
-import { X, Mic, Image as ImageIcon, Plus, Trash2, Copy, Save, Check, Play, Square, Pause, ChevronDown, Download, Upload, Split, Merge } from 'lucide-react';
+import { X, Mic, Image as ImageIcon, Plus, Trash2, Copy, Save, Check, Play, Square, Pause, ChevronDown, Download, Upload, Split, Merge, RefreshCw } from 'lucide-react';
 import { signIn } from '../services/googleAuth';
-import { saveStack, deleteStack } from '../services/googleDrive';
+import { saveFile, deleteStack, listFilesInFolder, getFileContent, makeFilePublic } from '../services/googleDrive';
+import { storageService } from '../services/storageOrchestrator';
 import { downloadStackAsZip, uploadStackFromZip } from '../utils/zipUtils';
 import { parseGeminiOutput } from '../utils/importUtils';
 import { validateDataURI, sanitizeText } from '../utils/securityUtils';
@@ -11,124 +12,267 @@ import { AnimatePresence } from 'framer-motion';
 import NeoDropdown from './NeoDropdown';
 import { ADMIN_EMAIL } from '../constants/config';
 
-const AudioPlayer = ({ audioData }) => {
-    const [isPlaying, setIsPlaying] = useState(false);
-    const [progress, setProgress] = useState(0);
-    const audioRef = useRef(null);
-    const animationRef = useRef();
-    const progressBarRef = useRef();
+const AutoGrowingTextarea = ({ value, onChange, placeholder, style = {}, ...props }) => {
+    const textareaRef = useRef(null);
 
-    if (!audioRef.current) {
-        audioRef.current = new Audio(audioData);
-    }
-
-    useEffect(() => {
-        const audio = audioRef.current;
-        if (audio.src !== audioData) {
-            audio.pause();
-            audio.src = audioData;
-            audio.load();
-            setProgress(0);
-            setIsPlaying(false);
-        }
-    }, [audioData]);
-
-    useEffect(() => {
-        const audio = audioRef.current;
-        const updateProgress = () => {
-            if (audio.duration) {
-                setProgress((audio.currentTime / audio.duration) * 100);
-            }
-            animationRef.current = requestAnimationFrame(updateProgress);
-        };
-
-        const onPlay = () => {
-            setIsPlaying(true);
-            animationRef.current = requestAnimationFrame(updateProgress);
-        };
-
-        const onPause = () => {
-            setIsPlaying(false);
-            cancelAnimationFrame(animationRef.current);
-        };
-
-        const onEnded = () => {
-            setIsPlaying(false);
-            setProgress(0);
-            cancelAnimationFrame(animationRef.current);
-        };
-
-        audio.addEventListener('play', onPlay);
-        audio.addEventListener('pause', onPause);
-        audio.addEventListener('ended', onEnded);
-
-        return () => {
-            audio.pause();
-            audio.removeEventListener('play', onPlay);
-            audio.removeEventListener('pause', onPause);
-            audio.removeEventListener('ended', onEnded);
-            cancelAnimationFrame(animationRef.current);
-        };
-    }, []);
-
-    const togglePlay = (e) => {
-        e.stopPropagation();
-        const audio = audioRef.current;
-        if (isPlaying) {
-            audio.pause();
-        } else {
-            audio.play();
-        }
+    const adjustHeight = (element) => {
+        if (!element) return;
+        element.style.height = 'auto';
+        element.style.height = `${element.scrollHeight}px`;
     };
 
-    const stopAudio = (e) => {
-        e.stopPropagation();
-        const audio = audioRef.current;
-        audio.pause();
-        audio.currentTime = 0;
-        setProgress(0);
-    };
+    useEffect(() => {
+        adjustHeight(textareaRef.current);
+    }, [value]);
 
-    const handleSeek = (e) => {
-        e.stopPropagation();
-        const rect = progressBarRef.current.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const percentage = Math.max(0, Math.min(100, (x / rect.width) * 100));
-        const audio = audioRef.current;
-        if (audio.duration) {
-            audio.currentTime = (percentage / 100) * audio.duration;
-            setProgress(percentage);
-        }
+    return (
+        <textarea
+            ref={textareaRef}
+            className="neo-input"
+            placeholder={placeholder}
+            value={value}
+            onChange={(e) => {
+                onChange(e);
+                adjustHeight(e.target);
+            }}
+            style={{
+                ...style,
+                overflow: 'hidden',
+                resize: 'none',
+                minHeight: '40px',
+                display: 'block'
+            }}
+            {...props}
+        />
+    );
+};
+
+const CardItem = ({
+    card, index, totalCards, onUpdate, onRemove, onMove,
+    recording, startRecording, stopRecording, cancelRecording, recordingTime,
+    handleFileUpload, handleOptionChange, setViewingImage, showSplitUI, selectedCards, toggleCardSelection
+}) => {
+    const formatTime = (seconds) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
 
     return (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '0.5rem', width: '100%', maxWidth: '250px' }}>
-            <button
-                className="neo-button icon-btn"
-                onClick={togglePlay}
-                style={{ width: '30px', height: '30px', background: 'var(--accent-soft)', color: 'var(--accent-color)', borderRadius: '50%', flexShrink: 0 }}
-            >
-                {isPlaying ? <Pause size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" />}
-            </button>
-            <button
-                className="neo-button icon-btn"
-                onClick={stopAudio}
-                style={{ width: '30px', height: '30px', borderRadius: '50%', flexShrink: 0 }}
-            >
-                <Square size={10} fill="currentColor" />
-            </button>
-            <div
-                ref={progressBarRef}
-                className="neo-inset"
-                onClick={handleSeek}
-                style={{ flex: 1, height: '6px', borderRadius: '3px', overflow: 'hidden', position: 'relative', cursor: 'pointer' }}
-            >
-                <div style={{
-                    position: 'absolute', top: 0, left: 0, height: '100%',
-                    width: `${progress}%`, background: 'var(--accent-color)',
-                    transition: 'width 0.1s linear'
-                }} />
+        <div key={card.id} className="neo-inset" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', position: 'relative' }}>
+            {showSplitUI && (
+                <div style={{ position: 'absolute', top: '10px', left: '10px', zIndex: 5 }}>
+                    <input
+                        type="checkbox"
+                        className="neo-checkbox"
+                        checked={selectedCards?.has(card.id)}
+                        onChange={() => toggleCardSelection?.(card.id)}
+                    />
+                </div>
+            )}
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                <div style={{ fontSize: '0.9rem', fontWeight: 'bold', opacity: 0.5, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span>{card.type === 'mcq' ? 'MCQ' : 'CARD'} {index + 1}</span>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--bg-color)', padding: '4px 8px', borderRadius: '8px', boxShadow: 'inset 2px 2px 4px var(--shadow-dark), inset -2px -2px 4px var(--shadow-light)' }}>
+                        <span style={{ fontSize: '0.75rem', opacity: 0.6 }}>Pos:</span>
+                        <input
+                            type="number"
+                            className="neo-input"
+                            style={{
+                                width: '40px', padding: '2px', textAlign: 'center',
+                                boxShadow: 'none', background: 'transparent', height: 'auto',
+                                fontSize: '0.9rem', fontWeight: 'bold'
+                            }}
+                            placeholder="#"
+                            onBlur={(e) => {
+                                if (e.target.value) {
+                                    onMove(e.target.value);
+                                    e.target.value = '';
+                                }
+                            }}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && e.target.value) {
+                                    onMove(e.target.value);
+                                    e.target.value = '';
+                                }
+                            }}
+                        />
+                    </div>
+                    <button
+                        className="neo-button icon-btn"
+                        style={{ width: '32px', height: '32px', color: 'var(--error-color)', boxShadow: 'none' }}
+                        onClick={onRemove}
+                        title="Delete Card"
+                    >
+                        <Trash2 size={16} />
+                    </button>
+                </div>
             </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>QUESTION</span>
+                    <div style={{ display: 'flex', gap: '5px' }}>
+                        {!recording ? (
+                            <div style={{ display: 'flex', gap: '5px' }}>
+                                <button
+                                    className="neo-button icon-btn"
+                                    style={{ width: '32px', height: '32px', color: card.question.audio ? 'var(--accent-color)' : 'currentColor' }}
+                                    onClick={() => startRecording(card.id, 'question')}
+                                >
+                                    <Mic size={14} />
+                                </button>
+                                {card.question.audio && (
+                                    <button className="neo-button icon-btn" style={{ width: '32px', height: '32px' }} onClick={() => onUpdate('question', { ...card.question, audio: '' })}>
+                                        <Trash2 size={12} color="var(--error-color)" />
+                                    </button>
+                                )}
+                            </div>
+                        ) : recording.id === card.id && recording.field === 'question' ? (
+                            <div className="neo-flat" style={{
+                                position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 10,
+                                borderRadius: '12px', display: 'flex', alignItems: 'center', padding: '0 1rem', gap: '1rem',
+                                background: 'var(--bg-color)'
+                            }}>
+                                <div style={{ width: '10px', height: '10px', background: 'red', borderRadius: '50%', animation: 'pulse 1s infinite' }} />
+                                <span style={{ flex: 1, fontWeight: '600' }}>Recording... {formatTime(recordingTime)}</span>
+                                <button className="neo-button icon-btn" title="Cancel" style={{ width: '32px', height: '32px' }} onClick={cancelRecording}>
+                                    <X size={14} color="var(--error-color)" />
+                                </button>
+                                <button className="neo-button icon-btn" title="Stop & Save" style={{ width: '32px', height: '32px' }} onClick={stopRecording}>
+                                    <Check size={14} color="var(--accent-color)" />
+                                </button>
+                            </div>
+                        ) : null}
+
+                        <label className="neo-button icon-btn" style={{ width: '32px', height: '32px', cursor: 'pointer' }}>
+                            <ImageIcon size={14} color={card.question.image ? 'var(--accent-color)' : 'currentColor'} />
+                            <input type="file" hidden accept="image/*" onChange={(e) => handleFileUpload(e, (data) => onUpdate('question', { ...card.question, image: data }))} />
+                        </label>
+                    </div>
+                </div>
+                {card.question.image && (
+                    <div style={{ position: 'relative', width: '100%', maxHeight: '150px' }}>
+                        <img
+                            src={card.question.image}
+                            style={{ width: '100%', height: '100%', maxHeight: '150px', objectFit: 'contain', borderRadius: '8px', cursor: 'pointer' }}
+                            onClick={() => setViewingImage(card.question.image)}
+                        />
+                        <button
+                            className="neo-button icon-btn"
+                            style={{ position: 'absolute', top: '5px', right: '5px', width: '24px', height: '24px' }}
+                            onClick={() => onUpdate('question', { ...card.question, image: '' })}
+                        >
+                            <X size={12} />
+                        </button>
+                    </div>
+                )}
+                <div style={{ position: 'relative' }}>
+                    <AutoGrowingTextarea
+                        placeholder="The question... "
+                        value={card.question.text}
+                        onChange={(e) => onUpdate('question', { ...card.question, text: sanitizeText(e.target.value) })}
+                        style={{ paddingRight: '30px' }}
+                    />
+                </div>
+            </div>
+
+            {card.type === 'mcq' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>OPTIONS</span>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                        {card.options?.map((opt, i) => (
+                            <div key={opt.id} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <input
+                                    type="radio"
+                                    name={`correct-${card.id}`}
+                                    checked={opt.isCorrect}
+                                    onChange={() => handleOptionChange(opt.id, 'isCorrect', true)}
+                                    style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: 'var(--accent-color)' }}
+                                />
+                                <input
+                                    className="neo-input"
+                                    placeholder={`Option ${String.fromCharCode(65 + i)}`}
+                                    value={opt.text}
+                                    onChange={(e) => handleOptionChange(opt.id, 'text', sanitizeText(e.target.value))}
+                                    style={{
+                                        borderColor: opt.isCorrect ? 'var(--accent-color)' : 'transparent',
+                                        borderWidth: opt.isCorrect ? '2px' : '1px'
+                                    }}
+                                />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>ANSWER</span>
+                        <div style={{ display: 'flex', gap: '5px' }}>
+                            {!recording ? (
+                                <div style={{ display: 'flex', gap: '5px' }}>
+                                    <button
+                                        className="neo-button icon-btn"
+                                        style={{ width: '32px', height: '32px', color: card.answer.audio ? 'var(--accent-color)' : 'currentColor' }}
+                                        onClick={() => startRecording(card.id, 'answer')}
+                                    >
+                                        <Mic size={14} />
+                                    </button>
+                                    {card.answer.audio && (
+                                        <button className="neo-button icon-btn" style={{ width: '32px', height: '32px' }} onClick={() => onUpdate('answer', { ...card.answer, audio: '' })}>
+                                            <Trash2 size={12} color="var(--error-color)" />
+                                        </button>
+                                    )}
+                                </div>
+                            ) : recording.id === card.id && recording.field === 'answer' ? (
+                                <div className="neo-flat" style={{
+                                    position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 10,
+                                    borderRadius: '12px', display: 'flex', alignItems: 'center', padding: '0 1rem', gap: '1rem',
+                                    background: 'var(--bg-color)'
+                                }}>
+                                    <div style={{ width: '10px', height: '10px', background: 'red', borderRadius: '50%', animation: 'pulse 1s infinite' }} />
+                                    <span style={{ flex: 1, fontWeight: '600' }}>Recording... {formatTime(recordingTime)}</span>
+                                    <button className="neo-button icon-btn" title="Cancel" style={{ width: '32px', height: '32px' }} onClick={cancelRecording}>
+                                        <X size={14} color="var(--error-color)" />
+                                    </button>
+                                    <button className="neo-button icon-btn" title="Stop & Save" style={{ width: '32px', height: '32px' }} onClick={stopRecording}>
+                                        <Check size={14} color="var(--accent-color)" />
+                                    </button>
+                                </div>
+                            ) : null}
+                            <label className="neo-button icon-btn" style={{ width: '32px', height: '32px', cursor: 'pointer' }}>
+                                <ImageIcon size={14} color={card.answer.image ? 'var(--accent-color)' : 'currentColor'} />
+                                <input type="file" hidden accept="image/*" onChange={(e) => handleFileUpload(e, (data) => onUpdate('answer', { ...card.answer, image: data }))} />
+                            </label>
+                        </div>
+                    </div>
+                    {card.answer.image && (
+                        <div style={{ position: 'relative', width: '100%', maxHeight: '150px' }}>
+                            <img
+                                src={card.answer.image}
+                                style={{ width: '100%', height: '100%', maxHeight: '150px', objectFit: 'contain', borderRadius: '8px', cursor: 'pointer' }}
+                                onClick={() => setViewingImage(card.answer.image)}
+                            />
+                            <button
+                                className="neo-button icon-btn"
+                                style={{ position: 'absolute', top: '5px', right: '5px', width: '24px', height: '24px' }}
+                                onClick={() => onUpdate('answer', { ...card.answer, image: '' })}
+                            >
+                                <X size={12} />
+                            </button>
+                        </div>
+                    )}
+                    <AutoGrowingTextarea
+                        placeholder="The answer... "
+                        value={card.answer.text}
+                        onChange={(e) => onUpdate('answer', { ...card.answer, text: sanitizeText(e.target.value) })}
+                    />
+                </div>
+            )}
         </div>
     );
 };
@@ -136,7 +280,7 @@ const AudioPlayer = ({ audioData }) => {
 const AddStackModal = ({
     user, stack, onClose, onSave, onDuplicate, onDelete,
     showAlert, showConfirm, availableLabels, allStacks,
-    publicFolderId, activeTab, defaultMetadata
+    activeTab, defaultMetadata
 }) => {
     const [title, setTitle] = useState(stack?.title || '');
     const [titleImage, setTitleImage] = useState(stack?.titleImage || '');
@@ -149,6 +293,7 @@ const AddStackModal = ({
     const [medium, setMedium] = useState(stack?.medium || (stack ? '' : (defaultMetadata?.medium || '')));
     const [subject, setSubject] = useState(stack?.subject || (stack ? '' : (defaultMetadata?.subject || '')));
     const [cost, setCost] = useState(stack?.cost || 0);
+    const [sections, setSections] = useState(stack?.sections || []);
     const [isPublishing, setIsPublishing] = useState(activeTab === 'ready-made' && user?.email === ADMIN_EMAIL);
     const [viewingImage, setViewingImage] = useState(null);
     const uploadInputRef = useRef(null);
@@ -158,22 +303,32 @@ const AddStackModal = ({
     const [selectedCards, setSelectedCards] = useState(new Set());
     const [showMergeUI, setShowMergeUI] = useState(false);
     const [mergeTargetId, setMergeTargetId] = useState('');
+    const [isSaving, setIsSaving] = useState(false);
     const modalRef = useRef(null);
-
+    const contentRef = useRef(null); // Dedicated ref for scrollable content
 
     // Recording state
-    const [recording, setRecording] = useState(null); // { id, field }
-    const [mediaRecorder, setMediaRecorder] = useState(null);
+    const [recording, setRecording] = useState(null);
     const [recordingTime, setRecordingTime] = useState(0);
+    const [mediaRecorder, setMediaRecorder] = useState(null);
     const timerRef = useRef(null);
 
     const handleAddCard = () => {
-        setCards([...cards, { id: Date.now(), type: 'flashcard', question: { text: '', image: '', audio: '' }, answer: { text: '', image: '', audio: '' } }]);
+        const newCard = { id: Date.now(), type: 'flashcard', question: { text: '', image: '', audio: '' }, answer: { text: '', image: '', audio: '' } };
+        if (sections.length > 0) {
+            const lastIdx = sections.length - 1;
+            const newSections = [...sections];
+            newSections[lastIdx].cards.push(newCard);
+            setSections(newSections);
+            setCards(newSections.flatMap(s => s.cards));
+        } else {
+            setCards([...cards, newCard]);
+        }
         scrollToBottom();
     };
 
     const handleAddMCQ = () => {
-        setCards([...cards, {
+        const newCard = {
             id: Date.now(),
             type: 'mcq',
             question: { text: '', image: '', audio: '' },
@@ -183,38 +338,59 @@ const AddStackModal = ({
                 { id: Date.now() + 3, text: '', isCorrect: false },
                 { id: Date.now() + 4, text: '', isCorrect: false }
             ],
-            answer: { text: '', image: '', audio: '' } // Metadata/redundant
-        }]);
+            answer: { text: '', image: '', audio: '' }
+        };
+
+        if (sections.length > 0) {
+            const lastIdx = sections.length - 1;
+            const newSections = [...sections];
+            newSections[lastIdx].cards.push(newCard);
+            setSections(newSections);
+            setCards(newSections.flatMap(s => s.cards));
+        } else {
+            setCards([...cards, newCard]);
+        }
         scrollToBottom();
+    };
+
+    const handleAddSection = () => {
+        setSections([...sections, { noteSegment: '', cards: [] }]);
     };
 
     const scrollToBottom = () => {
         setTimeout(() => {
-            if (modalRef.current) {
-                modalRef.current.scrollTo({
-                    top: modalRef.current.scrollHeight,
+            if (contentRef.current) {
+                contentRef.current.scrollTo({
+                    top: contentRef.current.scrollHeight,
                     behavior: 'smooth'
                 });
             }
         }, 100);
     };
 
-    const handleMoveCard = (index, newPosition) => {
-        const newIndex = parseInt(newPosition) - 1; // 1-based to 0-based
-        if (isNaN(newIndex) || newIndex < 0 || newIndex >= cards.length || newIndex === index) return;
-
-        const newCards = [...cards];
-        const [movedCard] = newCards.splice(index, 1);
-        newCards.splice(newIndex, 0, movedCard);
-        setCards(newCards);
+    const handleMoveCard = (index, newPosition, sIndex = null) => {
+        const newIndex = parseInt(newPosition) - 1;
+        if (sIndex !== null) {
+            const newSections = [...sections];
+            const sectionCards = newSections[sIndex].cards;
+            if (isNaN(newIndex) || newIndex < 0 || newIndex >= sectionCards.length || newIndex === index) return;
+            const [movedCard] = sectionCards.splice(index, 1);
+            sectionCards.splice(newIndex, 0, movedCard);
+            setSections(newSections);
+            setCards(newSections.flatMap(s => s.cards));
+        } else {
+            if (isNaN(newIndex) || newIndex < 0 || newIndex >= cards.length || newIndex === index) return;
+            const newCards = [...cards];
+            const [movedCard] = newCards.splice(index, 1);
+            newCards.splice(newIndex, 0, movedCard);
+            setCards(newCards);
+        }
     };
 
     const handleOptionChange = (cardId, optionId, field, value) => {
         setCards(cards.map(c => {
             if (c.id !== cardId) return c;
-
             if (field === 'isCorrect') {
-                // Radio behavior: set this to true, others to false
                 return {
                     ...c,
                     options: c.options.map(opt => ({
@@ -223,7 +399,6 @@ const AddStackModal = ({
                     }))
                 };
             }
-
             return {
                 ...c,
                 options: c.options.map(opt => opt.id === optionId ? { ...opt, [field]: value } : opt)
@@ -241,14 +416,12 @@ const AddStackModal = ({
         setCards(cards.map(c => c.id === id ? { ...c, [field]: value } : c));
     };
 
-    // SECURITY FIX (VULN-004): Validate data URIs before accepting uploads
     const handleFileUpload = (e, callback, fileType = 'image') => {
         const file = e.target.files[0];
         if (!file) return;
         const reader = new FileReader();
         reader.onloadend = () => {
             const dataURI = reader.result;
-            // Validate the data URI based on file type
             const allowedTypes = fileType === 'image' ? ['image/'] : ['audio/'];
             if (!validateDataURI(dataURI, allowedTypes)) {
                 showAlert(`Invalid ${fileType} file. Only ${fileType} files are allowed.`);
@@ -260,48 +433,29 @@ const AddStackModal = ({
     };
 
     const startRecording = async (id, field) => {
-        // Set recording state immediately for instant UI feedback
         setRecording({ id, field });
         setRecordingTime(0);
-
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             const recorder = new MediaRecorder(stream);
             const chunks = [];
-
             recorder.ondataavailable = (e) => chunks.push(e.data);
             recorder.onstop = () => {
                 const blob = new Blob(chunks, { type: 'audio/webm' });
                 const reader = new FileReader();
                 reader.onloadend = () => {
-                    // Use functional update to avoid stale closure
-                    setCards(prevCards => {
-                        return prevCards.map(c => {
-                            if (c.id === id) {
-                                return {
-                                    ...c,
-                                    [field]: { ...c[field], audio: reader.result }
-                                };
-                            }
-                            return c;
-                        });
-                    });
+                    setCards(prevCards => prevCards.map(c => c.id === id ? { ...c, [field]: { ...c[field], audio: reader.result } } : c));
                 };
                 reader.readAsDataURL(blob);
                 stream.getTracks().forEach(track => track.stop());
                 clearInterval(timerRef.current);
                 setRecordingTime(0);
             };
-
             recorder.start();
             setMediaRecorder(recorder);
-            timerRef.current = setInterval(() => {
-                setRecordingTime(prev => prev + 1);
-            }, 1000);
+            timerRef.current = setInterval(() => setRecordingTime(prev => prev + 1), 1000);
         } catch (err) {
-            // SECURITY FIX (VULN-006): Don't log error details
             showAlert('Could not access microphone.');
-            // Clear recording state on error
             setRecording(null);
             setRecordingTime(0);
         }
@@ -327,20 +481,15 @@ const AddStackModal = ({
         }
     };
 
-    const formatTime = (seconds) => {
-        const mins = Math.floor(seconds / 60);
-        const secs = seconds % 60;
-        return `${mins}:${secs.toString().padStart(2, '0')}`;
-    };
-
     const handleSave = async () => {
         if (!title.trim()) return showAlert('Please enter a title');
 
-        for (let i = 0; i < cards.length; i++) {
-            const card = cards[i];
+        const finalCards = sections.length > 0 ? sections.flatMap(s => s.cards) : cards;
+
+        for (let i = 0; i < finalCards.length; i++) {
+            const card = finalCards[i];
             const hasQuestion = card.question.text.trim() || card.question.image || card.question.audio;
             const hasAnswer = card.answer.text.trim() || card.answer.image || card.answer.audio;
-
             if (card.type === 'mcq') {
                 const hasCorrectOption = card.options?.some(o => o.isCorrect);
                 if (!hasQuestion) return showAlert(`Question is required for MCQ ${i + 1}`);
@@ -353,15 +502,8 @@ const AddStackModal = ({
 
         const newStack = {
             id: stack?.id || Date.now().toString(),
-            title,
-            titleImage,
-            label,
-            standard,
-            syllabus,
-            medium,
-            subject,
-            importantNote,
-            cards,
+            title, titleImage, label, standard, syllabus, medium, subject, importantNote,
+            cards: finalCards, sections,
             owner: user.email,
             avgRating: stack?.avgRating || null,
             lastReviewed: stack?.lastReviewed || null,
@@ -369,52 +511,46 @@ const AddStackModal = ({
         };
 
         try {
-            const folderId = isPublishing ? publicFolderId : null;
-            const result = await saveStack(user.token, newStack, stack?.driveFileId, folderId);
+            setIsSaving(true);
+            let savedStack;
 
-            // Update public index if needed
-            if ((isPublishing || stack?.isPublic) && user?.email === ADMIN_EMAIL && publicFolderId) {
-                try {
-                    const { updatePublicStackIndex } = await import('../services/adminService');
-                    await updatePublicStackIndex(user.token, publicFolderId, { ...newStack, driveFileId: result.id });
-
-                    // Clear cache for this stack to ensure fresh load
-                    const { clearStackCache } = await import('../services/googleDrive');
-                    clearStackCache(result.id);
-                } catch (e) {
-                    console.error('Index update failed', e);
-                }
+            if (isPublishing) {
+                // Authoritative Move to Firebase for Public Lessons
+                const { savePublicLesson } = await import('../services/publicDrive');
+                savedStack = await savePublicLesson(newStack);
+            } else {
+                // Personal Storage strictly stays on Google Drive
+                savedStack = await storageService.saveStack(newStack);
             }
 
-            // Passing back the stack with the possibly new driveFileId
-            onSave({ ...newStack, driveFileId: result.id }, true, isPublishing);
+            const resultId = savedStack.driveFileId || savedStack.id;
+            onSave({ ...savedStack, driveFileId: resultId }, true, isPublishing);
         } catch (error) {
+            setIsSaving(false);
             if (error.message === 'REAUTH_NEEDED') {
-                signIn('consent', 0, null, showAlert);
+                signIn('consent', () => handleSave(), showAlert);
             } else {
-                // SECURITY FIX (VULN-006): Don't log error details
-                showAlert('Failed to save stack.');
+                console.error('Save failed:', error);
+                if (error.code === 'storage/unknown' || error.message.includes('storage/unknown')) {
+                    showAlert('Cloud upload failed (likely CORS). Please use the "Download" button to save locally.');
+                } else {
+                    showAlert(`Failed to save stack: ${error.message}`);
+                }
             }
         }
     };
 
     const handleDownload = async () => {
         if (!title) return showAlert('Please save the stack first');
-
         const stackToDownload = {
             id: stack?.id || Date.now().toString(),
-            title,
-            titleImage,
-            label,
-            cards,
+            title, titleImage, label, cards,
             createdAt: stack?.createdAt || new Date().toISOString()
         };
-
         try {
             await downloadStackAsZip(stackToDownload);
             showAlert('Stack downloaded successfully!');
         } catch (error) {
-            // SECURITY FIX (VULN-006): Don't log error details
             showAlert('Failed to download stack.');
         }
     };
@@ -422,116 +558,67 @@ const AddStackModal = ({
     const handleUpload = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
-
         try {
             const importedStack = await uploadStackFromZip(file);
-
-            // Populate the form with imported data
             setTitle(importedStack.title);
             setTitleImage(importedStack.titleImage || '');
             setLabel(importedStack.label || 'No label');
             setImportantNote(importedStack.importantNote || '');
-            setCards(importedStack.cards);
 
+            // Set Metadata
+            setStandard(importedStack.standard || '');
+            setSyllabus(importedStack.syllabus || '');
+            setMedium(importedStack.medium || '');
+            setSubject(importedStack.subject || '');
+            setCost(importedStack.cost || 0);
+
+            setCards(importedStack.cards);
+            if (importedStack.sections) setSections(importedStack.sections);
             showAlert('Stack imported successfully! Review and save.');
         } catch (error) {
-            // SECURITY FIX (VULN-006): Don't log error details
             showAlert(error.message || 'Failed to import stack.');
         }
     };
 
     const handleSplitStack = () => {
-        if (selectedCards.size === 0) {
-            return showAlert('Please select at least one card to split.');
-        }
-        if (selectedCards.size === cards.length) {
-            return showAlert('Cannot split all cards. Leave at least one card in the current stack.');
-        }
-
+        if (selectedCards.size === 0) return showAlert('Please select at least one card to split.');
+        if (selectedCards.size === cards.length) return showAlert('Cannot split all cards.');
         showConfirm(`Split ${selectedCards.size} card(s) into a new stack?`, async () => {
             const cardsToSplit = cards.filter(c => selectedCards.has(c.id));
             const remainingCards = cards.filter(c => !selectedCards.has(c.id));
-
-            // Create new stack with selected cards
             const newStack = {
                 id: Date.now().toString(),
                 title: `${title} (Split)`,
-                titleImage,
-                label,
-                cards: cardsToSplit,
-                owner: user.email,
-                avgRating: null,
-                lastReviewed: null,
+                titleImage, label, cards: cardsToSplit,
+                owner: user.email
             };
-
             try {
-                // Save new stack
-                const result = await saveStack(user.token, newStack);
-
-                // Notify parent about the new stack without closing modal
-                onSave({ ...newStack, driveFileId: result.id }, false);
-
-                // Update current stack with remaining cards
+                const savedNewStack = await storageService.saveStack(newStack);
+                onSave({ ...savedNewStack, driveFileId: savedNewStack.driveFileId || savedNewStack.id }, false);
                 setCards(remainingCards);
                 setSelectedCards(new Set());
                 setShowSplitUI(false);
-
-                showAlert(`Stack split successfully! New stack "${newStack.title}" created.`);
-
-                // Save the updated current stack
+                showAlert(`Stack split successfully!`);
                 await handleSave();
-
             } catch (error) {
-                if (error.message === 'REAUTH_NEEDED') {
-                    signIn('consent', 0, null, showAlert);
-                } else {
-                    // SECURITY FIX (VULN-006): Don't log error details
-                    showAlert('Failed to split stack.');
-                }
+                showAlert('Failed to split stack.');
             }
         });
     };
 
-
-
     const handleMergeStack = async () => {
-        if (!mergeTargetId) {
-            return showAlert('Please select a stack to merge with.');
-        }
-
+        if (!mergeTargetId) return showAlert('Please select a stack to merge with.');
         const targetStack = allStacks?.find(s => s.id === mergeTargetId);
-        if (!targetStack) {
-            return showAlert('Target stack not found.');
-        }
-
-        showConfirm(`Merge "${title}" into "${targetStack.title}"? The current stack will be deleted.`, async () => {
+        if (!targetStack) return showAlert('Target stack not found.');
+        showConfirm(`Merge "${title}" into "${targetStack.title}"?`, async () => {
             try {
-                // Combine cards
-                const mergedCards = [...targetStack.cards, ...cards];
-
-                // Update target stack
-                const updatedStack = {
-                    ...targetStack,
-                    cards: mergedCards
-                };
-
-                await saveStack(user.token, updatedStack, targetStack.driveFileId);
-
-                // Delete current stack if it exists in Drive
-                if (stack?.driveFileId) {
-                    await deleteStack(user.token, stack.driveFileId);
-                }
-
-                showAlert(`Stacks merged successfully into "${targetStack.title}"!`);
+                const updatedStack = { ...targetStack, cards: [...targetStack.cards, ...cards] };
+                await storageService.saveStack(updatedStack);
+                if (stack?.driveFileId) await deleteStack(user.token, stack.driveFileId);
+                showAlert(`Stacks merged successfully!`);
                 onClose();
-                // SECURITY FIX (VULN-008): Parent component will refresh stacks automatically
             } catch (error) {
-                if (error.message === 'REAUTH_NEEDED') {
-                    signIn('consent', 0, null, showAlert);
-                } else {
-                    // SECURITY FIX (VULN-006): Don't log error details
-                    showAlert('Failed to merge stacks.');
-                }
+                showAlert('Failed to merge stacks.');
             }
         });
     };
@@ -539,11 +626,8 @@ const AddStackModal = ({
     const toggleCardSelection = (cardId) => {
         setSelectedCards(prev => {
             const newSet = new Set(prev);
-            if (newSet.has(cardId)) {
-                newSet.delete(cardId);
-            } else {
-                newSet.add(cardId);
-            }
+            if (newSet.has(cardId)) newSet.delete(cardId);
+            else newSet.add(cardId);
             return newSet;
         });
     };
@@ -557,515 +641,353 @@ const AddStackModal = ({
             <div
                 ref={modalRef}
                 className="modal-content neo-flat" style={{
-                    width: '100%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto', padding: '2rem',
-                    display: 'flex', flexDirection: 'column', gap: '1.5rem', position: 'relative'
+                    width: '100%', maxWidth: '600px',
+                    height: window.innerWidth < 768 ? '100%' : '90vh',
+                    maxHeight: '100%',
+                    padding: 0,
+                    display: 'flex', flexDirection: 'column',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    borderRadius: window.innerWidth < 768 ? 0 : '24px'
                 }}>
-                {/* Header Icons */}
-                <div style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', display: 'flex', gap: '0.5rem' }}>
-                    {stack && <button className="neo-button icon-btn" title="Download Stack" onClick={handleDownload}><Download size={18} /></button>}
-                    {stack && <button className="neo-button icon-btn" title="Duplicate" onClick={() => onDuplicate(stack)}><Copy size={18} /></button>}
-                    <CloseButton onClick={onClose} size={18} />
-                </div>
 
-                <h2 style={{ fontSize: '1.5rem' }}>{stack ? 'Edit Stack' : 'New Flashcard Stack'}</h2>
-
-
-
-
-
-
-                {/* Title Image Upload */}
-                <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
-                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-                        <label style={{ fontWeight: '600', opacity: 0.7 }}>Title & Cover Image</label>
-                        <div style={{ display: 'flex', gap: '10px' }}>
-                            <div style={{ position: 'relative', flex: 1 }}>
-                                <input
-                                    className="neo-input"
-                                    placeholder="Stack Title "
-                                    value={title}
-                                    onChange={(e) => setTitle(sanitizeText(e.target.value))}
-                                    style={{ paddingRight: '30px' }}
-                                />
-                                <span style={{
-                                    position: 'absolute',
-                                    right: '12px',
-                                    top: '50%',
-                                    transform: 'translateY(-50%)',
-                                    color: 'red',
-                                    pointerEvents: 'none',
-                                    visibility: title ? 'hidden' : 'visible'
-                                }}>*</span>
-                            </div>
-                            <div style={{ display: 'flex', gap: '8px' }}>
-                                <label className="neo-button icon-btn" style={{ cursor: 'pointer', flexShrink: 0, color: titleImage ? 'var(--accent-color)' : 'currentColor' }}>
-                                    <ImageIcon size={18} />
-                                    <input type="file" hidden accept="image/*" onChange={(e) => handleFileUpload(e, setTitleImage)} />
-                                </label>
-                                {titleImage && (
-                                    <button className="neo-button icon-btn" style={{ flexShrink: 0 }} onClick={() => setTitleImage('')}>
-                                        <Trash2 size={16} color="var(--error-color)" />
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-
-
-                        {/* Neo Dropdown for Labels */}
-                        <NeoDropdown
-                            label="Label"
-                            value={label}
-                            options={[
-                                { label: 'No label', value: 'No label' },
-                                ...availableLabels.filter(lbl => lbl !== 'No label').map(lbl => ({ label: lbl, value: lbl }))
-                            ]}
-                            onChange={setLabel}
-                            placeholder="Select label..."
-                        >
-                            {/* Add New Label Input inside Dropdown */}
-                            <div style={{ display: 'flex', gap: '8px', padding: '8px', borderBottom: '1px solid var(--shadow-dark)', marginBottom: '4px' }}>
-                                <input
-                                    className="neo-input"
-                                    placeholder="Create new label..."
-                                    value={newLabelInput}
-                                    onChange={(e) => setNewLabelInput(sanitizeText(e.target.value))}
-                                    onKeyPress={(e) => {
-                                        if (e.key === 'Enter' && newLabelInput.trim()) {
-                                            setLabel(newLabelInput.trim());
-                                            setNewLabelInput('');
-                                        }
-                                    }}
-                                    style={{ flex: 1, fontSize: '0.85rem', padding: '8px 12px', height: '36px' }}
-                                />
-                                <button
-                                    className="neo-button"
-                                    style={{ padding: '8px 12px', fontSize: '0.85rem', height: '36px' }}
-                                    onClick={() => {
-                                        if (newLabelInput.trim()) {
-                                            setLabel(newLabelInput.trim());
-                                            setNewLabelInput('');
-                                        }
-                                    }}
-                                >
-                                    <Plus size={14} />
-                                </button>
-                            </div>
-                        </NeoDropdown>
-
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', marginTop: '0.5rem' }}>
-                            <label style={{ fontWeight: '600', opacity: 0.7 }}>Important Note (Optional)</label>
-                            <textarea
-                                className="neo-input"
-                                rows="3"
-                                placeholder="Add an important note to be shown before review..."
-                                value={importantNote}
-                                onChange={(e) => setImportantNote(sanitizeText(e.target.value))}
-                                style={{ resize: 'vertical' }}
-                            />
-                        </div>
+                <div style={{
+                    padding: '1.5rem 2rem', borderBottom: '1px solid var(--shadow-dark)',
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    background: 'var(--bg-color)', zIndex: 10
+                }}>
+                    <h2 style={{ fontSize: '1.5rem', margin: 0 }}>{stack ? 'Edit Stack' : 'New Flashcard Stack'}</h2>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        {stack && <button className="neo-button icon-btn" title="Download Stack" onClick={handleDownload}><Download size={18} /></button>}
+                        {stack && <button className="neo-button icon-btn" title="Duplicate" onClick={() => onDuplicate(stack)}><Copy size={18} /></button>}
+                        <CloseButton onClick={onClose} size={18} />
                     </div>
                 </div>
 
-                {/* Community Metadata & Publishing (Admin only) */}
-                {user?.email === ADMIN_EMAIL && (
-                    <div className="neo-inset" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', borderRadius: '16px' }}>
-                        <h3 style={{ fontSize: '0.9rem', fontWeight: 'bold', opacity: 0.6 }}>COMMUNITY METADATA</h3>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
-                            <NeoDropdown
-                                label="Standard"
-                                value={standard}
-                                options={['V', 'VI', 'VII', 'VIII', 'IX', 'X'].map(s => ({ label: `Standard ${s}`, value: s }))}
-                                onChange={setStandard}
-                                placeholder="Select Standard"
-                            />
-                            <NeoDropdown
-                                label="Syllabus"
-                                value={syllabus}
-                                options={['NCERT', 'Kerala'].map(s => ({ label: s, value: s }))}
-                                onChange={setSyllabus}
-                                placeholder="Select Syllabus"
-                            />
-                            <NeoDropdown
-                                label="Medium"
-                                value={medium}
-                                options={['Malayalam', 'English'].map(s => ({ label: s, value: s }))}
-                                onChange={setMedium}
-                                placeholder="Select Medium"
-                            />
-                            <NeoDropdown
-                                label="Subject"
-                                value={subject}
-                                options={['Maths', 'Social Science', 'Science', 'English', 'Malayalam', 'Hindi'].map(s => ({ label: s, value: s }))}
-                                onChange={setSubject}
-                                placeholder="Select Subject"
-                            />
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-                                <label style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase' }}>Cost (Coins)</label>
-                                <input
-                                    type="number"
-                                    className="neo-input"
-                                    value={cost}
-                                    onChange={(e) => setCost(e.target.value)}
-                                    placeholder="0 for free"
-                                    style={{ padding: '10px 12px' }}
-                                />
-                            </div>
-                        </div>
-
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '1rem', cursor: 'pointer', padding: '0.5rem', borderRadius: '8px', background: isPublishing ? 'var(--accent-soft)' : 'transparent' }}>
-                            <input
-                                type="checkbox"
-                                checked={isPublishing}
-                                onChange={(e) => setIsPublishing(e.target.checked)}
-                                style={{ width: '18px', height: '18px' }}
-                            />
-                            <span style={{ fontSize: '0.9rem', fontWeight: '600', color: isPublishing ? 'var(--accent-color)' : 'inherit' }}>
-                                Publish to Community Pool
-                            </span>
-                        </label>
-                    </div>
-                )}
-
-                {/* Cards List */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                    {cards.map((card, index) => (
-                        <div key={card.id} className="neo-inset" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', position: 'relative' }}>
-                            {showSplitUI && (
-                                <div style={{ position: 'absolute', top: '10px', left: '10px', zIndex: 5 }}>
+                <div
+                    ref={contentRef}
+                    style={{
+                        padding: '2rem', flex: 1, overflowY: 'auto',
+                        display: 'flex', flexDirection: 'column', gap: '1.5rem'
+                    }}
+                >
+                    <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                            <label style={{ fontWeight: '600', opacity: 0.7 }}>Title & Cover Image</label>
+                            <div style={{ display: 'flex', gap: '10px' }}>
+                                <div style={{ position: 'relative', flex: 1 }}>
                                     <input
-                                        type="checkbox"
-                                        className="neo-checkbox"
-                                        checked={selectedCards.has(card.id)}
-                                        onChange={() => toggleCardSelection(card.id)}
+                                        id="modal-title-input"
+                                        className="neo-input"
+                                        placeholder="Stack Title "
+                                        value={title}
+                                        onChange={(e) => setTitle(sanitizeText(e.target.value))}
+                                        style={{ paddingRight: '30px' }}
                                     />
+                                    {!title && <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: 'red', pointerEvents: 'none' }}>*</span>}
                                 </div>
-                            )}
-                            {/* Header: Label, Move, Delete */}
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                                <div style={{ fontSize: '0.9rem', fontWeight: 'bold', opacity: 0.5, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <span>{card.type === 'mcq' ? 'MCQ' : 'CARD'} {index + 1}</span>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                    <label className="neo-button icon-btn" style={{ cursor: 'pointer', flexShrink: 0, color: titleImage ? 'var(--accent-color)' : 'currentColor' }}>
+                                        <ImageIcon size={18} />
+                                        <input type="file" hidden accept="image/*" onChange={(e) => handleFileUpload(e, setTitleImage)} />
+                                    </label>
+                                    {titleImage && (
+                                        <button className="neo-button icon-btn" style={{ flexShrink: 0 }} onClick={() => setTitleImage('')}>
+                                            <Trash2 size={16} color="var(--error-color)" />
+                                        </button>
+                                    )}
                                 </div>
+                            </div>
 
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--bg-color)', padding: '4px 8px', borderRadius: '8px', boxShadow: 'inset 2px 2px 4px var(--shadow-dark), inset -2px -2px 4px var(--shadow-light)' }}>
-                                        <span style={{ fontSize: '0.75rem', opacity: 0.6 }}>Pos:</span>
-                                        <input
-                                            type="number"
-                                            className="neo-input"
-                                            style={{
-                                                width: '40px', padding: '2px', textAlign: 'center',
-                                                boxShadow: 'none', background: 'transparent', height: 'auto',
-                                                fontSize: '0.9rem', fontWeight: 'bold'
-                                            }}
-                                            placeholder="#"
-                                            onBlur={(e) => {
-                                                if (e.target.value) {
-                                                    handleMoveCard(index, e.target.value);
-                                                    e.target.value = '';
-                                                }
-                                            }}
-                                            onKeyDown={(e) => {
-                                                if (e.key === 'Enter' && e.target.value) {
-                                                    handleMoveCard(index, e.target.value);
-                                                    e.target.value = '';
-                                                }
-                                            }}
-                                        />
-                                    </div>
+                            <NeoDropdown
+                                label="Label"
+                                value={label}
+                                options={[
+                                    { label: 'No label', value: 'No label' },
+                                    ...availableLabels.filter(lbl => lbl !== 'No label').map(lbl => ({ label: lbl, value: lbl }))
+                                ]}
+                                onChange={setLabel}
+                                placeholder="Select label..."
+                            >
+                                <div style={{ display: 'flex', gap: '8px', padding: '8px', borderBottom: '1px solid var(--shadow-dark)', marginBottom: '4px' }}>
+                                    <input
+                                        className="neo-input"
+                                        placeholder="Create new label..."
+                                        value={newLabelInput}
+                                        onChange={(e) => setNewLabelInput(sanitizeText(e.target.value))}
+                                        onKeyPress={(e) => {
+                                            if (e.key === 'Enter' && newLabelInput.trim()) {
+                                                setLabel(newLabelInput.trim());
+                                                setNewLabelInput('');
+                                            }
+                                        }}
+                                        style={{ flex: 1, fontSize: '0.85rem', padding: '8px 12px', height: '36px' }}
+                                    />
                                     <button
-                                        className="neo-button icon-btn"
-                                        style={{ width: '32px', height: '32px', color: 'var(--error-color)', boxShadow: 'none' }}
-                                        onClick={() => handleRemoveCard(card.id)}
-                                        title="Delete Card"
+                                        className="neo-button"
+                                        style={{ padding: '8px 12px', fontSize: '0.85rem', height: '36px' }}
+                                        onClick={() => {
+                                            if (newLabelInput.trim()) {
+                                                setLabel(newLabelInput.trim());
+                                                setNewLabelInput('');
+                                            }
+                                        }}
                                     >
-                                        <Trash2 size={16} />
+                                        <Plus size={14} />
                                     </button>
                                 </div>
+                            </NeoDropdown>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', marginTop: '0.5rem' }}>
+                                <label style={{ fontWeight: '600', opacity: 0.7 }}>Important Note (Optional)</label>
+                                <AutoGrowingTextarea
+                                    placeholder="Add an important note..."
+                                    value={importantNote}
+                                    onChange={(e) => setImportantNote(sanitizeText(e.target.value))}
+                                />
                             </div>
+                        </div>
+                    </div>
 
-                            {/* Question Section */}
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>QUESTION</span>
-                                    <div style={{ display: 'flex', gap: '5px' }}>
-                                        {!recording ? (
-                                            <div style={{ display: 'flex', gap: '5px' }}>
-                                                <button
-                                                    className="neo-button icon-btn"
-                                                    style={{ width: '32px', height: '32px', color: card.question.audio ? 'var(--accent-color)' : 'currentColor' }}
-                                                    onClick={() => startRecording(card.id, 'question')}
-                                                >
-                                                    <Mic size={14} />
-                                                </button>
-                                                {card.question.audio && (
-                                                    <button className="neo-button icon-btn" style={{ width: '32px', height: '32px' }} onClick={() => handleUpdateCard(card.id, 'question', { ...card.question, audio: '' })}>
-                                                        <Trash2 size={12} color="var(--error-color)" />
-                                                    </button>
-                                                )}
-                                            </div>
-                                        ) : recording.id === card.id && recording.field === 'question' ? (
-                                            <div className="neo-flat" style={{
-                                                position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 10,
-                                                borderRadius: '12px', display: 'flex', alignItems: 'center', padding: '0 1rem', gap: '1rem',
-                                                background: 'var(--bg-color)'
-                                            }}>
-                                                <div style={{ width: '10px', height: '10px', background: 'red', borderRadius: '50%', animation: 'pulse 1s infinite' }} />
-                                                <span style={{ flex: 1, fontWeight: '600' }}>Recording... {formatTime(recordingTime)}</span>
-                                                <button className="neo-button icon-btn" title="Cancel" style={{ width: '32px', height: '32px' }} onClick={cancelRecording}>
-                                                    <X size={14} color="var(--error-color)" />
-                                                </button>
-                                                <button className="neo-button icon-btn" title="Stop & Save" style={{ width: '32px', height: '32px' }} onClick={stopRecording}>
-                                                    <Check size={14} color="var(--accent-color)" />
-                                                </button>
-                                            </div>
-                                        ) : null}
-
-                                        <label className="neo-button icon-btn" style={{ width: '32px', height: '32px', cursor: 'pointer' }}>
-                                            <ImageIcon size={14} color={card.question.image ? 'var(--accent-color)' : 'currentColor'} />
-                                            <input type="file" hidden accept="image/*" onChange={(e) => handleFileUpload(e, (data) => handleUpdateCard(card.id, 'question', { ...card.question, image: data }))} />
-                                        </label>
-                                    </div>
-                                </div>
-                                {card.question.image && (
-                                    <div style={{ position: 'relative', width: '100%', maxHeight: '150px' }}>
-                                        <img
-                                            src={card.question.image}
-                                            style={{ width: '100%', height: '100%', maxHeight: '150px', objectFit: 'contain', borderRadius: '8px', cursor: 'pointer' }}
-                                            onClick={() => setViewingImage(card.question.image)}
-                                        />
-                                        <button
-                                            className="neo-button icon-btn"
-                                            style={{ position: 'absolute', top: '5px', right: '5px', width: '24px', height: '24px' }}
-                                            onClick={() => handleUpdateCard(card.id, 'question', { ...card.question, image: '' })}
-                                        >
-                                            <X size={12} />
-                                        </button>
-                                    </div>
-                                )}
-                                <div style={{ position: 'relative' }}>
-                                    <textarea
+                    {user?.email === ADMIN_EMAIL && (
+                        <div className="neo-inset" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', borderRadius: '16px' }}>
+                            <h3 style={{ fontSize: '0.9rem', fontWeight: 'bold', opacity: 0.6 }}>COMMUNITY METADATA</h3>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+                                <NeoDropdown
+                                    label="Standard"
+                                    value={standard}
+                                    options={['V', 'VI', 'VII', 'VIII', 'IX', 'X'].map(s => ({ label: `Standard ${s}`, value: s }))}
+                                    onChange={setStandard}
+                                    placeholder="Select Standard"
+                                />
+                                <NeoDropdown
+                                    label="Syllabus"
+                                    value={syllabus}
+                                    options={['NCERT', 'Kerala'].map(s => ({ label: s, value: s }))}
+                                    onChange={setSyllabus}
+                                    placeholder="Select Syllabus"
+                                />
+                                <NeoDropdown
+                                    label="Medium"
+                                    value={medium}
+                                    options={['Malayalam', 'English'].map(s => ({ label: s, value: s }))}
+                                    onChange={setMedium}
+                                    placeholder="Select Medium"
+                                />
+                                <NeoDropdown
+                                    label="Subject"
+                                    value={subject}
+                                    options={['Maths', 'Social Science', 'Science', 'English', 'Malayalam', 'Hindi'].map(s => ({ label: s, value: s }))}
+                                    onChange={setSubject}
+                                    placeholder="Select Subject"
+                                />
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                                    <label style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase' }}>Cost (Coins)</label>
+                                    <input
+                                        type="number"
                                         className="neo-input"
-                                        rows="3"
-                                        placeholder="The question... "
-                                        value={card.question.text}
-                                        onChange={(e) => handleUpdateCard(card.id, 'question', { ...card.question, text: sanitizeText(e.target.value) })}
-                                        style={{ paddingRight: '30px', resize: 'vertical' }}
+                                        value={cost}
+                                        onChange={(e) => setCost(e.target.value)}
+                                        placeholder="0 for free"
+                                        style={{ padding: '10px 12px' }}
                                     />
-                                    <span style={{
-                                        position: 'absolute',
-                                        right: '12px',
-                                        top: '12px',
-                                        color: 'red',
-                                        pointerEvents: 'none',
-                                        visibility: (card.question.text || card.question.image || card.question.audio) ? 'hidden' : 'visible'
-                                    }}>*</span>
                                 </div>
-                                {card.question.audio && (
-                                    <AudioPlayer audioData={card.question.audio} />
-                                )}
                             </div>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '1rem', cursor: 'pointer', padding: '0.5rem', borderRadius: '8px', background: isPublishing ? 'var(--accent-soft)' : 'transparent' }}>
+                                <input
+                                    type="checkbox"
+                                    checked={isPublishing}
+                                    onChange={(e) => setIsPublishing(e.target.checked)}
+                                    style={{ width: '18px', height: '18px' }}
+                                />
+                                <span style={{ fontSize: '0.9rem', fontWeight: '600', color: isPublishing ? 'var(--accent-color)' : 'inherit' }}>
+                                    Publish to Community Pool
+                                </span>
+                            </label>
+                        </div>
+                    )}
 
-                            {/* Answer Section */}
-                            {card.type === 'mcq' ? (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                    <span style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>OPTIONS</span>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                        {card.options?.map((opt, i) => (
-                                            <div key={opt.id} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                <input
-                                                    type="radio"
-                                                    name={`correct-${card.id}`}
-                                                    checked={opt.isCorrect}
-                                                    onChange={() => handleOptionChange(card.id, opt.id, 'isCorrect', true)}
-                                                    style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: 'var(--accent-color)' }}
-                                                    title="Mark as correct answer"
-                                                />
-                                                <input
-                                                    className="neo-input"
-                                                    placeholder={`Option ${String.fromCharCode(65 + i)}`}
-                                                    value={opt.text}
-                                                    onChange={(e) => handleOptionChange(card.id, opt.id, 'text', sanitizeText(e.target.value))}
-                                                    style={{
-                                                        borderColor: opt.isCorrect ? 'var(--accent-color)' : 'transparent',
-                                                        borderWidth: opt.isCorrect ? '2px' : '1px'
-                                                    }}
-                                                />
-                                            </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                        {sections && sections.length > 0 ? (
+                            sections.map((section, sIndex) => (
+                                <div key={sIndex} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1rem', borderRadius: '12px', border: '1px solid var(--shadow-dark)' }}>
+                                    <div className="neo-flat" style={{ padding: '1rem', borderLeft: '4px solid var(--accent-color)', borderRadius: '8px' }}>
+                                        <label style={{ fontSize: '0.7rem', fontWeight: 'bold', opacity: 0.5, textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Section Note</label>
+                                        <AutoGrowingTextarea
+                                            value={section.noteSegment}
+                                            onChange={(e) => {
+                                                const newSections = [...sections];
+                                                newSections[sIndex].noteSegment = e.target.value;
+                                                setSections(newSections);
+                                            }}
+                                            placeholder="Enter section note..."
+                                            style={{ minHeight: '40px', background: 'transparent', boxShadow: 'none' }}
+                                        />
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                                        {section.cards.map((card, index) => (
+                                            <CardItem
+                                                key={card.id}
+                                                card={card}
+                                                index={index}
+                                                totalCards={section.cards.length}
+                                                onUpdate={(field, val) => {
+                                                    const newSections = [...sections];
+                                                    newSections[sIndex].cards[index] = { ...card, [field]: val };
+                                                    setSections(newSections);
+                                                    setCards(newSections.flatMap(s => s.cards));
+                                                }}
+                                                onRemove={() => {
+                                                    const newSections = [...sections];
+                                                    newSections[sIndex].cards.splice(index, 1);
+                                                    setSections(newSections);
+                                                    setCards(newSections.flatMap(s => s.cards));
+                                                }}
+                                                onMove={(newPos) => handleMoveCard(index, newPos, sIndex)}
+                                                recording={recording}
+                                                startRecording={startRecording}
+                                                stopRecording={stopRecording}
+                                                cancelRecording={cancelRecording}
+                                                recordingTime={recordingTime}
+                                                handleFileUpload={handleFileUpload}
+                                                handleOptionChange={(optId, f, v) => {
+                                                    const newSections = [...sections];
+                                                    const c = newSections[sIndex].cards[index];
+                                                    if (f === 'isCorrect') {
+                                                        c.options = c.options.map(o => ({ ...o, isCorrect: o.id === optId }));
+                                                    } else {
+                                                        c.options = c.options.map(o => o.id === optId ? { ...o, [f]: v } : o);
+                                                    }
+                                                    setSections(newSections);
+                                                    setCards(newSections.flatMap(s => s.cards));
+                                                }}
+                                                setViewingImage={setViewingImage}
+                                                showSplitUI={showSplitUI}
+                                                selectedCards={selectedCards}
+                                                toggleCardSelection={toggleCardSelection}
+                                            />
                                         ))}
                                     </div>
-                                    {(!card.options || card.options.length === 0) && (
-                                        <div style={{ color: 'red', fontSize: '0.8rem' }}>Error: No options found. Try re-adding this card.</div>
-                                    )}
+                                    <button
+                                        className="neo-button"
+                                        style={{ alignSelf: 'center', fontSize: '0.8rem', opacity: 0.6 }}
+                                        onClick={() => {
+                                            const newSections = [...sections];
+                                            newSections.splice(sIndex + 1, 0, { noteSegment: '', cards: [] });
+                                            setSections(newSections);
+                                        }}
+                                    >
+                                        <Plus size={14} /> Insert Section Here
+                                    </button>
                                 </div>
-                            ) : (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <span style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>ANSWER</span>
-                                        <div style={{ display: 'flex', gap: '5px' }}>
-                                            {!recording ? (
-                                                <div style={{ display: 'flex', gap: '5px' }}>
-                                                    <button
-                                                        className="neo-button icon-btn"
-                                                        style={{ width: '32px', height: '32px', color: card.answer.audio ? 'var(--accent-color)' : 'currentColor' }}
-                                                        onClick={() => startRecording(card.id, 'answer')}
-                                                    >
-                                                        <Mic size={14} />
-                                                    </button>
-                                                    {card.answer.audio && (
-                                                        <button className="neo-button icon-btn" style={{ width: '32px', height: '32px' }} onClick={() => handleUpdateCard(card.id, 'answer', { ...card.answer, audio: '' })}>
-                                                            <Trash2 size={12} color="var(--error-color)" />
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            ) : recording.id === card.id && recording.field === 'answer' ? (
-                                                <div className="neo-flat" style={{
-                                                    position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 10,
-                                                    borderRadius: '12px', display: 'flex', alignItems: 'center', padding: '0 1rem', gap: '1rem',
-                                                    background: 'var(--bg-color)'
-                                                }}>
-                                                    <div style={{ width: '10px', height: '10px', background: 'red', borderRadius: '50%', animation: 'pulse 1s infinite' }} />
-                                                    <span style={{ flex: 1, fontWeight: '600' }}>Recording... {formatTime(recordingTime)}</span>
-                                                    <button className="neo-button icon-btn" title="Cancel" style={{ width: '32px', height: '32px' }} onClick={cancelRecording}>
-                                                        <X size={14} color="var(--error-color)" />
-                                                    </button>
-                                                    <button className="neo-button icon-btn" title="Stop & Save" style={{ width: '32px', height: '32px' }} onClick={stopRecording}>
-                                                        <Check size={14} color="var(--accent-color)" />
-                                                    </button>
-                                                </div>
-                                            ) : null}
-                                            <label className="neo-button icon-btn" style={{ width: '32px', height: '32px', cursor: 'pointer' }}>
-                                                <ImageIcon size={14} color={card.answer.image ? 'var(--accent-color)' : 'currentColor'} />
-                                                <input type="file" hidden accept="image/*" onChange={(e) => handleFileUpload(e, (data) => handleUpdateCard(card.id, 'answer', { ...card.answer, image: data }))} />
-                                            </label>
-                                        </div>
-                                    </div>
-                                    {card.answer.image && (
-                                        <div style={{ position: 'relative', width: '100%', maxHeight: '150px' }}>
-                                            <img
-                                                src={card.answer.image}
-                                                style={{ width: '100%', height: '100%', maxHeight: '150px', objectFit: 'contain', borderRadius: '8px', cursor: 'pointer' }}
-                                                onClick={() => setViewingImage(card.answer.image)}
-                                            />
-                                            <button
-                                                className="neo-button icon-btn"
-                                                style={{ position: 'absolute', top: '5px', right: '5px', width: '24px', height: '24px' }}
-                                                onClick={() => handleUpdateCard(card.id, 'answer', { ...card.answer, image: '' })}
-                                            >
-                                                <X size={12} />
-                                            </button>
-                                        </div>
-                                    )}
-                                    <div style={{ position: 'relative' }}>
-                                        <textarea
-                                            className="neo-input"
-                                            rows="3"
-                                            placeholder="The answer... "
-                                            value={card.answer.text}
-                                            onChange={(e) => handleUpdateCard(card.id, 'answer', { ...card.answer, text: sanitizeText(e.target.value) })}
-                                            style={{ paddingRight: '30px', resize: 'vertical' }}
-                                        />
-                                        <span style={{
-                                            position: 'absolute',
-                                            right: '12px',
-                                            top: '12px',
-                                            color: 'red',
-                                            pointerEvents: 'none',
-                                            visibility: (card.answer.text || card.answer.image || card.answer.audio) ? 'hidden' : 'visible'
-                                        }}>*</span>
-                                    </div>
-                                    {card.answer.audio && (
-                                        <AudioPlayer audioData={card.answer.audio} />
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    ))}
-                </div>
-
-                <div style={{ display: 'flex', gap: '1rem' }}>
-                    <button className="neo-button neo-glow-blue" style={{ flex: 1, justifyContent: 'center', background: 'var(--accent-soft)', color: 'var(--accent-color)' }} onClick={handleAddCard}>
-                        <Plus size={18} /> Add Flashcard
-                    </button>
-                    <button className="neo-button neo-glow-blue" style={{ flex: 1, justifyContent: 'center', background: 'rgba(255, 215, 0, 0.2)', color: 'var(--accent-text)' }} onClick={handleAddMCQ}>
-                        Add Multiple Choice
-                    </button>
-                </div>
-
-                {/* Split/Merge UI moved to bottom */}
-                {stack && cards.length > 1 && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                            <button
-                                className={`neo-button ${showSplitUI ? 'neo-inset' : ''}`}
-                                style={{ flex: 1, justifyContent: 'center', fontSize: '0.9rem' }}
-                                onClick={() => { setShowSplitUI(!showSplitUI); setShowMergeUI(false); setSelectedCards(new Set()); }}
-                            >
-                                <Split size={16} /> {showSplitUI ? 'Cancel Split' : 'Split Stack'}
-                            </button>
-                            {allStacks && allStacks.filter(s => s.id !== stack?.id).length > 0 && (
-                                <button
-                                    className={`neo-button ${showMergeUI ? 'neo-inset' : ''}`}
-                                    style={{ flex: 1, justifyContent: 'center', fontSize: '0.9rem' }}
-                                    onClick={() => { setShowMergeUI(!showMergeUI); setShowSplitUI(false); setSelectedCards(new Set()); }}
-                                >
-                                    <Merge size={16} /> {showMergeUI ? 'Cancel Merge' : 'Merge Stack'}
-                                </button>
-                            )}
-                        </div>
-
-                        {/* Split UI */}
-                        {showSplitUI && (
-                            <div className="neo-inset" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                <p style={{ fontSize: '0.9rem', opacity: 0.7 }}>Select cards to move to a new stack:</p>
-                                <button
-                                    className="neo-button neo-glow-blue"
-                                    style={{ background: 'var(--accent-color)', color: 'white', border: 'none', justifyContent: 'center' }}
-                                    onClick={handleSplitStack}
-                                >
-                                    Create New Stack with {selectedCards.size} Selected Card(s)
-                                </button>
-                            </div>
-                        )}
-
-                        {/* Merge UI */}
-                        {showMergeUI && (
-                            <div className="neo-inset" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                <p style={{ fontSize: '0.9rem', opacity: 0.7 }}>Select stack to merge into:</p>
-
-                                <NeoDropdown
-                                    value={mergeTargetId}
-                                    options={allStacks?.filter(s => s.id !== stack?.id).map(s => ({
-                                        label: `${s.title} (${s.cards?.length || 0} cards)`,
-                                        value: s.id
-                                    }))}
-                                    onChange={setMergeTargetId}
-                                    placeholder="-- Select Stack --"
-                                    displayValue={(id) => allStacks.find(s => s.id === id)?.title}
+                            ))
+                        ) : (
+                            cards.map((card, index) => (
+                                <CardItem
+                                    key={card.id}
+                                    card={card}
+                                    index={index}
+                                    totalCards={cards.length}
+                                    onUpdate={(field, val) => handleUpdateCard(card.id, field, val)}
+                                    onRemove={() => handleRemoveCard(card.id)}
+                                    onMove={(newPos) => handleMoveCard(index, newPos)}
+                                    recording={recording}
+                                    startRecording={startRecording}
+                                    stopRecording={stopRecording}
+                                    cancelRecording={cancelRecording}
+                                    recordingTime={recordingTime}
+                                    handleFileUpload={handleFileUpload}
+                                    handleOptionChange={(optId, f, v) => handleOptionChange(card.id, optId, f, v)}
+                                    setViewingImage={setViewingImage}
+                                    showSplitUI={showSplitUI}
+                                    selectedCards={selectedCards}
+                                    toggleCardSelection={toggleCardSelection}
                                 />
-
-                                <button
-                                    className="neo-button neo-glow-blue"
-                                    style={{ background: 'var(--accent-color)', color: 'white', border: 'none', justifyContent: 'center' }}
-                                    onClick={handleMergeStack}
-                                    disabled={!mergeTargetId}
-                                >
-                                    Merge Into Selected Stack
-                                </button>
-                            </div>
+                            ))
                         )}
                     </div>
-                )}
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {!stack && (
+                    <div style={{ display: 'flex', gap: '1rem' }}>
+                        <button className="neo-button neo-glow-blue" style={{ flex: 1, justifyContent: 'center', background: 'var(--accent-soft)', color: 'var(--accent-color)' }} onClick={handleAddCard}>
+                            <Plus size={18} /> Add Card
+                        </button>
+                        <button className="neo-button neo-glow-blue" style={{ flex: 1, justifyContent: 'center', background: 'var(--accent-soft)', color: 'var(--accent-color)' }} onClick={handleAddMCQ}>
+                            <Plus size={18} /> Add MCQ
+                        </button>
+                        <button className="neo-button neo-glow-blue" style={{ flex: 1, justifyContent: 'center', background: 'var(--bg-color)', color: 'var(--accent-color)' }} onClick={handleAddSection}>
+                            <Plus size={18} /> Add Section
+                        </button>
+                    </div>
+
+                    {stack && cards.length > 1 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                <button
+                                    className={`neo-button ${showSplitUI ? 'neo-inset' : ''}`}
+                                    style={{ flex: 1, justifyContent: 'center', fontSize: '0.9rem' }}
+                                    onClick={() => { setShowSplitUI(!showSplitUI); setShowMergeUI(false); setSelectedCards(new Set()); }}
+                                >
+                                    <Split size={16} /> {showSplitUI ? 'Cancel Split' : 'Split Stack'}
+                                </button>
+                                {allStacks && allStacks.filter(s => s.id !== stack?.id).length > 0 && (
+                                    <button
+                                        className={`neo-button ${showMergeUI ? 'neo-inset' : ''}`}
+                                        style={{ flex: 1, justifyContent: 'center', fontSize: '0.9rem' }}
+                                        onClick={() => { setShowMergeUI(!showMergeUI); setShowSplitUI(false); setSelectedCards(new Set()); }}
+                                    >
+                                        <Merge size={16} /> {showMergeUI ? 'Cancel Merge' : 'Merge Stack'}
+                                    </button>
+                                )}
+                            </div>
+
+                            {showSplitUI && (
+                                <div className="neo-inset" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                    <p style={{ fontSize: '0.9rem', opacity: 0.7 }}>Select cards to move to a new stack:</p>
+                                    <button
+                                        className="neo-button neo-glow-blue"
+                                        style={{ background: 'var(--accent-color)', color: 'white', border: 'none', justifyContent: 'center' }}
+                                        onClick={handleSplitStack}
+                                    >
+                                        Create New Stack with {selectedCards.size} Selected Card(s)
+                                    </button>
+                                </div>
+                            )}
+
+                            {showMergeUI && (
+                                <div className="neo-inset" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                    <p style={{ fontSize: '0.9rem', opacity: 0.7 }}>Select stack to merge into:</p>
+                                    <NeoDropdown
+                                        value={mergeTargetId}
+                                        options={allStacks?.filter(s => s.id !== stack?.id).map(s => ({
+                                            label: `${s.title} (${s.cards?.length || 0} cards)`,
+                                            value: s.id
+                                        }))}
+                                        onChange={setMergeTargetId}
+                                        placeholder="-- Select Stack --"
+                                        displayValue={(id) => allStacks.find(s => s.id === id)?.title}
+                                    />
+                                    <button
+                                        className="neo-button neo-glow-blue"
+                                        style={{ background: 'var(--accent-color)', color: 'white', border: 'none', justifyContent: 'center' }}
+                                        onClick={handleMergeStack}
+                                        disabled={!mergeTargetId}
+                                    >
+                                        Merge Into Selected Stack
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+
+                <div style={{
+                    padding: '1.5rem', borderTop: '1px solid var(--shadow-dark)',
+                    display: 'flex', flexDirection: 'column', gap: '1rem',
+                    background: 'var(--bg-color)', zIndex: 10
+                }}>
+                    {!stack && user?.email === ADMIN_EMAIL && (
                         <div style={{ display: 'flex', gap: '1rem' }}>
-                            <input
-                                ref={uploadInputRef}
-                                type="file"
-                                hidden
-                                accept=".zip"
-                                onChange={handleUpload}
-                            />
+                            <input ref={uploadInputRef} type="file" hidden accept=".zip" onChange={handleUpload} />
                             <button
                                 className="neo-button neo-glow-blue"
                                 style={{ flex: 1, justifyContent: 'center', background: 'var(--accent-soft)', color: 'var(--accent-color)' }}
@@ -1075,36 +997,47 @@ const AddStackModal = ({
                             </button>
                         </div>
                     )}
-                    <div style={{ display: 'flex', gap: '1rem' }}>
+                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
                         {stack && (
                             <button
                                 className="neo-button neo-glow-red"
-                                style={{ flex: 1, justifyContent: 'center', color: 'var(--error-color)' }}
+                                style={{ flex: '1 1 8.75rem', justifyContent: 'center', color: 'var(--error-color)', padding: '0.8rem' }}
                                 onClick={() => showConfirm(`Delete "${stack.title}"?`, () => onDelete(stack))}
                             >
                                 <Trash2 size={18} /> Delete Stack
                             </button>
                         )}
-                        <button className="neo-button" style={{ flex: 1, justifyContent: 'center' }} onClick={onClose}>
+                        <button className="neo-button" style={{ flex: '1 1 6.25rem', justifyContent: 'center', padding: '0.8rem' }} onClick={onClose}>
                             Cancel
                         </button>
+                        <button
+                            className={`neo-button ${isSaving ? 'neo-inset' : ''}`}
+                            style={{
+                                flex: '2 1 12.5rem',
+                                justifyContent: 'center',
+                                background: isSaving ? 'var(--bg-color)' : 'var(--accent-color)',
+                                color: isSaving ? 'var(--accent-color)' : 'white',
+                                border: 'none', padding: '0.8rem',
+                                cursor: isSaving ? 'not-allowed' : 'pointer',
+                                opacity: isSaving ? 0.8 : 1
+                            }}
+                            onClick={handleSave}
+                            disabled={isSaving}
+                        >
+                            {isSaving ? (
+                                <><RefreshCw size={18} className="spin" style={{ marginRight: '8px' }} /> Saving...</>
+                            ) : (
+                                <><Save size={18} style={{ marginRight: '8px' }} /> {stack ? 'Save Changes' : 'Create Stack'}</>
+                            )}
+                        </button>
                     </div>
-                    <button className="neo-button" style={{ justifyContent: 'center', background: 'var(--accent-color)', color: 'white', border: 'none', padding: '0.8rem' }} onClick={handleSave}>
-                        <Save size={18} /> {stack ? 'Save Changes' : 'Create Stack'}
-                    </button>
                 </div>
 
-                {/* Image Viewer */}
                 <AnimatePresence>
-                    {viewingImage && (
-                        <ImageViewer
-                            imageUrl={viewingImage}
-                            onClose={() => setViewingImage(null)}
-                        />
-                    )}
+                    {viewingImage && <ImageViewer imageUrl={viewingImage} onClose={() => setViewingImage(null)} />}
                 </AnimatePresence>
             </div>
-        </div >
+        </div>
     );
 };
 

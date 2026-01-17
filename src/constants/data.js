@@ -9,33 +9,49 @@ export const DEMO_STACK = {
     cards: [
         {
             id: 1,
-            question: { text: "Which part of the human body has no blood supply?", image: '', audio: '' },
-            answer: { text: "Cornea", image: '', audio: '' }
+            question: { text: "What is the role of red blood cells?", image: '', audio: '' },
+            answer: { text: "They carry oxygen to body tissues.", image: '', audio: '' }
         },
         {
             id: 2,
-            question: { text: "Which planet spins backwards?", image: '', audio: '' },
-            answer: { text: "Venus", image: '', audio: '' }
+            question: { text: "Why do we need sleep?", image: '', audio: '' },
+            answer: { text: "Sleep helps the body and brain recover and function properly.", image: '', audio: '' }
         },
         {
             id: 3,
-            question: { text: "How many hearts does an octopus have?", image: '', audio: '' },
-            answer: { text: "Three", image: '', audio: '' }
+            type: 'mcq',
+            question: { text: "Which part of the human body has no blood supply?", image: '', audio: '' },
+            options: [
+                { id: 'a', text: 'Retina', isCorrect: false },
+                { id: 'b', text: 'Cornea', isCorrect: true },
+                { id: 'c', text: 'Brain', isCorrect: false },
+                { id: 'd', text: 'Liver', isCorrect: false }
+            ],
+            answer: { text: "Cornea", image: '', audio: '' }
         },
         {
             id: 4,
-            question: { text: "Largest mammal?", image: '', audio: '' },
-            answer: { text: "Blue whale", image: '', audio: '' }
+            question: { text: "Who was known as the Iron Man of India?", image: '', audio: '' },
+            answer: { text: "Sardar Vallabhbhai Patel was known as the Iron Man of India.", image: '', audio: '' }
         },
         {
             id: 5,
-            question: { text: "Which everyday food never spoils naturally?", image: '', audio: '' },
-            answer: { text: "Honey", image: '', audio: '' }
+            type: 'mcq',
+            question: { text: "Which planet spins backwards compared to others?", image: '', audio: '' },
+            options: [
+                { id: 'a', text: 'Mars', isCorrect: false },
+                { id: 'b', text: 'Earth', isCorrect: false },
+                { id: 'c', text: 'Venus', isCorrect: true },
+                { id: 'd', text: 'Jupiter', isCorrect: false }
+            ],
+            answer: { text: "Venus", image: '', audio: '' }
         }
     ],
     owner: ADMIN_EMAIL,
     ownerName: 'Demo User',
     avgRating: 4.8,
-    lastReviewed: null,
+    lastReviewed: 'Jan 7, 2026',
+    nextReview: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+    reviewStage: 0,
     isPublic: false
 };
