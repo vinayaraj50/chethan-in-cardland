@@ -1,0 +1,60 @@
+
+> chethan-in-cardland@1.0.3 test
+> vitest src/hooks/__tests__/useLessonsRefined.test.js json
+
+
+[1m[44m DEV [49m[22m [34mv4.0.16 [39m[90mC:/vinayz/personal/CODING/Chethan in Cardland - Antigravity[39m
+
+[90mstdout[2m | src/hooks/__tests__/useLessonsRefined.test.js[2m > [22m[2museLessons Hook (Real-time Sync)[2m > [22m[2mshould subscribe to public lessons on mount
+[22m[39m[Storage] Strategy initialized: Local Persistence (Recruiter Mode)
+
+[90mstdout[2m | src/hooks/__tests__/useLessonsRefined.test.js[2m > [22m[2museLessons Hook (Real-time Sync)[2m > [22m[2mshould merge cloud and local lessons correctly
+[22m[39m[Storage] Strategy initialized: Local Persistence (Recruiter Mode)
+
+[90mstdout[2m | src/hooks/__tests__/useLessonsRefined.test.js[2m > [22m[2museLessons Hook (Real-time Sync)[2m > [22m[2mshould merge cloud and local lessons correctly
+[22m[39m[Lessons] Synced 2 Cloud + 2 Local
+
+[90mstdout[2m | src/hooks/__tests__/useLessonsRefined.test.js[2m > [22m[2museLessons Hook (Real-time Sync)[2m > [22m[2mshould update state when firestore emits new data
+[22m[39m[Storage] Strategy initialized: Local Persistence (Recruiter Mode)
+
+[90mstdout[2m | src/hooks/__tests__/useLessonsRefined.test.js[2m > [22m[2museLessons Hook (Real-time Sync)[2m > [22m[2mshould update state when firestore emits new data
+[22m[39m[Lessons] Synced 0 Cloud + 0 Local
+[Lessons] Synced 2 Cloud + 0 Local
+
+ [32mΓ£ô[39m src/hooks/__tests__/useLessonsRefined.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 190[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m3 passed[39m[22m[90m (3)[39m
+[2m   Start at [22m 17:44:27
+[2m   Duration [22m 2.71s[2m (transform 202ms, setup 201ms, import 659ms, tests 190ms, environment 1.34s)[22m
+
+[1m[42m PASS [49m[22m [32mWaiting for file changes...[39m
+       [2mpress [22m[1mh[22m[2m to show help[22m[2m, [22m[2mpress [22m[1mq[22m[2m to quit[22m
+c[3J[1m[44m RERUN [49m[22m [34m[2mfunctions/package.json [22m[34mx1 [34m[39m
+       [2m Filename pattern: [22m[34msrc/hooks/__tests__/useLessonsRefined.test.js, json[39m
+
+[90mstdout[2m | src/hooks/__tests__/useLessonsRefined.test.js[2m > [22m[2museLessons Hook (Real-time Sync)[2m > [22m[2mshould subscribe to public lessons on mount
+[22m[39m[Storage] Strategy initialized: Local Persistence (Recruiter Mode)
+
+[90mstdout[2m | src/hooks/__tests__/useLessonsRefined.test.js[2m > [22m[2museLessons Hook (Real-time Sync)[2m > [22m[2mshould merge cloud and local lessons correctly
+[22m[39m[Storage] Strategy initialized: Local Persistence (Recruiter Mode)
+
+[90mstdout[2m | src/hooks/__tests__/useLessonsRefined.test.js[2m > [22m[2museLessons Hook (Real-time Sync)[2m > [22m[2mshould merge cloud and local lessons correctly
+[22m[39m[Lessons] Synced 2 Cloud + 2 Local
+
+[90mstdout[2m | src/hooks/__tests__/useLessonsRefined.test.js[2m > [22m[2museLessons Hook (Real-time Sync)[2m > [22m[2mshould update state when firestore emits new data
+[22m[39m[Storage] Strategy initialized: Local Persistence (Recruiter Mode)
+
+[90mstdout[2m | src/hooks/__tests__/useLessonsRefined.test.js[2m > [22m[2museLessons Hook (Real-time Sync)[2m > [22m[2mshould update state when firestore emits new data
+[22m[39m[Lessons] Synced 0 Cloud + 0 Local
+[Lessons] Synced 2 Cloud + 0 Local
+
+ [32mΓ£ô[39m src/hooks/__tests__/useLessonsRefined.test.js [2m([22m[2m3 tests[22m[2m)[22m[33m 330[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m3 passed[39m[22m[90m (3)[39m
+[2m   Start at [22m 17:54:04
+[2m   Duration [22m 7.22s
+
+[1m[42m PASS [49m[22m [32mWaiting for file changes...[39m
+       [2mpress [22m[1mh[22m[2m to show help[22m[2m, [22m[2mpress [22m[1mq[22m[2m to quit[22m

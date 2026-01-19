@@ -282,12 +282,12 @@ const Home = ({
                 {renderSettingsMenu()}
             </div>
             <NeoDropdown
-                label="Standard"
-                value={filters.standard}
-                options={[{ label: 'All Standards', value: '' }, ...standards.map(s => ({ label: `Standard ${s}`, value: s }))]}
-                onChange={(val) => handleFilterChange('standard', val)}
-                placeholder="All Standards"
-                displayValue={(val) => val ? `Standard ${val}` : 'All Standards'}
+                label="Medium"
+                value={filters.medium}
+                options={[{ label: 'All Mediums', value: '' }, ...mediums.map(m => ({ label: m, value: m }))]}
+                onChange={(val) => handleFilterChange('medium', val)}
+                placeholder="All Mediums"
+                displayValue={(val) => val || 'All Mediums'}
             />
             <NeoDropdown
                 label="Syllabus"
@@ -298,12 +298,12 @@ const Home = ({
                 displayValue={(val) => val || 'All Syllabuses'}
             />
             <NeoDropdown
-                label="Medium"
-                value={filters.medium}
-                options={[{ label: 'All Mediums', value: '' }, ...mediums.map(m => ({ label: m, value: m }))]}
-                onChange={(val) => handleFilterChange('medium', val)}
-                placeholder="All Mediums"
-                displayValue={(val) => val || 'All Mediums'}
+                label="Standard"
+                value={filters.standard}
+                options={[{ label: 'All Standards', value: '' }, ...standards.map(s => ({ label: `Standard ${s}`, value: s }))]}
+                onChange={(val) => handleFilterChange('standard', val)}
+                placeholder="All Standards"
+                displayValue={(val) => val ? `Standard ${val}` : 'All Standards'}
             />
             <NeoDropdown
                 label="Subject"
@@ -466,18 +466,7 @@ const Home = ({
                         ) : (
                             <>
                                 <div className="lessons-grid" style={{ padding: '0 1.25rem' }}>
-                                    {lessons.filter(s => s.id === 'demo-lesson').map(lesson => (
-                                        <LessonCard
-                                            key={lesson.id}
-                                            lesson={lesson}
-                                            onReview={onReview}
-                                            onEdit={onEdit}
-                                            onImport={onImport}
-                                            user={user}
-                                            onDelete={onDelete}
-                                            showConfirm={showConfirm}
-                                        />
-                                    ))}
+
                                     {filteredPublicLessons.map(lesson => (
                                         <LessonCard
                                             key={lesson.driveFileId || lesson.id}

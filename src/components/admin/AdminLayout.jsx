@@ -18,6 +18,7 @@ import {
 const AdminLayout = ({ children, activeSection, onNavigate, onClose }) => {
     const [isMobileOpen, setIsMobileOpen] = useState(false);
     const [isMobile, setIsMobile] = useState(false);
+    const [exitHover, setExitHover] = useState(false);
 
     // Responsive Check
     useEffect(() => {
@@ -38,7 +39,18 @@ const AdminLayout = ({ children, activeSection, onNavigate, onClose }) => {
                         {isMobileOpen ? <X size={20} /> : <Menu size={20} />}
                     </button>
                     <span style={styles.storeName}>Admin Workspace</span>
-                    <div style={{ width: 32 }} /> {/* Spacer for balance */}
+                    <button
+                        onClick={onClose}
+                        style={{
+                            ...styles.exitBtnTopRight,
+                            background: exitHover ? '#f1f2f3' : 'transparent'
+                        }}
+                        onMouseEnter={() => setExitHover(true)}
+                        onMouseLeave={() => setExitHover(false)}
+                        title="Exit Admin"
+                    >
+                        <X size={20} />
+                    </button>
                 </div>
             )}
 
@@ -91,12 +103,6 @@ const AdminLayout = ({ children, activeSection, onNavigate, onClose }) => {
                         }}
                     />
                 </nav>
-
-                <div style={styles.sidebarFooter}>
-                    <button onClick={onClose} style={styles.exitBtn}>
-                        <LogOut size={16} /> Exit Admin
-                    </button>
-                </div>
             </aside>
 
             {/* Mobile Overlay Backdrop */}
@@ -122,6 +128,18 @@ const AdminLayout = ({ children, activeSection, onNavigate, onClose }) => {
                         </div>
                         <div style={styles.userMenu}>
                             <div style={styles.avatar}>A</div>
+                            <button
+                                onClick={onClose}
+                                style={{
+                                    ...styles.exitBtnTopRight,
+                                    background: exitHover ? '#f1f2f3' : 'transparent'
+                                }}
+                                onMouseEnter={() => setExitHover(true)}
+                                onMouseLeave={() => setExitHover(false)}
+                                title="Exit Admin"
+                            >
+                                <X size={20} />
+                            </button>
                         </div>
                     </header>
                 )}
@@ -216,13 +234,17 @@ const styles = {
         padding: '0.5rem 0.75rem', border: 'none', borderRadius: '4px',
         cursor: 'pointer', textAlign: 'left', fontSize: '0.9rem', marginBottom: '2px'
     },
-    sidebarFooter: {
-        padding: '1rem', borderTop: '1px solid rgba(0,0,0,0.05)'
-    },
-    exitBtn: {
-        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        gap: '0.5rem', padding: '0.5rem', background: 'white', border: '1px solid #c9cccf',
-        borderRadius: '4px', fontWeight: 500, cursor: 'pointer', color: '#202223'
+    exitBtnTopRight: {
+        background: 'transparent',
+        border: 'none',
+        cursor: 'pointer',
+        padding: '8px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#5c5f62',
+        borderRadius: '4px',
+        transition: 'background 0.2s ease'
     },
     main: {
         flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden'

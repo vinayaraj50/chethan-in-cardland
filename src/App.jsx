@@ -16,7 +16,7 @@ import CoinRewardAnimation from './components/CoinRewardAnimation';
 import FeatureTour from './components/FeatureTour';
 import { useAppActions } from './hooks/useAppActions';
 
-import { DEMO_LESSON } from './constants/data';
+
 import { ADMIN_EMAIL } from './constants/config';
 
 const AppContent = () => {
@@ -57,7 +57,7 @@ const AppContent = () => {
     const [activeTab, setActiveTab] = useState('my-lessons');
     const [publicFilters, setPublicFilters] = useState({ standard: '', syllabus: '', medium: '', subject: '' });
     const [soundsEnabled, setSoundsEnabled] = useState(localStorage.getItem('soundsEnabled') !== 'false');
-    const [previewSession, setPreviewSession] = useState(null);
+
     const [reviewStarted, setReviewStarted] = useState(false);
 
     // Domain Hooks
@@ -96,10 +96,7 @@ const AppContent = () => {
     }, []);
 
     // Handlers
-    const handleLoginRequired = useCallback((sessionData) => {
-        setPreviewSession(sessionData);
-        toggleModal('showLoginPrompt', true);
-    }, [toggleModal]);
+
 
     // Effects
     useEffect(() => {
@@ -118,7 +115,7 @@ const AppContent = () => {
             fetchLessons();
             toggleModal('showMenu', false);
         } else {
-            setLessons([DEMO_LESSON]);
+            setLessons([]);
             // Profile is cleared reactively by useUserProfile when user becomes null
         }
     }, [user, fetchLessons, fetchPublicLessons, setLessons, toggleModal]);
@@ -142,7 +139,7 @@ const AppContent = () => {
     useEffect(() => {
         const handlePopState = (e) => {
             if (rewardData) setRewardData(null);
-            else if (modals.showLoginPrompt) toggleModal('showLoginPrompt', false);
+
             else if (noteLesson) setNoteLesson(null);
             else if (modals.showReferral) toggleModal('showReferral', false);
             else if (modals.showFeedback) toggleModal('showFeedback', false);
@@ -198,11 +195,7 @@ const AppContent = () => {
             isProfileLoading={isProfileLoading}
             isAdmin={user?.email === ADMIN_EMAIL}
             isTourActive={isTourActive}
-            showAdminQuickTools={modals.showAdminQuickTools}
-            onToggleAdminQuickTools={() => {
-                if (!modals.showAdminQuickTools) window.history.pushState({ modal: 'active' }, '', window.location.pathname);
-                toggleModal('showAdminQuickTools', !modals.showAdminQuickTools);
-            }}
+
             onShowCoinModal={() => { window.history.pushState({ modal: 'active' }, '', window.location.pathname); toggleModal('showCoinModal', true); }}
             onShowMenu={() => toggleModal('showMenu', true)}
             onAddLesson={() => {
@@ -262,9 +255,9 @@ const AppContent = () => {
                 onImportLesson={(s) => handleImportLesson(s, userProfile, handleUpdateCoins)}
                 onUpdateCoins={handleUpdateCoins}
                 isUnlimited={isUnlimited}
-                onLoginRequired={handleLoginRequired}
+
                 signIn={signIn}  // Pass direct sign-in handler
-                previewSession={previewSession}
+
                 onReviewStart={() => setReviewStarted(true)}
                 handleEditLesson={handleEditLesson}
                 handleReviewLaunch={handleReviewLaunch}

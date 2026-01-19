@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import RootLayout from './RootLayout';
 import React from 'react';
@@ -8,12 +8,25 @@ vi.mock('../CoinsDisplay', () => ({
     default: () => <div data-testid="coins-display">Coins</div>
 }));
 
+// Mock UIContext
+vi.mock('../../context/UIContext', () => ({
+    useUI: () => ({
+        headerNotice: null,
+        clearHeaderNotice: vi.fn(),
+        toast: null,
+        hideToast: vi.fn(),
+        notification: null,
+        clearNotification: vi.fn()
+    })
+}));
+
 // Mock icons
 vi.mock('lucide-react', () => ({
     Plus: () => <div data-testid="plus-icon" />,
     Menu: () => <div data-testid="menu-icon" />,
     Zap: () => <div data-testid="zap-icon" />,
-    RefreshCw: () => <div data-testid="refresh-icon" />
+    RefreshCw: () => <div data-testid="refresh-icon" />,
+    X: () => <div data-testid="x-icon" />
 }));
 
 describe('RootLayout Component', () => {
@@ -29,15 +42,18 @@ describe('RootLayout Component', () => {
         children: <div data-testid="child">Child Content</div>
     };
 
-    it('should render without crashing and include the Refresh icon when loading', () => {
-        const { getByTestId, rerender } = render(<RootLayout {...mockProps} isProfileLoading={true} />);
+    it('should show the header loader when headerLoading is true', () => {
+        const { container } = render(<RootLayout {...mockProps} headerLoading={true} />);
 
-        expect(getByTestId('refresh-icon')).toBeTruthy();
-        expect(getByTestId('child')).toBeTruthy();
+        // The loader is represented by card-loader-small class
+        const loader = container.querySelector('.card-loader-small');
+        expect(loader).toBeTruthy();
+        expect(screen.getByTestId('child')).toBeTruthy();
     });
 
-    it('should not show refresh icon when not loading', () => {
-        const { queryByTestId } = render(<RootLayout {...mockProps} isProfileLoading={false} />);
-        expect(queryByTestId('refresh-icon')).toBeNull();
+    it('should not show loader when headerLoading is false', () => {
+        const { container } = render(<RootLayout {...mockProps} headerLoading={false} />);
+        const loader = container.querySelector('.card-loader-small');
+        expect(loader).toBeNull();
     });
 });

@@ -1,5 +1,5 @@
 import { db, firebaseStorage } from './firebase';
-import { collection, getDocs, query, where, setDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, query, where, setDoc, doc, serverTimestamp, updateDoc, onSnapshot } from 'firebase/firestore';
 import { ref, getDownloadURL, uploadBytes } from 'firebase/storage';
 
 /**
@@ -25,30 +25,51 @@ class FirebaseLessonService {
                 return [];
             }
 
-            return snapshot.docs.map(doc => {
-                const data = doc.data();
-                const isPremium = data.type === 'premium' || data.isPremium;
-                const storagePath = data.storagePath || `lessons/${isPremium ? 'premium' : 'free'}/${doc.id}.enc`;
-
-                // Return metadata exactly as stored - the frontend expects exact matches
-                return {
-                    id: doc.id,
-                    ...data,
-                    standard: data.standard || null,
-                    syllabus: data.syllabus || null,
-                    medium: data.medium || null,
-                    subject: data.subject || null,
-                    source: 'firestore',
-                    isPremium,
-                    isPublic: true,
-                    storagePath,
-                    questionCount: data.questionCount || data.cardsCount || 0
-                };
-            });
+            return snapshot.docs.map(doc => this._mapDocToLesson(doc));
         } catch (e) {
             console.error('[Firestore] Catalog fetch failed:', e);
             return [];
         }
+    }
+
+    /**
+     * Subscribes to public lessons via Firestore real-time listeners.
+     * @param {function} onUpdate Callback function receiving the list of lessons
+     * @returns {function} Unsubscribe function
+     */
+    subscribeToPublicLessons(onUpdate) {
+        console.log('[Firestore] Subscribing to authoritative lesson catalog...');
+        const lessonsRef = collection(db, 'lessons');
+        const q = query(lessonsRef, where('isActive', '==', true));
+
+        return onSnapshot(q, (snapshot) => {
+            console.log('[Firestore] Real-time update received. Documents:', snapshot.size);
+            const lessons = snapshot.docs.map(doc => this._mapDocToLesson(doc));
+            onUpdate(lessons);
+        }, (error) => {
+            console.error('[Firestore] Subscription error:', error);
+        });
+    }
+
+    _mapDocToLesson(doc) {
+        const data = doc.data();
+        const isPremium = data.type === 'premium' || data.isPremium;
+        const storagePath = data.storagePath || `lessons/${isPremium ? 'premium' : 'free'}/${doc.id}.enc`;
+
+        // Return metadata exactly as stored - the frontend expects exact matches
+        return {
+            id: doc.id,
+            ...data,
+            standard: data.standard || null,
+            syllabus: data.syllabus || null,
+            medium: data.medium || null,
+            subject: data.subject || null,
+            source: 'firestore',
+            isPremium,
+            isPublic: true,
+            storagePath,
+            questionCount: data.questionCount || data.cardsCount || 0
+        };
     }
 
     /**
@@ -160,6 +181,7 @@ export const apiService = new FirebaseLessonService();
 
 // Standardized exports
 export const listPublicLessons = () => apiService.listPublicLessons();
+export const subscribeToPublicLessons = (cb) => apiService.subscribeToPublicLessons(cb);
 export const listPublicStacks = () => apiService.listPublicLessons(); // Backward compatibility aliasing
 export const getPublicFileContent = (fileId) => apiService.getPublicFileContent(fileId);
 export const getPublicIndex = () => apiService.getPublicIndex();

@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import NotificationModal from '../components/NotificationModal'; // Adjust path
 import Toast from '../components/common/Toast';
 
 const UIContext = createContext(null);
@@ -16,12 +15,12 @@ export const UIProvider = ({ children }) => {
         showReferral: false,
         showAdminPanel: false,
         showCoinModal: false,
-        showLoginPrompt: false,
-        showNamePrompt: false,
-        showAdminQuickTools: false
+
+        showNamePrompt: false
     });
 
     const [headerLoading, setHeaderLoading] = useState(false);
+    const [headerNotice, setHeaderNotice] = useState(null);
 
     const [activeLesson, setActiveLesson] = useState(null); // For Add/Edit modal
     const [reviewLesson, setReviewLesson] = useState(null); // For Review modal
@@ -37,9 +36,8 @@ export const UIProvider = ({ children }) => {
             showReferral: false,
             showAdminPanel: false,
             showCoinModal: false,
-            showLoginPrompt: false,
-            showNamePrompt: false,
-            showAdminQuickTools: false
+
+            showNamePrompt: false
         });
         setActiveLesson(null);
         setReviewLesson(null);
@@ -81,6 +79,18 @@ export const UIProvider = ({ children }) => {
         });
     }, []);
 
+    const showHeaderNotice = useCallback((message, duration = 3000) => {
+        const id = Date.now();
+        setHeaderNotice({ id, message });
+        setTimeout(() => {
+            setHeaderNotice(prev => prev?.id === id ? null : prev);
+        }, duration);
+    }, []);
+
+    const clearHeaderNotice = useCallback(() => {
+        setHeaderNotice(null);
+    }, []);
+
     return (
         <UIContext.Provider value={{
             modals,
@@ -92,36 +102,19 @@ export const UIProvider = ({ children }) => {
             notification,
             showNotification,
             clearNotification,
+            toast,
             showToast,
             hideToast,
-            headerLoading, setHeaderLoading
+            headerLoading, setHeaderLoading,
+            headerNotice, showHeaderNotice, clearHeaderNotice
         }}>
             {children}
             {/* Global Notification Rendered Here */}
             <AnimatePresence>
-                {notification && (
-                    <NotificationModal
-                        type={notification.type}
-                        message={notification.message}
-                        onConfirm={notification.onConfirm}
-                        onClose={clearNotification}
-                    />
-                )}
+
             </AnimatePresence>
 
-            {/* Global Toast Rendered Here */}
-            <AnimatePresence>
-                {toast && (
-                    <Toast
-                        key={toast.id} // Key ensures re-mount on new toast
-                        message={toast.message}
-                        type={toast.type}
-                        onUndo={toast.onUndo}
-                        onClose={hideToast}
-                        duration={toast.duration}
-                    />
-                )}
-            </AnimatePresence>
+
         </UIContext.Provider>
     );
 };

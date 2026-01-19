@@ -46,7 +46,8 @@ describe('ReviewQuestion Component', () => {
         setIsFlipped: vi.fn(),
         setViewingImage: vi.fn(),
         onRateMCQ: vi.fn(),
-        feedback: null
+        feedback: null,
+        showSectionNotes: true
     };
 
     it('displays Section Note Card when isFirstInSection is true and not acknowledged', () => {
@@ -120,5 +121,39 @@ describe('ReviewQuestion Component', () => {
 
         // Should show the new note
         expect(screen.getByTestId('section-note-card')).toBeInTheDocument();
+    });
+
+    describe('showSectionNotes prop', () => {
+        it('hides Section Note Card when showSectionNotes is false', () => {
+            render(<ReviewQuestion {...mockProps} showSectionNotes={false} />);
+
+            // Section Note should NOT be displayed even though isFirstInSection is true
+            expect(screen.queryByTestId('section-note-card')).not.toBeInTheDocument();
+
+            // Question should be immediately visible
+            expect(screen.getByTestId('question-card-mcq')).toBeInTheDocument();
+        });
+
+        it('shows Section Note Card when showSectionNotes is true (default)', () => {
+            render(<ReviewQuestion {...mockProps} showSectionNotes={true} />);
+
+            // Section Note should be displayed
+            expect(screen.getByTestId('section-note-card')).toBeInTheDocument();
+
+            // Question should NOT be visible yet
+            expect(screen.queryByTestId('question-card-mcq')).not.toBeInTheDocument();
+        });
+
+        it('defaults showSectionNotes to true when prop is not provided', () => {
+            const propsWithoutShowSectionNotes = {
+                ...mockProps
+            };
+            delete propsWithoutShowSectionNotes.showSectionNotes;
+
+            render(<ReviewQuestion {...propsWithoutShowSectionNotes} />);
+
+            // Section Note should be displayed (default behavior)
+            expect(screen.getByTestId('section-note-card')).toBeInTheDocument();
+        });
     });
 });

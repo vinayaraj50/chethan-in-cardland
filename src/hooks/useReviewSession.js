@@ -10,29 +10,35 @@ export const useReviewSession = ({
     onUpdate,
     onClose,
     showAlert,
-    isPreviewMode = false,
-    onLoginRequired,
-    previewProgress = null,
     onReviewStart
 }) => {
     // Determine initial state
     const questions = lesson.questions || lesson.cards || [];
     const hasPreviousRatings = questions.some(q => q.lastRating !== undefined) || false;
 
-    // State
-    const [showModeSelection, setShowModeSelection] = useState(hasPreviousRatings);
-    const [currentIndex, setCurrentIndex] = useState(previewProgress?.currentIndex || 0);
+    // Check if there's an interrupted session (has lastSessionIndex saved)
+    const hasInterruptedSession = lesson.lastSessionIndex !== undefined && lesson.lastSessionIndex > 0;
+
+    // State - Always show start screen now for options
+    const [showStartScreen, setShowStartScreen] = useState(true);
+    const [showModeSelection, setShowModeSelection] = useState(false);
+    const [currentIndex, setCurrentIndex] = useState(0);
     const [isFlipped, setIsFlipped] = useState(false);
     const [rating, setRating] = useState(0);
-    const [sessionRatings, setSessionRatings] = useState(previewProgress?.sessionRatings || []);
-    const [studyQuestions, setStudyQuestions] = useState(hasPreviousRatings ? [] : questions);
+    const [sessionRatings, setSessionRatings] = useState([]);
+    const [studyQuestions, setStudyQuestions] = useState([]);
     const [sessionResult, setSessionResult] = useState(null);
     const [viewingImage, setViewingImage] = useState(null);
     const [feedback, setFeedback] = useState(null);
     const [masteredCount, setMasteredCount] = useState(0);
     const [firstRatings, setFirstRatings] = useState({});
-    const [totalOriginalQuestions, setTotalOriginalQuestions] = useState(hasPreviousRatings ? 0 : questions.length);
+    const [totalOriginalQuestions, setTotalOriginalQuestions] = useState(0);
     const [reviewedCountSession, setReviewedCountSession] = useState(0);
+
+    // Section Notes Toggle (persisted preference)
+    const [showSectionNotes, setShowSectionNotes] = useState(
+        lesson.showSectionNotes !== undefined ? lesson.showSectionNotes : true
+    );
 
     // Audio Recording State
     const [isRecording, setIsRecording] = useState(false);
@@ -42,8 +48,54 @@ export const useReviewSession = ({
     const mediaRecorderRef = useRef(null);
     const chunksRef = useRef([]);
 
+    // Ref to track if progress was saved on this session close
+    const progressSavedRef = useRef(false);
+
     // Derived State
     const currentQuestion = studyQuestions[currentIndex];
+
+    // Difficult questions count for UI
+    const lessonQuestions = lesson.questions || lesson.cards || [];
+    const difficultQuestionsCount = lessonQuestions.filter(q => q.lastRating !== undefined && q.lastRating < 2).length;
+
+    // Save partial progress function
+    const savePartialProgress = useCallback(() => {
+        // Only save if at least 1 question was reviewed and lesson is owned (not public)
+        if (reviewedCountSession < 1 || lesson.isPublic || progressSavedRef.current) {
+            return;
+        }
+
+        progressSavedRef.current = true;
+
+        // Update question ratings from this session
+        const updatedQuestions = lessonQuestions.map((q) => {
+            const qId = q.id || q.question?.text;
+            const fRating = firstRatings[qId];
+            if (fRating !== undefined) {
+                return { ...q, lastRating: fRating };
+            }
+            return q;
+        });
+
+        const updatedLesson = {
+            ...lesson,
+            questions: updatedQuestions,
+            // Save session index for potential resume
+            lastSessionIndex: currentIndex,
+            // Mark as partially reviewed
+            partialReviewDate: new Date().toISOString(),
+            // Persist section notes preference
+            showSectionNotes
+        };
+
+        onUpdate(updatedLesson);
+    }, [lesson, lessonQuestions, firstRatings, reviewedCountSession, currentIndex, showSectionNotes, onUpdate]);
+
+    // Handle close with progress save
+    const handleCloseWithSave = useCallback(() => {
+        savePartialProgress();
+        onClose();
+    }, [savePartialProgress, onClose]);
 
     // Effects
     useEffect(() => {
@@ -61,16 +113,37 @@ export const useReviewSession = ({
         };
     }, []);
 
+    // Effect for saving on browser/tab close (beforeunload)
     useEffect(() => {
-        if (!showModeSelection && !hasPreviousRatings && studyQuestions.length > 0) {
+        const handleBeforeUnload = () => {
+            // Attempt to save - browser may not complete the request, but we try
+            if (reviewedCountSession >= 1 && !lesson.isPublic && !progressSavedRef.current) {
+                savePartialProgress();
+            }
+        };
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+            // Also save on component unmount
+            if (reviewedCountSession >= 1 && !lesson.isPublic && !progressSavedRef.current) {
+                savePartialProgress();
+            }
+        };
+    }, [reviewedCountSession, lesson.isPublic, savePartialProgress]);
+
+    useEffect(() => {
+        if (!showStartScreen && !showModeSelection && studyQuestions.length > 0) {
             playTada();
         }
-    }, [showModeSelection, hasPreviousRatings, studyQuestions.length]);
+    }, [showStartScreen, showModeSelection, studyQuestions.length]);
 
     // Logic Functions
-    const handleStartReview = useCallback((mode) => {
+    const handleStartReview = useCallback((mode, options = {}) => {
+        const { resumeFromIndex = 0 } = options;
         const baseQuestions = [...(lesson.questions || lesson.cards || [])];
 
+        // Sort by lastRating (difficult first)
         baseQuestions.sort((a, b) => {
             const rA = a.lastRating !== undefined ? a.lastRating : -2;
             const rB = b.lastRating !== undefined ? b.lastRating : -2;
@@ -78,22 +151,33 @@ export const useReviewSession = ({
         });
 
         let selected = [];
-        if (mode === 'all') {
+        if (mode === 'all' || mode === 'resume') {
             selected = baseQuestions;
         } else if (mode === 'difficult') {
             selected = baseQuestions.filter(q => q.lastRating !== undefined && q.lastRating < 2);
         }
 
+        const startIndex = mode === 'resume' ? Math.min(resumeFromIndex, selected.length - 1) : 0;
+
         setStudyQuestions(selected);
         setTotalOriginalQuestions(selected.length);
+        setShowStartScreen(false);
         setShowModeSelection(false);
-        setCurrentIndex(0);
+        setCurrentIndex(startIndex);
         setSessionRatings([]);
         setSessionResult(null);
-        setMasteredCount(0);
+        setMasteredCount(mode === 'resume' ? startIndex : 0);
         setFirstRatings({});
         setFeedback(null);
-    }, [lesson.questions, lesson.cards]);
+        setReviewedCountSession(0);
+        progressSavedRef.current = false;
+
+        // Clear the interrupted session marker
+        if (mode === 'all' && lesson.lastSessionIndex !== undefined) {
+            const clearedLesson = { ...lesson, lastSessionIndex: undefined };
+            onUpdate(clearedLesson);
+        }
+    }, [lesson, onUpdate]);
 
     const getNextInterval = (currentStage) => {
         const stages = [1, 3, 7, 30];
@@ -151,8 +235,8 @@ export const useReviewSession = ({
                 });
             }
 
-            // Demo Mode Check
-            if (lesson.id === 'demo-lesson' || isPreviewMode) {
+            // Ownership Check
+            if (lesson.isPublic) {
                 return;
             }
 
@@ -245,34 +329,7 @@ export const useReviewSession = ({
         const msg = customFeedbackMsg || getRandomPhrase(isByHeart ? 'mastered' : 'retry');
         setFeedback({ message: msg, type: isByHeart ? 'success' : 'retry' });
 
-        // Preview Limit Logic
-        const isPublicOrDemo = lesson.isPublic || lesson.id === 'demo-lesson';
-        const isOwnedByMe = lesson.ownedByMe;
 
-        if (isPublicOrDemo && !isOwnedByMe) {
-            const nextIndex = currentIndex + 1;
-            const limit = 10;
-            if (nextIndex >= limit) {
-                if (!user) {
-                    if (onLoginRequired) {
-                        onLoginRequired({
-                            lesson,
-                            currentIndex: nextIndex,
-                            sessionRatings: [...sessionRatings, val]
-                        });
-                    }
-                } else if (onUpdate) {
-                    showAlert({
-                        type: 'confirm',
-                        message: "You've reached the preview limit. Add this lesson to 'My Lessons' to continue?",
-                        onConfirm: () => {
-                            onClose();
-                        }
-                    });
-                }
-                return;
-            }
-        }
 
         setReviewedCountSession(prev => prev + 1);
     };
@@ -337,10 +394,9 @@ export const useReviewSession = ({
         }
     };
 
-    const lessonQuestions = lesson.questions || lesson.cards || [];
-
     return {
         // State
+        showStartScreen,
         showModeSelection,
         currentIndex,
         currentQuestion,
@@ -352,6 +408,10 @@ export const useReviewSession = ({
         masteredCount,
         totalOriginalQuestions,
         studyQuestions,
+        showSectionNotes,
+        hasInterruptedSession,
+        lessonTitle: lesson.title || 'Untitled Lesson',
+        lastSessionIndex: lesson.lastSessionIndex,
 
         // Actions
         handleStartReview,
@@ -360,6 +420,8 @@ export const useReviewSession = ({
         handleRating,
         setIsFlipped,
         setViewingImage,
+        handleCloseWithSave,
+        setShowSectionNotes,
 
         // Audio
         isRecording,
@@ -371,6 +433,6 @@ export const useReviewSession = ({
         toggleRecordedPlayback,
 
         // Computed
-        difficultQuestionsCount: lessonQuestions.filter(q => q.lastRating !== undefined && q.lastRating < 2).length
+        difficultQuestionsCount
     };
 };

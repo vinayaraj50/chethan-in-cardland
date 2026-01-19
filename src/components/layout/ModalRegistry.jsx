@@ -12,7 +12,7 @@ import KnowMoreModal from '../KnowMoreModal';
 import CoinPurchaseModal from '../CoinPurchaseModal';
 import ReferralModal from '../ReferralModal';
 import AdminPanel from '../AdminPanel';
-import LoginPromptModal from '../LoginPromptModal';
+
 import ImportantNotePopup from '../ImportantNotePopup';
 import NamePromptModal from '../NamePromptModal';
 
@@ -41,9 +41,7 @@ const ModalRegistry = ({
     onImportLesson,
     onUpdateCoins,
     isUnlimited,
-    onLoginRequired,
-    signIn, // Add direct sign-in capability
-    previewSession,
+    signIn,
     onReviewStart,
     handleEditLesson,
     handleReviewLaunch,
@@ -136,9 +134,6 @@ const ModalRegistry = ({
                     showAlert={o => typeof o === 'string' ? showNotification('alert', o) : showNotification(o.type, o.message, o.onConfirm)}
                     userCoins={userProfile?.coins || 0}
                     onDeductCoins={a => { if (!isUnlimited) onUpdateCoins((userProfile?.coins || 0) - a); }}
-                    isPreviewMode={!user && reviewLesson.isPublic}
-                    onLoginRequired={onLoginRequired}
-                    previewProgress={previewSession}
                     isUnlimited={isUnlimited}
                     onReviewStart={onReviewStart}
                     displayName={userProfile?.displayName}
@@ -194,27 +189,9 @@ const ModalRegistry = ({
                 />
             )}
 
-            {modals.showAdminQuickTools && (
-                <AdminPanel
-                    user={user}
-                    onClose={() => toggleModal('showAdminQuickTools', false)}
-                    publicLessons={publicLessons}
-                    onRefreshPublic={fetchPublicLessons}
-                    showAlert={m => showNotification('alert', m)}
-                    showConfirm={(m, c) => showNotification('confirm', m, c)}
-                    onEditLesson={handleEditLesson}
-                    initialSection="smart_paste"
-                />
-            )}
 
-            {modals.showLoginPrompt && previewSession && (
-                <LoginPromptModal
-                    onLogin={() => { toggleModal('showLoginPrompt', false); onLoginRequired(null); }}
-                    onCancel={() => { toggleModal('showLoginPrompt', false); safelyCloseReview(); }}
-                    questionsReviewed={previewSession.sessionRatings?.length || 0}
-                    totalQuestions={previewSession.lesson?.questions?.length || previewSession.lesson?.cards?.length || 0}
-                />
-            )}
+
+
 
             {modals.showNamePrompt && !isTourActive && (
                 <NamePromptModal

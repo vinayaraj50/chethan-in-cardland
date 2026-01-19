@@ -123,11 +123,11 @@ const HamburgerMenu = ({ user, theme, onToggleTheme, soundsEnabled, onToggleSoun
                 {/* Sponsor Button */}
 
 
-                {/* Theme Toggle */}
+                {/* Eye Safe Toggle */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>{theme === 'light' ? 'Light Mode' : 'Dark Mode'}</span>
-                    <button className="neo-button icon-btn neo-glow-blue" onClick={onToggleTheme}>
-                        {theme === 'light' ? <Sun size={20} /> : <Moon size={20} />}
+                    <span>{theme === 'dark' ? 'Eye Safe On' : 'Eye Safe Off'}</span>
+                    <button className={`neo-button icon-btn ${theme === 'dark' ? 'neo-glow-blue' : ''}`} onClick={onToggleTheme}>
+                        {theme === 'dark' ? <Moon size={20} /> : <Moon size={20} />}
                     </button>
                 </div>
 

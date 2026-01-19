@@ -171,11 +171,11 @@ const LessonCard = ({ lesson, onReview, onEdit, onImport, user, onDelete, showCo
                             }
                         }}
                     >
-                        {lesson.isOwned ? <Layers size={14} /> : (lesson.cost > 0 ? <Coins size={14} /> : <Plus size={14} />)}
+                        {lesson.isOwned ? <Layers size={14} /> : (user ? (lesson.cost > 0 ? <Coins size={14} /> : <Plus size={14} />) : null)}
                         {lesson.isOwned ? 'Owned' : (user ? (
                             lesson.cost > 0 ? `Buy for ${lesson.cost}` : 'Free - Add to My Lessons'
                         ) : (
-                            `Preview (${lesson.cost > 0 ? `Price: ${lesson.cost}` : 'Free'})`
+                            'Login with Google to Open'
                         ))}
                     </button>
                 )}

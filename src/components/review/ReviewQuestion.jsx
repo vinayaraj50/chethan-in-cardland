@@ -85,7 +85,8 @@ const ReviewQuestion = ({
     setIsFlipped,
     setViewingImage,
     onRateMCQ,
-    feedback
+    feedback,
+    showSectionNotes = true // Default to true for backwards compatibility
 }) => {
     const [sectionNoteAcknowledged, setSectionNoteAcknowledged] = useState(false);
 
@@ -97,11 +98,17 @@ const ReviewQuestion = ({
 
     if (!currentQuestion) return null;
 
-    const showSectionNote = currentQuestion.isFirstInSection &&
+    // Only show section note if:
+    // 1. showSectionNotes setting is enabled
+    // 2. This is the first question in a section
+    // 3. The section has a note segment
+    // 4. User hasn't acknowledged it yet
+    const shouldShowSectionNote = showSectionNotes &&
+        currentQuestion.isFirstInSection &&
         currentQuestion.sectionNoteSegment &&
         !sectionNoteAcknowledged;
 
-    if (showSectionNote) {
+    if (shouldShowSectionNote) {
         return <SectionNoteCard
             noteText={currentQuestion.sectionNoteSegment}
             onStart={() => setSectionNoteAcknowledged(true)}

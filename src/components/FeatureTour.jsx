@@ -67,28 +67,6 @@ const FeatureTour = ({ onStartDemo, onGoToMyLessons, userName, onLogin, onAddLes
         },
         {
             id: 4,
-            targetId: 'lesson-card-demo-lesson',
-            text: "This is a sample lesson. We recommend starting here to experience our active recall methodology first-hand.",
-            actionLabel: "Launch Demo",
-            actionIcon: <Play size={16} fill="white" />,
-            onAction: onStartDemo,
-            layout: 'tooltip',
-            placement: 'top',
-            canSkip: true,
-            onSkip: () => setStep(6)
-        },
-        {
-            id: 5,
-            targetId: 'lesson-card-demo-lesson',
-            highlightId: 'next-review-indicator-demo-lesson',
-            text: "Our intelligent algorithm calculates the optimal moment for your next review to ensure long-term retention.",
-            actionLabel: "Continue",
-            layout: 'tooltip',
-            placement: 'bottom',
-            canSkip: true
-        },
-        {
-            id: 6,
             targetId: 'fab-add-lesson',
             text: "Ready to create your own? Click the '+' button to start building your personal lesson.",
             onAction: () => {
@@ -100,7 +78,7 @@ const FeatureTour = ({ onStartDemo, onGoToMyLessons, userName, onLogin, onAddLes
             canSkip: true
         },
         {
-            id: 7,
+            id: 5,
             targetId: 'lesson-modal-title-input',
             text: "Give your lesson a catchy title and start adding questions. You can use text, images, and even voice recordings!",
             actionLabel: "Got it",
@@ -109,7 +87,7 @@ const FeatureTour = ({ onStartDemo, onGoToMyLessons, userName, onLogin, onAddLes
             canSkip: false
         },
         {
-            id: 8,
+            id: 6,
             targetId: null,
             text: "You are now fully equipped for success. Start creating your own personalized lessons whenever you're ready.",
             actionLabel: "Get Started",

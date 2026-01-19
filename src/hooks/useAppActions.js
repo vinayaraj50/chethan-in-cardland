@@ -34,7 +34,8 @@ export const useAppActions = () => {
         setActiveLesson,
         showToast,
         modals,
-        setHeaderLoading
+        setHeaderLoading,
+        showHeaderNotice
     } = useUI();
     const { queuePostTourEvent, endTour } = useTour();
 
@@ -141,7 +142,7 @@ export const useAppActions = () => {
             }
 
             handleUpdateLocalLesson({ ...newLesson, driveFileId: savedLesson.driveFileId || savedLesson.id });
-            showNotification('alert', cost > 0 ? `Purchased "${lesson.title}"!` : `Added "${lesson.title}"!`);
+            showHeaderNotice(cost > 0 ? `Purchased "${lesson.title}"!` : `Added "${lesson.title}"!`);
 
         } catch (error) {
             console.error('[AppActions] Import/Purchase failed:', error);
@@ -287,6 +288,10 @@ export const useAppActions = () => {
     }, [user, setPublicLessons, setActiveLesson, toggleModal, showNotification]);
 
     const handleReviewLaunch = useCallback(async (s) => {
+        if (s.isPublic && !s.isOwned && !s.isLocal) {
+            showHeaderNotice('Add to My Lessons to open');
+            return;
+        }
         let lessonToReview = s;
         const questions = lessonToReview.questions || lessonToReview.cards || [];
 
@@ -298,7 +303,7 @@ export const useAppActions = () => {
                 if (fullContent) {
                     let contentObj = null;
                     if (typeof fullContent === 'string') {
-                        if (!contentObj && fullContent.startsWith('v1:')) {
+                        if (!contentObj && (fullContent.startsWith('v1:') || fullContent.length > 100)) {
                             // STRICT SECURITY: Delegate to server
                             const { decryptionService } = await import('../services/decryptionService');
                             const idToken = await auth.currentUser?.getIdToken();
@@ -308,8 +313,10 @@ export const useAppActions = () => {
                                 // CRITICAL: Normalize decrypted content from new schema to internal format
                                 contentObj = normalizeLessonContent(rawDecrypted);
                             } else {
-                                console.warn('[AppActions] Cannot decrypt for review: User not authenticated');
-                                showNotification('alert', 'Please sign in to view this lesson.');
+                                // User not authenticated - trigger sign-in flow
+                                console.log('[AppActions] User not authenticated. Triggering sign-in...');
+                                queuePostTourEvent(() => handleReviewLaunch(s));
+                                signIn('consent');
                                 return;
                             }
                         }
@@ -321,12 +328,12 @@ export const useAppActions = () => {
                 }
             } catch (e) {
                 console.error('[AppActions] Failed to fetch full content for review:', e);
-                showNotification('alert', 'Failed to open.');
+                showHeaderNotice('Add to My Lessons to open');
                 return;
             }
         }
         lessonToReview.importantNote ? setNoteLesson(lessonToReview) : setReviewLesson(lessonToReview);
-    }, [user, showNotification, setNoteLesson, setReviewLesson]);
+    }, [user, showHeaderNotice, setNoteLesson, setReviewLesson, queuePostTourEvent, signIn]);
 
     return {
         handleImportLesson,

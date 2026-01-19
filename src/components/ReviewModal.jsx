@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Edit2, SkipForward, Layers, AlertCircle, Brain, BookOpen, Sparkles } from 'lucide-react';
+import { Edit2, SkipForward, Layers, AlertCircle, Brain, BookOpen, Sparkles, Play, RotateCcw, Eye, EyeOff } from 'lucide-react';
 import avatar from '../assets/avatar_guide_new.png';
 
 import CloseButton from './common/CloseButton';
@@ -11,9 +11,10 @@ import ReviewQuestion from './review/ReviewQuestion';
 import ReviewControls from './review/ReviewControls';
 import { useReviewSession } from '../hooks/useReviewSession';
 
-const ReviewModal = ({ lesson, user, onClose, onEdit, onUpdate, showAlert, userCoins, onDeductCoins, isPreviewMode = false, onLoginRequired, previewProgress = null, onReviewStart, displayName }) => {
+const ReviewModal = ({ lesson, user, onClose, onEdit, onUpdate, showAlert, userCoins, onDeductCoins, onReviewStart, displayName }) => {
 
     const {
+        showStartScreen,
         showModeSelection,
         currentIndex,
         currentQuestion,
@@ -38,16 +39,21 @@ const ReviewModal = ({ lesson, user, onClose, onEdit, onUpdate, showAlert, userC
         startRecording,
         stopRecording,
         deleteRecording,
-        toggleRecordedPlayback
+        toggleRecordedPlayback,
+        handleCloseWithSave,
+        showSectionNotes,
+        setShowSectionNotes,
+        hasInterruptedSession,
+        lessonTitle,
+        lastSessionIndex
     } = useReviewSession({
-        lesson, user, onUpdate, onClose, showAlert, isPreviewMode, onLoginRequired, previewProgress, onReviewStart
+        lesson, user, onUpdate, onClose, showAlert, onReviewStart
     });
 
-    const isDemoLesson = lesson.id === 'demo-lesson';
+    const totalQuestions = (lesson.questions || lesson.cards || []).length;
 
-
-
-    if (showModeSelection) {
+    // New Start Screen - Always shown first
+    if (showStartScreen) {
         return (
             <div className="modal-overlay" style={{
                 position: 'fixed', top: 0, right: 0, bottom: 0, left: 0,
@@ -61,68 +67,168 @@ const ReviewModal = ({ lesson, user, onClose, onEdit, onUpdate, showAlert, userC
                 >
                     <motion.div
                         initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }}
+                        className="neo-flat"
                         style={{
-                            background: 'var(--bg-color)', width: '100%', maxWidth: '400px',
-                            borderRadius: '24px', padding: '1.5rem', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
-                            position: 'relative'
+                            width: '100%', maxWidth: '420px',
+                            padding: '2rem', position: 'relative'
                         }}
                     >
-                        <CloseButton onClose={onClose} theme="light" />
+                        <CloseButton onClose={handleCloseWithSave} theme="light" />
 
-                        <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+                        {/* Lesson Title Section */}
+                        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
                             <div style={{
-                                width: '4rem', height: '4rem', background: 'var(--accent-color)',
+                                width: '5rem', height: '5rem', background: 'linear-gradient(135deg, var(--accent-color), var(--primary-color))',
                                 borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                margin: '0 auto 1rem', color: 'white'
+                                margin: '0 auto 1.25rem', color: 'white',
+                                boxShadow: '0 8px 20px rgba(var(--accent-rgb), 0.3)'
                             }}>
-                                <Layers size={32} />
+                                <BookOpen size={36} />
                             </div>
-                            <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>How to Review?</h2>
-                            <p style={{ opacity: 0.7 }}>Choose your focused session type</p>
+                            <h2 style={{
+                                fontSize: '1.6rem',
+                                fontWeight: 'bold',
+                                marginBottom: '0.5rem',
+                                background: 'linear-gradient(135deg, var(--text-color), var(--accent-color))',
+                                WebkitBackgroundClip: 'text',
+                                WebkitTextFillColor: 'transparent',
+                                backgroundClip: 'text'
+                            }}>
+                                {lessonTitle}
+                            </h2>
+                            <p style={{ opacity: 0.6, fontSize: '0.95rem' }}>{totalQuestions} questions</p>
                         </div>
 
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                        {/* Review Options */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+
+                            {/* Resume Option - Only shown if there's an interrupted session */}
+                            {hasInterruptedSession && lastSessionIndex > 0 && (
+                                <button
+                                    className="neo-button neo-glow-blue"
+                                    onClick={() => handleStartReview('resume', { resumeFromIndex: lastSessionIndex })}
+                                    style={{
+                                        padding: '1.1rem 1rem', display: 'flex', alignItems: 'center', gap: '1rem',
+                                        justifyContent: 'flex-start', background: 'var(--accent-color)', color: 'white',
+                                        border: 'none'
+                                    }}
+                                >
+                                    <div style={{
+                                        padding: '0.6rem', background: 'rgba(255,255,255,0.2)',
+                                        borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                    }}>
+                                        <Play size={22} fill="white" />
+                                    </div>
+                                    <div style={{ textAlign: 'left' }}>
+                                        <div style={{ fontWeight: 'bold', fontSize: '1.05rem' }}>Continue Where You Left</div>
+                                        <div style={{ fontSize: '0.8rem', opacity: 0.85 }}>Resume from question {lastSessionIndex + 1}</div>
+                                    </div>
+                                </button>
+                            )}
+
+                            {/* Start Fresh Option */}
                             <button
                                 className="neo-button"
                                 onClick={() => handleStartReview('all')}
                                 style={{
-                                    padding: '1rem', display: 'flex', alignItems: 'center', gap: '1rem',
+                                    padding: '1.1rem 1rem', display: 'flex', alignItems: 'center', gap: '1rem',
                                     border: '2px solid var(--border-color)', justifyContent: 'flex-start'
                                 }}
                             >
-                                <div style={{ width: '40px', height: '40px', borderRadius: '12px', overflow: 'hidden', flexShrink: 0 }}>
-                                    <img src={avatar} alt="Guide" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                <div style={{
+                                    width: '44px', height: '44px', borderRadius: '12px', overflow: 'hidden',
+                                    flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    background: 'var(--accent-soft)'
+                                }}>
+                                    <RotateCcw size={22} color="var(--accent-color)" />
                                 </div>
                                 <div style={{ textAlign: 'left' }}>
-                                    <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>Review All Questions</div>
-                                    <div style={{ fontSize: '0.85rem', opacity: 0.6 }}>Go through entire lesson ({(lesson.questions || lesson.cards || []).length} questions)</div>
+                                    <div style={{ fontWeight: 'bold', fontSize: '1.05rem' }}>
+                                        {hasInterruptedSession ? 'Start From Beginning' : 'Start Review'}
+                                    </div>
+                                    <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>Go through all {totalQuestions} questions</div>
                                 </div>
                             </button>
 
+                            {/* Tough Cards Only Option */}
                             <button
                                 className="neo-button"
                                 disabled={difficultQuestionsCount === 0}
                                 onClick={() => handleStartReview('difficult')}
                                 style={{
-                                    padding: '1rem', display: 'flex', alignItems: 'center', gap: '1rem',
+                                    padding: '1.1rem 1rem', display: 'flex', alignItems: 'center', gap: '1rem',
                                     border: '2px solid var(--border-color)', justifyContent: 'flex-start',
                                     opacity: difficultQuestionsCount === 0 ? 0.5 : 1
                                 }}
                             >
-                                <div style={{ padding: '0.5rem', background: '#fee2e2', borderRadius: '12px', color: '#dc2626' }}>
-                                    <AlertCircle size={24} />
+                                <div style={{ padding: '0.6rem', background: '#fee2e2', borderRadius: '12px', color: '#dc2626' }}>
+                                    <AlertCircle size={22} />
                                 </div>
                                 <div style={{ textAlign: 'left' }}>
-                                    <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>Focus on Difficult</div>
-                                    <div style={{ fontSize: '0.85rem', opacity: 0.6 }}>Questions you missed previously ({difficultQuestionsCount} questions)</div>
+                                    <div style={{ fontWeight: 'bold', fontSize: '1.05rem' }}>Tough Cards Only</div>
+                                    <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>
+                                        {difficultQuestionsCount > 0
+                                            ? `Focus on ${difficultQuestionsCount} challenging question${difficultQuestionsCount > 1 ? 's' : ''}`
+                                            : 'No tough cards yet'}
+                                    </div>
                                 </div>
                             </button>
+                        </div>
+
+                        {/* Section Notes Toggle */}
+                        <div style={{
+                            marginTop: '1.5rem',
+                            padding: '1rem',
+                            background: 'var(--bg-color)',
+                            borderRadius: '1rem',
+                            boxShadow: 'inset 3px 3px 6px var(--shadow-dark), inset -3px -3px 6px var(--shadow-light)'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                    {showSectionNotes ? <Eye size={20} color="var(--accent-color)" /> : <EyeOff size={20} style={{ opacity: 0.5 }} />}
+                                    <div>
+                                        <div style={{ fontWeight: '600', fontSize: '0.95rem' }}>Show Important Notes</div>
+                                        <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>Display section notes before questions</div>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setShowSectionNotes(!showSectionNotes)}
+                                    style={{
+                                        width: '52px',
+                                        height: '28px',
+                                        borderRadius: '14px',
+                                        border: 'none',
+                                        background: showSectionNotes ? 'var(--accent-color)' : 'var(--shadow-dark)',
+                                        position: 'relative',
+                                        cursor: 'pointer',
+                                        transition: 'background 0.3s ease',
+                                        boxShadow: showSectionNotes
+                                            ? '0 0 12px rgba(var(--accent-rgb), 0.5)'
+                                            : 'inset 2px 2px 4px var(--shadow-dark)'
+                                    }}
+                                >
+                                    <motion.div
+                                        animate={{ x: showSectionNotes ? 24 : 2 }}
+                                        transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                                        style={{
+                                            width: '22px',
+                                            height: '22px',
+                                            borderRadius: '50%',
+                                            background: 'white',
+                                            position: 'absolute',
+                                            top: '3px',
+                                            boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                                        }}
+                                    />
+                                </button>
+                            </div>
                         </div>
                     </motion.div>
                 </motion.div>
             </div>
         );
     }
+
 
     if ((!studyQuestions || studyQuestions.length === 0) && !sessionResult) {
         return (
@@ -300,7 +406,7 @@ const ReviewModal = ({ lesson, user, onClose, onEdit, onUpdate, showAlert, userC
                         masteredCount={masteredCount}
                         totalOriginalQuestions={totalOriginalQuestions}
                         rating={rating}
-                        onClose={onClose}
+                        onClose={handleCloseWithSave}
                         user={user}
                         lesson={lesson}
                     />
@@ -329,6 +435,7 @@ const ReviewModal = ({ lesson, user, onClose, onEdit, onUpdate, showAlert, userC
                                     isFlipped={isFlipped}
                                     setIsFlipped={setIsFlipped}
                                     setViewingImage={setViewingImage}
+                                    showSectionNotes={showSectionNotes}
                                     onRateMCQ={(opt) => {
                                         if (opt?.isCorrect) {
                                             handleRating(2);

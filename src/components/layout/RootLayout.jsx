@@ -1,8 +1,9 @@
 import React from 'react';
-import { Plus, Menu, Zap, RefreshCw } from 'lucide-react';
-import { AnimatePresence } from 'framer-motion';
+import { Plus, Menu, RefreshCw, X } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
 import logo from '../../assets/logo.png';
 import CoinsDisplay from '../CoinsDisplay';
+import { useUI } from '../../context/UIContext';
 
 /**
  * RootLayout Component
@@ -15,8 +16,6 @@ const RootLayout = ({
     isUnlimited,
     isAdmin,
     isTourActive,
-    showAdminQuickTools,
-    onToggleAdminQuickTools,
     onShowCoinModal,
     onShowMenu,
     onAddLesson,
@@ -25,37 +24,259 @@ const RootLayout = ({
     headerLoading,
     children
 }) => {
+    const { headerNotice, clearHeaderNotice, toast, hideToast, notification, clearNotification } = useUI();
+
+    // Handle Toast Timer
+    React.useEffect(() => {
+        if (toast && toast.duration) {
+            const timer = setTimeout(() => {
+                hideToast();
+            }, toast.duration);
+            return () => clearTimeout(timer);
+        }
+    }, [toast, hideToast]);
+
     return (
         <div className="app-layout">
-            <header className="main-header">
-                <img src={logo} alt="Chethan" className="app-logo" />
-                <div className="header-actions">
-                    {isAdmin && (
-                        <button
-                            className={`neo-button icon-btn ${showAdminQuickTools ? 'active' : ''}`}
-                            onClick={onToggleAdminQuickTools}
-                            title="Admin Quick Tools"
-                            style={{ background: showAdminQuickTools ? 'var(--accent-soft)' : '' }}
+            <header className="main-header" style={{ position: 'relative' }}>
+                <AnimatePresence mode="wait">
+                    {headerLoading ? (
+                        <motion.div
+                            key="loader"
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            style={{
+                                position: 'absolute',
+                                left: '1rem',
+                                right: '1rem',
+                                top: '0.5rem',
+                                bottom: '0.5rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                background: 'var(--bg-color)',
+                                zIndex: 10,
+                                borderRadius: '16px',
+                                boxShadow: '5px 5px 10px var(--shadow-dark), -5px -5px 10px var(--shadow-light)'
+                            }}
                         >
-                            <Zap size={20} color={showAdminQuickTools ? 'var(--accent-color)' : 'currentColor'} />
-                        </button>
+                            <div className="card-loader-small">
+                                <div className="card-loader-item-small"></div>
+                                <div className="card-loader-item-small"></div>
+                                <div className="card-loader-item-small"></div>
+                            </div>
+                        </motion.div>
+                    ) : notification ? (
+                        <motion.div
+                            key="notification"
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            style={{
+                                position: 'absolute',
+                                left: '1rem',
+                                right: '1rem',
+                                top: '0.5rem',
+                                bottom: '0.5rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                background: 'var(--bg-color)',
+                                zIndex: 11,
+                                borderRadius: '16px',
+                                boxShadow: '5px 5px 10px var(--shadow-dark), -5px -5px 10px var(--shadow-light)',
+                                padding: '0 1rem'
+                            }}
+                        >
+                            <span style={{ fontWeight: '600', fontSize: '0.9rem', color: 'var(--text-color)', flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {notification.message}
+                            </span>
+                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                {notification.type === 'confirm' ? (
+                                    <>
+                                        <button
+                                            className="neo-button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (notification.onConfirm) notification.onConfirm();
+                                                clearNotification();
+                                            }}
+                                            style={{ padding: '0.3rem 0.8rem', fontSize: '0.8rem', height: 'auto', minHeight: 'unset', color: 'var(--accent-color)' }}
+                                        >
+                                            Confirm
+                                        </button>
+                                        <button
+                                            className="neo-button icon-btn"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                clearNotification();
+                                            }}
+                                            style={{
+                                                padding: '4px',
+                                                width: '28px',
+                                                height: '28px',
+                                                minWidth: '28px',
+                                                background: 'var(--bg-color)',
+                                                border: 'none',
+                                                boxShadow: '2px 2px 5px var(--shadow-dark), -2px -2px 5px var(--shadow-light)'
+                                            }}
+                                        >
+                                            <X size={14} color="#ef4444" />
+                                        </button>
+                                    </>
+                                ) : (
+                                    <button
+                                        className="neo-button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            clearNotification();
+                                        }}
+                                        style={{ padding: '0.3rem 0.8rem', fontSize: '0.8rem', height: 'auto', minHeight: 'unset' }}
+                                    >
+                                        Got it
+                                    </button>
+                                )}
+                            </div>
+                        </motion.div>
+                    ) : toast ? (
+                        <motion.div
+                            key="toast"
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            style={{
+                                position: 'absolute',
+                                left: '1rem',
+                                right: '1rem',
+                                top: '0.5rem',
+                                bottom: '0.5rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                background: 'var(--bg-color)',
+                                color: 'var(--text-color)',
+                                zIndex: 10,
+                                borderRadius: '16px',
+                                fontWeight: '600',
+                                fontSize: '0.9rem',
+                                padding: '0 1rem',
+                                boxShadow: '5px 5px 10px var(--shadow-dark), -5px -5px 10px var(--shadow-light)'
+                            }}
+                        >
+                            <span style={{ flex: 1, textAlign: 'left', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {toast.message}
+                            </span>
+                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                {toast.onUndo && (
+                                    <button
+                                        className="neo-button"
+                                        style={{ padding: '0.3rem 0.8rem', fontSize: '0.8rem', height: 'auto', minHeight: 'unset' }}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            toast.onUndo();
+                                            toast.onClose ? toast.onClose() : hideToast();
+                                        }}
+                                    >
+                                        Undo
+                                    </button>
+                                )}
+                                <button
+                                    className="neo-button icon-btn"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        hideToast();
+                                    }}
+                                    style={{
+                                        padding: '4px',
+                                        width: '28px',
+                                        height: '28px',
+                                        minWidth: '28px',
+                                        background: 'var(--bg-color)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        border: 'none',
+                                        boxShadow: '2px 2px 5px var(--shadow-dark), -2px -2px 5px var(--shadow-light)'
+                                    }}
+                                >
+                                    <X size={14} color="#ef4444" />
+                                </button>
+                            </div>
+                        </motion.div>
+                    ) : headerNotice ? (
+                        <motion.div
+                            key="notice"
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            style={{
+                                position: 'absolute',
+                                left: '1rem',
+                                right: '1rem',
+                                top: '0.5rem',
+                                bottom: '0.5rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                background: 'var(--bg-color)',
+                                color: 'var(--accent-color)',
+                                zIndex: 10,
+                                borderRadius: '16px',
+                                fontWeight: '700',
+                                fontSize: '1rem',
+                                padding: '0 1.5rem',
+                                textAlign: 'center',
+                                boxShadow: '5px 5px 10px var(--shadow-dark), -5px -5px 10px var(--shadow-light)'
+                            }}
+                        >
+                            <span>{headerNotice.message}</span>
+                            <button
+                                className="neo-button icon-btn"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    clearHeaderNotice();
+                                }}
+                                style={{
+                                    position: 'absolute',
+                                    right: '0.5rem',
+                                    padding: '4px',
+                                    width: '28px',
+                                    height: '28px',
+                                    minWidth: '28px',
+                                    background: 'var(--bg-color)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    border: 'none',
+                                    boxShadow: '2px 2px 5px var(--shadow-dark), -2px -2px 5px var(--shadow-light)'
+                                }}
+                            >
+                                <X size={14} color="#ef4444" />
+                            </button>
+                        </motion.div>
+                    ) : (
+                        <motion.div
+                            key="content"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                        >
+                            <img src={logo} alt="Chethan" className="app-logo" />
+                            <div className="header-actions">
+                                {user && (
+                                    <div onClick={onShowCoinModal} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <CoinsDisplay coins={userProfile?.coins || 0} isUnlimited={isUnlimited} />
+                                    </div>
+                                )}
+                                <button className="neo-button icon-btn" onClick={onShowMenu}>
+                                    <Menu size={24} />
+                                </button>
+                            </div>
+                        </motion.div>
                     )}
-                    {user && (
-                        <div onClick={onShowCoinModal} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <CoinsDisplay coins={userProfile?.coins || 0} isUnlimited={isUnlimited} />
-                            {(isProfileLoading || headerLoading) && (
-                                <RefreshCw
-                                    size={14}
-                                    className="spin"
-                                    style={{ color: 'var(--accent-color)', opacity: 0.7 }}
-                                />
-                            )}
-                        </div>
-                    )}
-                    <button className="neo-button icon-btn" onClick={onShowMenu}>
-                        <Menu size={24} />
-                    </button>
-                </div>
+                </AnimatePresence>
             </header>
 
             <div className="app-container">
@@ -74,35 +295,7 @@ const RootLayout = ({
                 )}
             </div>
 
-            <footer className="main-footer">
-                <a href="/privacy.html" target="_blank" rel="noopener noreferrer">Privacy Policy</a>
-                <span className="footer-v">v{localStorage.getItem('app_version') || '1.1.4'}</span>
-            </footer>
-
             <style>{`
-                .main-footer {
-                    padding: 1.5rem;
-                    text-align: center;
-                    border-top: 1px solid rgba(0,0,0,0.05);
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    gap: 1rem;
-                    opacity: 0.6;
-                    font-size: 0.8rem;
-                }
-                .main-footer a {
-                    color: var(--text-color);
-                    text-decoration: none;
-                    font-weight: 600;
-                }
-                .main-footer a:hover {
-                    text-decoration: underline;
-                    color: var(--accent-color);
-                }
-                .footer-v {
-                    opacity: 0.5;
-                }
                 .app-layout {
                     display: flex;
                     flex-direction: column;

@@ -39,31 +39,57 @@ export const useLessons = (user, hasDrive, showAlert) => {
     }, []);
 
     const fetchPublicLessons = useCallback(async () => {
-        setPublicLoading(true);
-        try {
-            // Fetch from both Firestore and local JSON files in parallel
-            const [firestoreResults, localResults] = await Promise.allSettled([
-                import('../services/publicDrive').then(m => m.listPublicLessons()),
-                import('../services/localLessonsService').then(m => m.listLocalLessons())
-            ]);
+        // Legacy: Manual fetch is now a no-op or just re-triggers a local check if we wanted, 
+        // but for now we rely on the subscription. 
+        // We can just log or maybe refresh local files.
+        console.log('[Lessons] Public lessons are now real-time synced.');
+    }, []);
 
-            const firestoreLessons = firestoreResults.status === 'fulfilled' ? (firestoreResults.value || []) : [];
-            const localLessons = localResults.status === 'fulfilled' ? (localResults.value || []) : [];
+    // Real-time subscription for Public Lessons
+    useEffect(() => {
+        let unsubscribe = () => { };
+        let isMounted = true;
 
-            // Merge lessons, prioritizing Firestore (cloud) over local, deduplicate by ID
-            const firestoreIds = new Set(firestoreLessons.map(s => s.id));
-            const mergedLessons = [
-                ...firestoreLessons,
-                ...localLessons.filter(s => !firestoreIds.has(s.id))
-            ];
+        const syncPublicLessons = async () => {
+            setPublicLoading(true);
+            try {
+                const [localModule, publicModule] = await Promise.all([
+                    import('../services/localLessonsService'),
+                    import('../services/publicDrive')
+                ]);
 
-            console.log(`[Lessons] Loaded ${firestoreLessons.length} Firestore + ${localLessons.length} local lessons`);
-            setPublicLessons(mergedLessons);
-        } catch (error) {
-            console.error('[Lessons] Public fetch failed:', error);
-        } finally {
-            setPublicLoading(false);
-        }
+                if (!isMounted) return;
+
+                // 1. Fetch Local Lessons (Static)
+                const locals = await localModule.listLocalLessons();
+
+                // 2. Subscribe to Firestore (Real-time)
+                unsubscribe = publicModule.subscribeToPublicLessons((firestoreLessons) => {
+                    if (!isMounted) return;
+
+                    const firestoreIds = new Set(firestoreLessons.map(s => s.id));
+                    const mergedLessons = [
+                        ...firestoreLessons,
+                        ...locals.filter(s => !firestoreIds.has(s.id))
+                    ];
+
+                    console.log(`[Lessons] Synced ${firestoreLessons.length} Cloud + ${locals.length} Local`);
+                    setPublicLessons(mergedLessons);
+                    setPublicLoading(false);
+                });
+
+            } catch (error) {
+                console.error('[Lessons] Subscription failed:', error);
+                if (isMounted) setPublicLoading(false);
+            }
+        };
+
+        syncPublicLessons();
+
+        return () => {
+            isMounted = false;
+            unsubscribe();
+        };
     }, []);
 
     const fetchLessons = useCallback(async (force = false) => {
