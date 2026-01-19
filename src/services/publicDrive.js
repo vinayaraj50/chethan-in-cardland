@@ -9,9 +9,9 @@ import { ref, getDownloadURL, uploadBytes } from 'firebase/storage';
 
 class FirebaseLessonService {
     /**
-     * Lists public stacks from Firestore.
+     * Lists public lessons from Firestore.
      */
-    async listPublicStacks() {
+    async listPublicLessons() {
         try {
             console.log('[Firestore] Fetching authoritative lesson catalog...');
             const lessonsRef = collection(db, 'lessons');
@@ -41,7 +41,8 @@ class FirebaseLessonService {
                     source: 'firestore',
                     isPremium,
                     isPublic: true,
-                    storagePath
+                    storagePath,
+                    questionCount: data.questionCount || data.cardsCount || 0
                 };
             });
         } catch (e) {
@@ -62,6 +63,7 @@ class FirebaseLessonService {
                 path = `lessons/${path}.enc`;
             }
 
+            console.log('[Storage] Fetching content from:', path);
             const storageRef = ref(firebaseStorage, path);
             const url = await getDownloadURL(storageRef);
             const response = await fetch(url);
@@ -69,22 +71,26 @@ class FirebaseLessonService {
             if (!response.ok) throw new Error(`Firebase Storage HTTP ${response.status}`);
 
             const text = await response.text();
+            console.log('[Storage] Raw content length:', text?.length);
             try {
-                return JSON.parse(text);
+                const parsed = JSON.parse(text);
+                console.log('[Storage] Successfully parsed JSON. Questions found:', (parsed.questions?.length || parsed.cards?.length || 0));
+                return parsed;
             } catch (e) {
+                console.log('[Storage] Content is string (likely encrypted)');
                 return text; // Return raw encrypted text
             }
         } catch (e) {
             console.error('[Storage] Content Fetch Failed:', e);
-            return null;
+            throw new Error(`Failed to download lesson content: ${e.message}`);
         }
     }
 
     /**
-     * Legacy placeholder for public index (now handled by listPublicStacks)
+     * Legacy placeholder for public index (now handled by listPublicLessons)
      */
     async getPublicIndex() {
-        return this.listPublicStacks();
+        return this.listPublicLessons();
     }
 
     /**
@@ -108,7 +114,7 @@ class FirebaseLessonService {
             // 3. Update Firestore Catalog
             const lessonRef = doc(db, 'lessons', lessonId);
 
-            // Clean stack for metadata (remove heavy fields)
+            // Clean lesson for metadata (remove heavy fields)
             const metadata = {
                 id: lessonId,
                 title: lesson.title,
@@ -119,6 +125,7 @@ class FirebaseLessonService {
                 medium: lesson.medium || null,
                 subject: lesson.subject || null,
                 cost: lesson.cost || 0,
+                questionCount: lesson.questions?.length || lesson.cards?.length || 0, // Ensure questionCount is saved
                 type: isPremium ? 'premium' : 'free',
                 isActive: true,
                 storagePath: storagePath,
@@ -152,7 +159,8 @@ class FirebaseLessonService {
 export const apiService = new FirebaseLessonService();
 
 // Standardized exports
-export const listPublicStacks = () => apiService.listPublicStacks();
+export const listPublicLessons = () => apiService.listPublicLessons();
+export const listPublicStacks = () => apiService.listPublicLessons(); // Backward compatibility aliasing
 export const getPublicFileContent = (fileId) => apiService.getPublicFileContent(fileId);
 export const getPublicIndex = () => apiService.getPublicIndex();
 export const savePublicLesson = (lesson) => apiService.savePublicLesson(lesson);

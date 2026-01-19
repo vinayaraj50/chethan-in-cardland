@@ -43,13 +43,13 @@ const normalizeMetadata = (field, value) => {
 };
 
 export const parseGeminiOutput = (text) => {
-    if (!text || !text.trim()) return { title: '', label: '', importantNote: '', cards: [], sections: [] };
+    if (!text || !text.trim()) return { title: '', label: '', importantNote: '', questions: [], sections: [] };
 
     let rawData = null;
     let title = '';
     let label = '';
     let importantNote = '';
-    let cards = [];
+    let questions = [];
     let standard = '';
     let syllabus = '';
     let medium = '';
@@ -64,12 +64,12 @@ export const parseGeminiOutput = (text) => {
             rawData = JSON.parse(jsonMatch[0]);
         }
     } catch (e) {
-        // Not JSON, trying plain text parsing
+        // Not JSON
     }
 
     if (rawData) {
         if (Array.isArray(rawData)) {
-            cards = rawData;
+            questions = rawData;
         } else {
             title = rawData.title || '';
             label = rawData.label || rawData.tag || '';
@@ -80,11 +80,11 @@ export const parseGeminiOutput = (text) => {
             subject = normalizeMetadata('subject', rawData.subject || rawData.Subject);
             cost = rawData.cost || rawData.Cost || 0;
             sections = rawData.sections || [];
-            cards = rawData.cards || [];
+            questions = rawData.questions || rawData.cards || [];
         }
     } else {
         // Plain text parsing
-        const titleMatch = text.match(/^(?:Title|Stack Title|Name):\s*(.*)$/im);
+        const titleMatch = text.match(/^(?:Title|Lesson Title|Stack Title|Name):\s*(.*)$/im);
         const labelMatch = text.match(/^(?:Label|Category|Tag):\s*(.*)$/im);
         const noteMatch = text.match(/^(?:Important Note|Note|Description):\s*(.*)$/im);
 
@@ -111,7 +111,7 @@ export const parseGeminiOutput = (text) => {
             const qMatch = pair.match(/(?:Q:|Question:|Q\d+:|Question \d+:)\s*([\s\S]*?)(?=A:|Answer:|A\d+:|Answer \d+:|$)/i);
             const aMatch = pair.match(/(?:A:|Answer:|A\d+:|Answer \d+:)\s*([\s\S]*?)(?=Q:|Question:|Q\d+:|Question \d+:|$)/i);
             if (qMatch && aMatch) {
-                cards.push({
+                questions.push({
                     question: qMatch[1].trim(),
                     answer: aMatch[1].trim()
                 });
@@ -119,9 +119,11 @@ export const parseGeminiOutput = (text) => {
         });
     }
 
-    const formatCard = (item) => {
+    const formatQuestion = (item) => {
         const choices = item.choices || item.options || [];
         const isMcq = item.type === 'mcq' || (choices && Array.isArray(choices) && choices.length > 0);
+        // Internal type: 'mcq' for MCQs, 'flashcard' for all other Q&A types
+        // This matches what AddLessonModal creates and ensures consistency
         const type = isMcq ? 'mcq' : 'flashcard';
 
         let options = [];
@@ -141,11 +143,34 @@ export const parseGeminiOutput = (text) => {
             });
         }
 
+        // Handle both new schema (question/answer as strings) and old schema (as objects)
+        const getQuestionText = () => {
+            if (typeof item.question === 'string') return item.question;
+            if (typeof item.question === 'object' && item.question?.text) return item.question.text;
+            if (typeof item.q === 'string') return item.q;
+            return '';
+        };
+
+        const getAnswerText = () => {
+            if (typeof item.answer === 'string') return item.answer;
+            if (typeof item.answer === 'object' && item.answer?.text) return item.answer.text;
+            if (typeof item.a === 'string') return item.a;
+            return '';
+        };
+
         return {
             id: Math.random(),
             type,
-            question: { text: item.question || item.q || '', image: '', audio: '' },
-            answer: { text: item.answer || item.a || '', image: '', audio: '' },
+            question: {
+                text: getQuestionText(),
+                image: item.question?.image || '',
+                audio: item.question?.audio || ''
+            },
+            answer: {
+                text: getAnswerText(),
+                image: item.answer?.image || '',
+                audio: item.answer?.audio || ''
+            },
             options
         };
     };
@@ -153,14 +178,12 @@ export const parseGeminiOutput = (text) => {
     // Process sections if present
     const processedSections = sections.map(section => ({
         noteSegment: section.noteSegment || '',
-        cards: (section.cards || []).map(formatCard)
+        questions: (section.questions || section.cards || []).map(formatQuestion)
     }));
 
-    // If we have sections, we can ALSO flatten them for backward compatibility if needed,
-    // but the primary return should be structured.
-    const allCards = processedSections.length > 0
-        ? processedSections.flatMap(s => s.cards)
-        : cards.map(formatCard);
+    const allQuestions = processedSections.length > 0
+        ? processedSections.flatMap(s => s.questions)
+        : questions.map(formatQuestion);
 
     return {
         title,
@@ -172,7 +195,113 @@ export const parseGeminiOutput = (text) => {
         subject,
         cost: parseInt(cost) || 0,
         sections: processedSections,
-        cards: allCards // Backward compatibility
+        questions: allQuestions,
+        cards: allQuestions // Backward compatibility
     };
 };
 
+/**
+ * Normalizes lesson content from the new backend schema to the internal app format.
+ * This should be called after server-side decryption to ensure questions have the correct structure.
+ * 
+ * @param {Object} lessonData - Raw decrypted lesson data from server
+ * @returns {Object} - Normalized lesson data with questions in internal format
+ */
+export const normalizeLessonContent = (lessonData) => {
+    if (!lessonData) return lessonData;
+
+    // Helper to normalize a single question/card
+    const normalizeQuestion = (item) => {
+        // Skip if already in internal format (question is an object with text property)
+        if (item.question && typeof item.question === 'object' && 'text' in item.question) {
+            return item;
+        }
+
+        const choices = item.choices || item.options || [];
+        const isMcq = item.type === 'mcq' || (choices && Array.isArray(choices) && choices.length > 0);
+        const type = isMcq ? 'mcq' : 'flashcard';
+
+        let options = [];
+        if (isMcq) {
+            const correctMarker = item.correctAnswer || (typeof item.answer === 'string' ? item.answer : null);
+            options = choices.map((opt, idx) => {
+                const optText = typeof opt === 'string' ? opt : (opt.text || '');
+                let isCorrect = false;
+                if (typeof correctMarker === 'number') {
+                    isCorrect = idx === correctMarker;
+                } else if (typeof opt === 'object' && opt.isCorrect !== undefined) {
+                    isCorrect = opt.isCorrect;
+                } else if (correctMarker) {
+                    isCorrect = optText.trim().toLowerCase() === String(correctMarker).trim().toLowerCase();
+                }
+                return { id: item.id ? `${item.id}-opt-${idx}` : Math.random(), text: optText, isCorrect };
+            });
+        }
+
+        // Extract question text (handle both string and object formats)
+        const getQuestionText = () => {
+            if (typeof item.question === 'string') return item.question;
+            if (typeof item.question === 'object' && item.question?.text) return item.question.text;
+            if (typeof item.q === 'string') return item.q;
+            return '';
+        };
+
+        // Extract answer text
+        const getAnswerText = () => {
+            if (typeof item.answer === 'string') return item.answer;
+            if (typeof item.answer === 'object' && item.answer?.text) return item.answer.text;
+            if (typeof item.a === 'string') return item.a;
+            return '';
+        };
+
+        return {
+            id: item.id || Math.random(),
+            type,
+            question: {
+                text: getQuestionText(),
+                image: item.question?.image || '',
+                audio: item.question?.audio || ''
+            },
+            answer: {
+                text: getAnswerText(),
+                image: item.answer?.image || '',
+                audio: item.answer?.audio || ''
+            },
+            options,
+            lastRating: item.lastRating
+        };
+    };
+
+    // Process sections if present
+    let normalizedSections = [];
+    let normalizedQuestions = [];
+
+    if (lessonData.sections && Array.isArray(lessonData.sections) && lessonData.sections.length > 0) {
+        normalizedSections = lessonData.sections.map((section, sectionIndex) => {
+            const noteSegment = section.noteSegment || '';
+            const sectionQuestions = (section.questions || section.cards || []).map((q, qIndex) => ({
+                ...normalizeQuestion(q),
+                sectionIndex,
+                sectionNoteSegment: noteSegment,
+                isFirstInSection: qIndex === 0 && noteSegment // Mark first question if section has a note
+            }));
+            return {
+                noteSegment,
+                questions: sectionQuestions
+            };
+        });
+        // Flatten sections to create top-level questions array (preserving section info on each question)
+        normalizedQuestions = normalizedSections.flatMap(s => s.questions);
+    } else if (lessonData.questions || lessonData.cards) {
+        // No sections, just normalize top-level questions/cards
+        const rawQuestions = lessonData.questions || lessonData.cards || [];
+        normalizedQuestions = rawQuestions.map(normalizeQuestion);
+    }
+
+    return {
+        ...lessonData,
+        sections: normalizedSections,
+        questions: normalizedQuestions,
+        cards: normalizedQuestions // Backward compatibility
+    };
+};

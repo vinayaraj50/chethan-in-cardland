@@ -77,10 +77,26 @@ export const useUserProfile = (user, showAlert, setRewardData) => {
         };
     }, [user?.uid, showAlert, setRewardData, refreshTrigger]);
 
-    const handleUpdateCoins = useCallback((newCoins) => {
-        if (!userProfile) return;
+    const handleUpdateCoins = useCallback(async (newCoins) => {
+        if (!user || !userProfile) return;
+
+        // Optimistic UI update
         setUserProfile(prev => ({ ...prev, coins: newCoins }));
-    }, [userProfile]);
+
+        // Fire and forget persistence (safe because UI is optimistic)
+        try {
+            const delta = newCoins - userProfile.coins;
+            await userService.updateBalance(user.uid, delta, "Manual Adjustment or Purchase");
+            // Optionally re-sync to be perfectly consistent
+            // const profile = await userService.syncProfile(user);
+            // setUserProfile(profile);
+        } catch (error) {
+            console.error("Failed to persist coin balance:", error);
+            // Revert on failure
+            setUserProfile(prev => ({ ...prev, coins: userProfile.coins }));
+            if (showAlert) showAlert({ type: 'alert', message: 'Failed to save coin balance. Please check connection.' });
+        }
+    }, [user, userProfile, showAlert]);
 
     return {
         userProfile,

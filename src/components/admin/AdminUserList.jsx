@@ -54,7 +54,7 @@ const AdminUserList = ({ users, loading, onGrantClick }) => {
                                     <div style={styles.avatar} className="neo-inset">
                                         {user.displayName?.charAt(0).toUpperCase() || <Mail size={14} />}
                                     </div>
-                                    <div style={styles.idStack}>
+                                    <div style={styles.identityInfo}>
                                         <span style={styles.userName}>{user.displayName}</span>
                                         <span style={styles.userEmail}>{user.email}</span>
                                     </div>
@@ -143,7 +143,7 @@ const styles = {
         background: 'var(--bg-color)',
         boxShadow: 'inset 2px 2px 5px var(--shadow-dark), inset -2px -2px 5px var(--shadow-light)'
     },
-    idStack: { display: 'flex', flexDirection: 'column', gap: '0.2rem' },
+    identityInfo: { display: 'flex', flexDirection: 'column', gap: '0.2rem' },
     userName: { fontWeight: 700, fontSize: '0.95rem', letterSpacing: '-0.01em' },
     userEmail: { fontSize: '0.75rem', opacity: 0.5 },
     metaBox: { display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' },

@@ -114,7 +114,7 @@ export const userService = {
             const userDoc = await transaction.get(userRef);
             if (!userDoc.exists()) throw new Error("User does not exist!");
 
-            const newCoins = (userDoc.data().coins || 0) + amount;
+            const newCoins = (userDoc.data().coins || 0) + Number(amount);
             transaction.update(userRef, { coins: newCoins });
             return newCoins;
         });
@@ -178,6 +178,51 @@ export const userService = {
             });
 
             return true;
+        });
+    },
+    /**
+     * Purchase a lesson atomically.
+     * Deducts coins and grants entitlement in a single transaction.
+     */
+    async purchaseLesson(uid, lessonId, cost) {
+        const userRef = doc(db, USERS_COLLECTION, uid);
+        return await runTransaction(db, async (transaction) => {
+            const userDoc = await transaction.get(userRef);
+            if (!userDoc.exists()) throw new Error("User does not exist!");
+
+            const userData = userDoc.data();
+            const currentCoins = userData.coins || 0;
+
+            // 1. Validate Balance
+            if (currentCoins < cost) {
+                throw new Error("Insufficient coins.");
+            }
+
+            // 2. Check if already purchased (Idempotency)
+            const purchases = userData.purchasedLessons || {};
+            if (purchases[lessonId]) {
+                return { success: true, alreadyOwned: true };
+            }
+
+            // 3. Execute Transaction
+            const newCoins = currentCoins - cost;
+            const newPurchases = {
+                ...purchases,
+                [lessonId]: {
+                    purchaseDate: serverTimestamp(),
+                    cost: cost
+                }
+            };
+
+            transaction.update(userRef, {
+                coins: newCoins,
+                [`purchasedLessons.${lessonId}`]: {
+                    purchaseDate: serverTimestamp(),
+                    cost: cost
+                }
+            });
+
+            return { success: true, newBalance: newCoins };
         });
     }
 };

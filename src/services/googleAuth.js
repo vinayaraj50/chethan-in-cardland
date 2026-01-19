@@ -1,84 +1,67 @@
-import { scriptLoader } from '../utils/scriptLoader';
 import { auth } from './firebase';
-import { GoogleAuthProvider, signInWithCredential, signOut as firebaseSignOut } from 'firebase/auth';
+import {
+    GoogleAuthProvider,
+    signInWithPopup,
+    signInWithRedirect,
+    getRedirectResult,
+    signOut as firebaseSignOut
+} from 'firebase/auth';
+import { sessionManager } from './sessionManager';
 
 /**
- * @fileoverview IdentityManager - Enterprise-grade Google Identity Subsystem.
+ * @fileoverview IdentityManager - 2026 Enterprise OAuth 2.0 Identity Subsystem.
  * 
  * DESIGN PRINCIPLES:
- * 1. Singleton Pattern: Ensures a single source of truth for auth state.
- * 2. Incremental Authorization: Request base identity first; elevate scopes lazily.
- * 3. Proactive Token Refresh: Automatically refreshes tokens before expiry.
- * 4. Immutable State Transitions: Prevent race conditions in auth state.
- * 5. Secure Error Handling: Sanitize and categorize errors for better UX.
+ * 1. Firebase SDK Authentication: Official, secure, and production-ready.
+ * 2. SignInWithPopup: Recommended for web apps (avoids COOP/COEP issues).
+ * 3. Drive Access: Scoped specifically for 'drive.file'.
+ * 4. Reactive State: Observer pattern for UI updates.
+ * 5. Session Isolation: Controlled by SessionManager.
  */
 
+// ... (existing code for IdentityState and SCOPES) ...
+
+// Methods removed - they belong inside the class below
 export const IdentityState = {
     IDLE: 'IDLE',
     INITIALIZING: 'INITIALIZING',
     READY: 'READY',
     AUTHENTICATING: 'AUTHENTICATING',
-    AUTHORIZING: 'AUTHORIZING', // Elevating permissions
     SUCCESS: 'SUCCESS',
     ERROR: 'ERROR'
 };
 
-// Standard Industry Scopes
-const SCOPES = {
-    IDENTITY: ['openid', 'profile', 'email'],
-    // CRITICAL: Using 'drive' (not 'drive.file') to see ALL files, including those created by Apps Script
-    // 'drive.file' only shows files created by this app, which excludes backend-generated profile_*.json
-    STORAGE: ['https://www.googleapis.com/auth/drive']
-};
+const SCOPES = [
+    'https://www.googleapis.com/auth/drive.file'
+];
 
 class IdentityManager {
     static #instance = null;
 
     #state = IdentityState.IDLE;
     #lastError = null;
-    #observers = new Set(); // Observer pattern for multiple listeners
-
+    #observers = new Set();
     #identity = null;
     #authorization = null;
-    #tokenClient = null;
     #initPromise = null;
     #isInitialized = false;
-
-    // Token Management
-    #refreshTimer = null;
-
-    // SEMAPHORE: Handles concurrent token requests to prevent thundering herd
-    #tokenInFlight = null;
-    #requestQueue = [];
 
     constructor() {
         if (IdentityManager.#instance) {
             return IdentityManager.#instance;
         }
-        this.clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
         IdentityManager.#instance = this;
     }
 
-    /**
-     * Terminology:
-     * - `subscribe`: Add a listener for state updates.
-     * - `unsubscribe`: Remove a listener.
-     */
     subscribe(callback) {
         this.#observers.add(callback);
-        // Immediately notify with current state
         callback(this.getSnapshot());
         return () => this.#observers.delete(callback);
     }
 
     getSnapshot() {
-        const userWithToken = this.#identity ? {
-            ...this.#identity,
-            uid: this.uid,
-            token: this.#authorization?.token
-        } : null;
         return {
-            user: userWithToken,
+            user: this.user,
             status: this.#state,
             error: this.#lastError,
             token: this.#authorization?.token,
@@ -86,282 +69,188 @@ class IdentityManager {
         };
     }
 
-    // Getters
     get state() { return this.#state; }
     get error() { return this.#lastError; }
-    get user() { return this.#identity ? { ...this.#identity, uid: this.uid, token: this.#authorization?.token } : null; }
+    get user() {
+        if (!this.#identity && !auth.currentUser) return null;
+        const baseUser = this.#identity || this.#mapUser(auth.currentUser);
+        return {
+            ...baseUser,
+            token: this.#authorization?.token
+        };
+    }
     get token() { return this.#authorization?.token; }
-    get uid() {
-        // Prefer Firebase UID for database/storage consistency
-        return auth.currentUser?.uid || this.#identity?.id;
-    }
-    get hasDriveAccess() {
-        return this.#authorization?.scope?.split(' ').includes(SCOPES.STORAGE[0]);
-    }
+    get uid() { return auth.currentUser?.uid || this.#identity?.id; }
+    get hasDriveAccess() { return !!this.#authorization?.token; }
 
-    /**
-     * Bootstraps the GSI environment with strict origin validation.
-     */
     async initialize() {
         if (this.#initPromise) return this.#initPromise;
 
         this.#initPromise = (async () => {
+            this.#transition(IdentityState.INITIALIZING);
+
             try {
-                this.#transition(IdentityState.INITIALIZING);
+                // 1. Check for Redirect Result (Mobile/Fallback flow)
+                const result = await getRedirectResult(auth);
+                if (result) {
+                    const credential = GoogleAuthProvider.credentialFromResult(result);
+                    await this.#handleAuthSuccess(result.user, credential);
+                } else if (auth.currentUser) {
+                    // 2. Restore from Firebase persistence
+                    console.info('[IdentityManager] User restored from Firebase persistence.');
+                    this.#identity = this.#mapUser(auth.currentUser);
 
-                await scriptLoader.load('https://accounts.google.com/gsi/client', {
-                    async: true,
-                    defer: true
-                });
+                    // SECURITY: Initialize Session immediately on restore
+                    sessionManager.startSession(this.#identity.id);
 
-                const google = await scriptLoader.waitForGlobal('google', 20000);
-
-                // Initialize One Tap / FedCM (Non-sensitive Identity)
-                google.accounts.id.initialize({
-                    client_id: this.clientId,
-                    callback: (res) => this.#handleIdentityResponse(res),
-                    auto_select: true,
-                    cancel_on_tap_outside: false
-                });
-
-                // Initialize Token Client for Incremental Auth
-                this.#tokenClient = google.accounts.oauth2.initTokenClient({
-                    client_id: this.clientId,
-                    scope: SCOPES.IDENTITY.join(' '), // Start with baseline permissions
-                    callback: (res) => this.#resolveTokenRequest(res),
-                    error_callback: (err) => this.#handleSystemError(err)
-                });
-
-                this.#isInitialized = true;
-                this.#transition(IdentityState.READY);
-
-                // Trigger One Tap if possible
-                // Note: We avoid checking notification.isNotDisplayed() to prevent FedCM warnings
-                google.accounts.id.prompt();
-
-            } catch (err) {
-                this.#handleSystemError(err);
-                throw err;
+                    // 2026 Strategy: Silently attempt to re-acquire Drive token
+                    // Since tokens are short-lived and NOT persisted by Firebase Auth,
+                    // we must try to get a fresh one if possible.
+                    // This is critical for 'My Lessons' persistence on refresh.
+                    try {
+                        console.info('[IdentityManager] Attempting silent Drive token restoration...');
+                        // Note: Silent re-auth with 'none' might fail in some environments
+                        // but we try it to keep user experience seamless.
+                        // We use the last used scope.
+                        await this.signIn({ prompt: 'none' });
+                    } catch (e) {
+                        console.warn('[IdentityManager] Silent Drive token restoration skipped/failed:', e.message);
+                        // We don't fail initialization just because token restoration failed;
+                        // user is still logged in, but Drive won't work until they click 'Sign In' or 'Buy'.
+                    }
+                }
+            } catch (error) {
+                console.error('[IdentityManager] Initialization Error:', error);
+                this.#handleSystemError(error);
             }
-        })();
 
+            this.#isInitialized = true;
+            this.#transition(this.#identity ? IdentityState.SUCCESS : IdentityState.READY);
+        })();
         return this.#initPromise;
     }
 
     /**
-     * Token Acquisition with transparent refresh and queueing.
+     * Ensures a valid Drive token is available.
+     * Attempts silent re-acquisition if missing.
      */
-    async acquireToken(options = { elevated: false, prompt: 'select_account' }) {
-        if (!this.#isInitialized) await this.#initPromise;
-
-        // Proactive Refresh Check: If token exists and is valid, return it.
-        // We only block if it's expired or about to expire.
-        if (this.#authorization?.token && !this.#isTokenNearExpiry() && !options.elevated) {
-            return this.#authorization.token;
+    async ensureDriveAccess() {
+        if (this.#authorization?.token) {
+            // Check expiry with 5-min buffer
+            if (this.#authorization.expiresAt > Date.now() + 300000) {
+                return this.#authorization.token;
+            }
         }
 
-        // If we need elevated permissions but already have them, verify scope match
-        if (options.elevated && this.hasDriveAccess && !this.#isTokenNearExpiry()) {
-            return this.#authorization.token;
+        console.info('[IdentityManager] Drive token missing/stale. Re-acquiring...');
+        // prompt: 'none' for silent attempt
+        try {
+            await this.signIn({ prompt: 'none' });
+            return this.#authorization?.token;
+        } catch (e) {
+            console.warn('[IdentityManager] Silent re-acquisition failed. User action required.');
+            throw e; // Let caller decide (usually trigger reauth UI)
+        }
+    }
+
+    async signIn(options = { prompt: 'select_account' }) {
+        this.#transition(IdentityState.AUTHENTICATING);
+
+        const provider = new GoogleAuthProvider();
+        SCOPES.forEach(scope => provider.addScope(scope));
+
+        // Force account selection/consent if requested
+        if (options.prompt) {
+            provider.setCustomParameters({ prompt: options.prompt });
         }
 
-        // Queue requests if a token acquisition is already in flight.
-        if (this.#tokenInFlight) {
-            return new Promise((resolve, reject) => {
-                this.#requestQueue.push({ options, resolve, reject });
-            });
+        try {
+            // Try popup first (desktop-friendly, better UX in 2026)
+            const result = await signInWithPopup(auth, provider);
+            const credential = GoogleAuthProvider.credentialFromResult(result);
+            await this.#handleAuthSuccess(result.user, credential);
+        } catch (error) {
+            console.error('[IdentityManager] Sign-In Failed:', error.code, error.message);
+
+            // Handle specific error cases with user-friendly messages
+            switch (error.code) {
+                case 'auth/popup-closed-by-user':
+                    // User closed the popup - not an error, just cancelled
+                    this.#transition(this.#identity ? IdentityState.SUCCESS : IdentityState.READY);
+                    return; // Silent return, no error
+
+                case 'auth/popup-blocked':
+                    this.#lastError = 'Pop-up was blocked by your browser. Please allow pop-ups for this site and try again.';
+                    break;
+
+                case 'auth/cancelled-popup-request':
+                    // Another popup is already open
+                    this.#transition(IdentityState.READY);
+                    return;
+
+                case 'auth/network-request-failed':
+                    this.#lastError = 'Network error. Please check your internet connection.';
+                    break;
+
+                default:
+                    this.#lastError = `Authentication failed: ${error.message}`;
+            }
+
+            this.#transition(IdentityState.ERROR, this.#lastError);
         }
-
-        return new Promise((resolve, reject) => {
-            this.#tokenInFlight = { resolve, reject };
-
-            const scopeRequest = options.elevated
-                ? [...SCOPES.IDENTITY, ...SCOPES.STORAGE].join(' ')
-                : SCOPES.IDENTITY.join(' ');
-
-            this.#transition(options.elevated ? IdentityState.AUTHORIZING : IdentityState.AUTHENTICATING);
-
-            this.#tokenClient.requestAccessToken({
-                prompt: options.prompt,
-                scope: scopeRequest,
-                hint: this.#identity?.email
-            });
-        });
-    }
-
-    #isTokenNearExpiry() {
-        if (!this.#authorization) return true;
-        // Refresh if < 5 minutes remaining
-        return (this.#authorization.expiresAt - Date.now()) < 300000;
-    }
-
-    /**
-     * Internal handler for token client response.
-     */
-    #resolveTokenRequest(response) {
-        const inFlight = this.#tokenInFlight;
-        this.#tokenInFlight = null;
-
-        if (response.error) {
-            const err = new Error(response.error);
-            inFlight?.reject(err);
-            this.#processQueue(err, null);
-            this.#handleSystemError(err);
-            return;
-        }
-
-        const expiresInMs = response.expires_in * 1000;
-        this.#authorization = {
-            token: response.access_token,
-            expiresAt: Date.now() + expiresInMs,
-            scope: response.scope
-        };
-
-        this.#setupRefreshTimer(expiresInMs);
-
-        this.#fetchFullProfile(this.#authorization.token)
-            .then(() => {
-                inFlight?.resolve(this.#authorization.token);
-                this.#processQueue(null, this.#authorization.token);
-            })
-            .catch(err => {
-                inFlight?.reject(err);
-                this.#processQueue(err, null);
-            });
-    }
-
-    #setupRefreshTimer(durationMs) {
-        if (this.#refreshTimer) clearTimeout(this.#refreshTimer);
-        // Refresh 5 minutes before expiry
-        const refreshDelay = Math.max(0, durationMs - 300000);
-        this.#refreshTimer = setTimeout(() => {
-            console.log('[IdentityManager] Auto-refreshing token...');
-            this.acquireToken({ prompt: 'none', elevated: this.hasDriveAccess })
-                .catch(e => console.warn('[IdentityManager] Silent refresh failed', e));
-        }, refreshDelay);
-    }
-
-    #processQueue(error, token) {
-        const queue = [...this.#requestQueue];
-        this.#requestQueue = [];
-        queue.forEach(req => {
-            if (error) req.reject(error);
-            else req.resolve(token);
-        });
-    }
-
-    async signIn(options = { prompt: 'select_account', elevated: false }) {
-        return this.acquireToken(options);
     }
 
     async requestDriveAccess() {
-        return this.acquireToken({ prompt: 'consent', elevated: true });
+        return this.signIn({ prompt: 'consent' });
     }
 
-    signOut() {
-        if (window.google?.accounts?.id) {
-            window.google.accounts.id.disableAutoSelect();
-        }
-        if (this.#refreshTimer) clearTimeout(this.#refreshTimer);
-        firebaseSignOut(auth).catch(e => console.error('Firebase SignOut Error:', e));
-        this.#clearSession();
-    }
-
-    async #handleIdentityResponse(response) {
+    async signOut() {
         try {
-            const profile = this.#decodeCredential(response.credential);
-            this.#identity = {
-                id: profile.sub,
-                name: profile.name,
-                email: profile.email,
-                picture: profile.picture
+            await firebaseSignOut(auth);
+            this.#clearSession();
+        } catch (e) {
+            console.error('[IdentityManager] SignOut Error:', e);
+            this.#handleSystemError(e);
+        }
+    }
+
+    async #handleAuthSuccess(user, credential) {
+        this.#identity = this.#mapUser(user);
+
+        // SECURITY: Start isolated session
+        sessionManager.startSession(user.uid);
+
+        // IMPORTANT: We must capture the Access Token from the Credential immediately.
+        // Firebase Auth persists the ID Token (auth), but NOT the Google Access Token (Drive).
+        // This token is needed for the cloud-storage integration to write to Drive.
+        if (credential?.accessToken) {
+            this.#authorization = {
+                token: credential.accessToken,
+                // OAuth access tokens typically expire in 1 hour
+                expiresAt: Date.now() + 3600 * 1000
             };
-
-            // Bridge to Firebase
-            const credential = GoogleAuthProvider.credential(response.credential);
-            await signInWithCredential(auth, credential);
-            console.log('[IdentityManager] Bridged to Firebase as:', auth.currentUser.uid);
-
-            // Automatically attempt to get a token after ID verification
-            // We use prompt: 'none' to try and get a token silently.
-            // If it fails (e.g. first time on domain), we don't throw, just let the user 
-            // click the login button manually for full consent.
-            this.signIn({ prompt: 'none', elevated: false }).catch(e => {
-                console.log('[IdentityManager] Silent token acquisition skipped (consent required)');
-            });
-        } catch (err) {
-            this.#handleSystemError(err);
+        } else {
+            console.warn('[IdentityManager] No Access Token returned. Drive access may fail.');
         }
+
+        this.#transition(IdentityState.SUCCESS);
+        console.info('[IdentityManager] Enterprise Login Success:', user.uid);
     }
 
-    async #fetchFullProfile(token) {
-        try {
-            const resp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (!resp.ok) throw new Error('Failed to fetch user info');
-            const profile = await resp.json();
-            this.#identity = { ...this.#identity, ...profile };
-            this.#transition(IdentityState.SUCCESS);
-        } catch (err) {
-            // Silently transition even on profile fetch failure (keep partial profile)
-            console.warn('[IdentityManager] Failed to enrich profile:', err);
-            this.#transition(IdentityState.SUCCESS);
-        }
+    #mapUser(user) {
+        if (!user) return null;
+        return {
+            id: user.uid,
+            name: user.displayName,
+            email: user.email,
+            picture: user.photoURL,
+            uid: user.uid // Ensure compatibility with views expecting 'uid'
+        };
     }
 
     #handleSystemError(error) {
-        const inFlight = this.#tokenInFlight;
-        this.#tokenInFlight = null;
-
-        const message = error.message || String(error);
-        const isAccessDenied = /access_denied|403/.test(message);
-        const isInvalidGrant = /invalid_grant|expired_token|invalid_token/.test(message);
-
-        // Notify inFlight request to prevent deadlocks
-        if (inFlight) {
-            inFlight.reject(error);
-            this.#processQueue(error, null);
-        }
-
-        // RECRUITER MODE: Allow login even if Drive scope is denied.
-        if (isAccessDenied && !this.#identity) {
-            console.warn('[IdentityManager] Drive Access Restricted. Moving to restricted SUCCESS state.');
-            this.#transition(IdentityState.SUCCESS);
-            return;
-        }
-
-        if (isInvalidGrant) {
-            console.warn('[IdentityManager] Token expired or invalid. Clearing session.');
-            this.#clearSession();
-            this.#lastError = "Session expired. Please sign in again.";
-            this.#transition(IdentityState.ERROR, this.#lastError);
-            return;
-        }
-
-        const isCancelled = /popup_closed|user_cancelled/.test(message);
-
-        if (isCancelled) {
-            // Do not treat cancellation as a hard error state, just go back to ready
-            console.debug('[IdentityManager] User cancelled auth flow.');
-            this.#transition(IdentityState.READY);
-            return;
-        }
-
-        // Generic error handling
-        this.#lastError = `Authentication Error: ${message}`;
+        this.#lastError = `Authentication Error: ${error.message || String(error)}`;
         this.#transition(IdentityState.ERROR, this.#lastError);
-    }
-
-    #decodeCredential(jwt) {
-        try {
-            const base64Url = jwt.split('.')[1];
-            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-            const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
-            return JSON.parse(jsonPayload);
-        } catch (e) {
-            throw new Error('Failed to decode JWT');
-        }
     }
 
     #transition(nextState, error = null) {
@@ -379,13 +268,15 @@ class IdentityManager {
         this.#identity = null;
         this.#authorization = null;
         this.#lastError = null;
+        // SECURITY: Delegate cleanup to SessionManager
+        sessionManager.endSession();
         this.#transition(IdentityState.IDLE);
     }
 }
 
-// Export Singleton Instance
 export const identityService = new IdentityManager();
 export const signIn = (opt) => identityService.signIn(opt);
 export const requestDriveAccess = () => identityService.requestDriveAccess();
 export const signOut = () => identityService.signOut();
 export const getAccessToken = () => identityService.token;
+

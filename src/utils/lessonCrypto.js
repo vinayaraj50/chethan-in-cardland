@@ -84,14 +84,33 @@ export const encryptLesson = async (data, key) => {
  * @param {CryptoKey} key - Derived User Key
  * @returns {Promise<any>} - Decrypted data (parsed if JSON)
  */
-export const decryptLesson = async (encryptedBase64, key) => {
+export const decryptLesson = async (encryptedDataStr, key) => {
     try {
-        const encryptedData = new Uint8Array(
-            atob(encryptedBase64).split('').map(c => c.charCodeAt(0))
-        );
+        let iv, cipherText;
 
-        const iv = encryptedData.slice(0, 12);
-        const cipherText = encryptedData.slice(12);
+        // NEW: Support for v1:hex_iv:base64_ciphertext format
+        if (encryptedDataStr.startsWith('v1:')) {
+            const parts = encryptedDataStr.split(':');
+            const ivHex = parts[1];
+            const ciphertextBase64 = parts[2];
+
+            // Convert hex IV back to Uint8Array
+            iv = new Uint8Array(ivHex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+
+            // Convert Base64 ciphertext back to Uint8Array
+            const binaryStr = atob(ciphertextBase64);
+            cipherText = new Uint8Array(binaryStr.length);
+            for (let i = 0; i < binaryStr.length; i++) {
+                cipherText[i] = binaryStr.charCodeAt(i);
+            }
+        } else {
+            // OLD: Support for combined Base64 format
+            const encryptedData = new Uint8Array(
+                atob(encryptedDataStr).split('').map(c => c.charCodeAt(0))
+            );
+            iv = encryptedData.slice(0, 12);
+            cipherText = encryptedData.slice(12);
+        }
 
         const decryptedBuffer = await crypto.subtle.decrypt(
             {

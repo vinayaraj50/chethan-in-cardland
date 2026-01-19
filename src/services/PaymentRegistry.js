@@ -20,7 +20,7 @@ export const TransactionStatus = {
 
 export const TransactionType = {
     GRANT_COINS: 'GRANT_COINS',
-    PURCHASE_STACK: 'PURCHASE_STACK'
+    PURCHASE_LESSON: 'PURCHASE_LESSON'
 };
 
 class PaymentRegistry {

@@ -734,8 +734,8 @@ button {
   padding: 1rem;
 }
 
-/* Stacks Grid */
-.stacks-grid {
+/* Lessons Grid */
+.lessons-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   justify-content: center;
@@ -746,14 +746,14 @@ button {
   width: 100%;
 }
 
-.stack-card {
+.lesson-card {
   max-width: 380px;
   width: 100%;
   margin: 0 auto;
 }
 
 @media (max-width: 600px) {
-  .stacks-grid {
+  .lessons-grid {
     grid-template-columns: 1fr;
     gap: 1.5rem;
     padding: 0 0.5rem;

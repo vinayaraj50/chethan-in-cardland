@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Search, Filter, Download, MessageSquare, Plus, Settings, RefreshCw, X } from 'lucide-react';
-import StackCard from '../components/StackCard';
+import { Search, Filter, MessageSquare, Plus, Settings, RefreshCw, X } from 'lucide-react';
+import LessonCard from '../components/LessonCard';
 import NeoDropdown from '../components/NeoDropdown';
 import logo from '../assets/logo.png';
 
@@ -9,7 +9,7 @@ import { useAuth } from '../components/AuthProvider';
 
 const Home = ({
     activeTab, setActiveTab,
-    stacks, publicStacks,
+    lessons, publicLessons,
     loading, publicLoading,
     onReview, onEdit, onImport,
     searchQuery, setSearchQuery,
@@ -22,20 +22,20 @@ const Home = ({
     onShowKnowMore,
     onDelete,
     showConfirm,
-    onAddStack,
+    onAddLesson,
     onRefresh
 }) => {
     const { isActive: isTourActive, startTour } = useTour();
     const { error: authError, isReady: isAuthReady, user: authUser } = useAuth();
 
     // Derived state moved to top for absolute safety
-    const currentLoading = activeTab === 'my' ? loading : publicLoading;
-    const showIntro = activeTab === 'my' && !loading && !user && !isTourActive;
+    const currentLoading = activeTab === 'my-lessons' ? loading : publicLoading;
+    const showIntro = activeTab === 'my-lessons' && !loading && !user && !isTourActive;
 
     const [showSettings, setShowSettings] = useState(false);
     const menuRef = React.useRef(null);
 
-    // Dynamically extract filter options from loaded stacks' metadata
+    // Dynamically extract filter options from loaded lessons' metadata
     const filterOptions = React.useMemo(() => {
         const options = {
             standards: new Set(),
@@ -44,11 +44,11 @@ const Home = ({
             subjects: new Set()
         };
 
-        publicStacks.forEach(stack => {
-            if (stack.standard) options.standards.add(stack.standard);
-            if (stack.syllabus) options.syllabuses.add(stack.syllabus);
-            if (stack.medium) options.mediums.add(stack.medium);
-            if (stack.subject) options.subjects.add(stack.subject);
+        publicLessons.forEach(lesson => {
+            if (lesson.standard) options.standards.add(lesson.standard);
+            if (lesson.syllabus) options.syllabuses.add(lesson.syllabus);
+            if (lesson.medium) options.mediums.add(lesson.medium);
+            if (lesson.subject) options.subjects.add(lesson.subject);
         });
 
         return {
@@ -57,50 +57,48 @@ const Home = ({
             mediums: Array.from(options.mediums).sort(),
             subjects: Array.from(options.subjects).sort()
         };
-    }, [publicStacks]);
+    }, [publicLessons]);
 
     const { standards, syllabuses, mediums, subjects } = filterOptions;
 
 
-    const getSortedStacks = () => {
-        let filtered = filterLabel ? stacks.filter(s => s.label === filterLabel) : stacks;
+    const getSortedLessons = () => {
+        let filtered = filterLabel ? lessons.filter(s => s.label === filterLabel) : lessons;
         if (searchQuery.trim()) filtered = filtered.filter(s => s.title.toLowerCase().includes(searchQuery.toLowerCase()));
 
         return [...filtered].sort((a, b) => {
             if (sortBy === 'Upcoming Review') {
                 // Priority: Overdue/Today (past date) < Tomorrow < Future < No Date
-                // Use a very large date for stacks without a nextReview date to push them to the end
                 const dateA = a.nextReview ? new Date(a.nextReview) : new Date(8640000000000000);
                 const dateB = b.nextReview ? new Date(b.nextReview) : new Date(8640000000000000);
                 return dateA.getTime() - dateB.getTime();
             }
-            // Fallback to ID if no specific sort criteria matches or for stable sort
             return (b.id || 0) - (a.id || 0);
         });
     };
 
-    const filteredPublicStacks = publicStacks.filter(stack => {
-        // Safety checks: ensure stack has required properties
-        if (!stack || !stack.title) return false;
+    const ownedLessonIds = new Set(lessons.map(l => l.lessonId || l.storagePath || l.driveFileId || l.id));
 
-        const matchesSearch = stack.title.toLowerCase().includes(searchQuery.toLowerCase());
-        const matchesStandard = !filters.standard || stack.standard === filters.standard;
-        const matchesSyllabus = !filters.syllabus || stack.syllabus === filters.syllabus;
-        const matchesMedium = !filters.medium || stack.medium === filters.medium;
-        const matchesSubject = !filters.subject || stack.subject === filters.subject;
+    const filteredPublicLessons = publicLessons.filter(lesson => {
+        if (!lesson || !lesson.title) return false;
+
+        const matchesSearch = lesson.title.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesStandard = !filters.standard || lesson.standard === filters.standard;
+        const matchesSyllabus = !filters.syllabus || lesson.syllabus === filters.syllabus;
+        const matchesMedium = !filters.medium || lesson.medium === filters.medium;
+        const matchesSubject = !filters.subject || lesson.subject === filters.subject;
         return matchesSearch && matchesStandard && matchesSyllabus && matchesMedium && matchesSubject;
-    }).sort((a, b) => {
+    }).map(lesson => ({
+        ...lesson,
+        isOwned: ownedLessonIds.has(lesson.lessonId || lesson.storagePath || lesson.id)
+    })).sort((a, b) => {
         if (sortBy === 'Title') {
             return a.title.localeCompare(b.title);
         }
-        // Default: Newest first (using ID as proxy for creation date)
         return (parseInt(b.id || 0) || 0) - (parseInt(a.id || 0) || 0);
     });
 
-    const currentStacks = activeTab === 'my' ? stacks : filteredPublicStacks;
-
-    // We have moved away from official renderButton to custom Neomorphic Button
-    // for design consistency and better origin-authorization reliability on localhost.
+    const currentLessons = activeTab === 'my-lessons' ? lessons : filteredPublicLessons;
 
     const handleFilterChange = (key, value) => {
         setFilters(prev => ({ ...prev, [key]: value }));
@@ -148,7 +146,6 @@ const Home = ({
                     border: '1px solid rgba(255,255,255,0.4)',
                     boxShadow: 'var(--neo-box-shadow)'
                 }}>
-                    {/* Search */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
                         <div style={{ position: 'relative' }}>
                             <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }} />
@@ -168,11 +165,10 @@ const Home = ({
                         </div>
                     </div>
 
-                    {/* Sort */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                         <span style={{ fontSize: '0.85rem', fontWeight: 700, opacity: 0.5, marginLeft: '4px' }}>Sort By</span>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                            {(activeTab === 'my' ? [
+                            {(activeTab === 'my-lessons' ? [
                                 { label: 'Date', value: 'Creation Date' },
                                 { label: 'Title', value: 'Title' },
                                 { label: 'Marks', value: 'Average Rating' },
@@ -198,7 +194,6 @@ const Home = ({
                         </div>
                     </div>
 
-                    {/* Refresh */}
                     <button
                         className="neo-button"
                         onClick={() => {
@@ -214,7 +209,7 @@ const Home = ({
                             borderRadius: '14px'
                         }}
                     >
-                        <RefreshCw size={18} /> Refresh Stacks
+                        <RefreshCw size={18} /> Refresh Lessons
                     </button>
                 </div>
             )}
@@ -225,25 +220,25 @@ const Home = ({
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '2rem', gap: '0.5rem', alignItems: 'center' }}>
             <div id="tabs-container" className="neo-tabs-container" style={{ margin: 0 }}>
                 <button
-                    id="tab-my-cards"
-                    className={`neo-tab-item ${activeTab === 'my' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('my')}
+                    id="tab-my-lessons"
+                    className={`neo-tab-item ${activeTab === 'my-lessons' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('my-lessons')}
                 >
-                    My Cards
+                    My Lessons
                 </button>
                 <button
-                    id="tab-ready-made"
-                    className={`neo-tab-item ${activeTab === 'ready-made' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('ready-made')}
+                    id="tab-lessons"
+                    className={`neo-tab-item ${activeTab === 'lessons' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('lessons')}
                 >
-                    Ready-made
+                    Lessons
                 </button>
             </div>
         </div>
     );
 
 
-    const renderMyStacksFilters = () => {
+    const renderMyLessonsFilters = () => {
         const labelOptions = [
             { label: 'All Labels', value: null },
             ...availableLabels.map(lbl => ({ label: lbl, value: lbl }))
@@ -272,13 +267,13 @@ const Home = ({
         );
     };
 
-    const renderReadyMadeFilters = () => (
+    const renderLessonsFilters = () => (
         <div className="filter-bar neo-inset" style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
             gap: '1.25rem',
             padding: '1.25rem',
-            paddingTop: '2.5rem', // Space for the gear
+            paddingTop: '2.5rem',
             marginBottom: '2.5rem',
             borderRadius: '20px',
             position: 'relative'
@@ -321,23 +316,18 @@ const Home = ({
         </div>
     );
 
-    // We no longer return early here to keep tabs and search bar visible
-    // if (currentLoading) { ... }
-
     return (
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {/* Show tabs and search only if not guest or if loading */}
             {(!showIntro || currentLoading) && (
                 <>
                     {renderTabs()}
-                    {activeTab === 'my' && renderMyStacksFilters()}
-                    {activeTab === 'ready-made' && renderReadyMadeFilters()}
+                    {activeTab === 'my-lessons' && renderMyLessonsFilters()}
+                    {activeTab === 'lessons' && renderLessonsFilters()}
                 </>
             )}
 
             {showIntro && !currentLoading && (
                 <>
-                    {/* Hero Section */}
                     <div style={{
                         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
                         padding: '3rem 1rem', textAlign: 'center', minHeight: '50vh'
@@ -406,7 +396,7 @@ const Home = ({
                                 ) : !authUser ? (
                                     <button
                                         className="hero-btn hero-btn-google"
-                                        onClick={() => onLogin(user?.needsAuth ? 'consent' : 'select_account')}
+                                        onClick={() => onLogin('consent')}
                                         style={{ color: 'var(--text-color)' }}
                                     >
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
@@ -443,7 +433,6 @@ const Home = ({
 
 
 
-                    {/* Ready-made Flashcards Section for Guests */}
                     <div style={{ padding: '0 1rem', maxWidth: '1200px', margin: '0 auto', width: '100%' }}>
                         <div style={{
                             display: 'flex',
@@ -459,11 +448,11 @@ const Home = ({
                                 color: 'var(--accent-color)',
                                 flex: 1
                             }}>
-                                Ready-made Flashcards
+                                Lessons
                             </h2>
                         </div>
 
-                        {renderReadyMadeFilters()}
+                        {renderLessonsFilters()}
 
                         {publicLoading ? (
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '4rem' }}>
@@ -472,15 +461,15 @@ const Home = ({
                                     <div className="card-loader-item"></div>
                                     <div className="card-loader-item"></div>
                                 </div>
-                                <p style={{ marginTop: '1rem', opacity: 0.6, fontSize: '0.9rem', fontWeight: 500 }}>Loading ready-made stacks...</p>
+                                <p style={{ marginTop: '1rem', opacity: 0.6, fontSize: '0.9rem', fontWeight: 500 }}>Loading lessons...</p>
                             </div>
                         ) : (
                             <>
-                                <div className="stacks-grid" style={{ padding: '0 1.25rem' }}>
-                                    {stacks.filter(s => s.id === 'demo-stack').map(stack => (
-                                        <StackCard
-                                            key={stack.id}
-                                            stack={stack}
+                                <div className="lessons-grid" style={{ padding: '0 1.25rem' }}>
+                                    {lessons.filter(s => s.id === 'demo-lesson').map(lesson => (
+                                        <LessonCard
+                                            key={lesson.id}
+                                            lesson={lesson}
                                             onReview={onReview}
                                             onEdit={onEdit}
                                             onImport={onImport}
@@ -489,10 +478,10 @@ const Home = ({
                                             showConfirm={showConfirm}
                                         />
                                     ))}
-                                    {filteredPublicStacks.map(stack => (
-                                        <StackCard
-                                            key={stack.driveFileId || stack.id}
-                                            stack={stack}
+                                    {filteredPublicLessons.map(lesson => (
+                                        <LessonCard
+                                            key={lesson.driveFileId || lesson.id}
+                                            lesson={lesson}
                                             onReview={onReview}
                                             onEdit={onEdit}
                                             onImport={onImport}
@@ -503,7 +492,7 @@ const Home = ({
                                     ))}
                                 </div>
 
-                                {filteredPublicStacks.length === 0 && (
+                                {filteredPublicLessons.length === 0 && (
                                     <div style={{
                                         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
                                         padding: '4rem 2rem', textAlign: 'center', gap: '2rem'
@@ -513,11 +502,11 @@ const Home = ({
                                                 <MessageSquare size={64} color="var(--accent-color)" />
                                             </div>
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                                <h3 style={{ fontSize: '1.4rem' }}>No stacks found</h3>
-                                                <p style={{ opacity: 0.7 }}>This filter does not have any files. You can request flashcards to the developer via the feedback option.</p>
+                                                <h3 style={{ fontSize: '1.4rem' }}>No lessons found</h3>
+                                                <p style={{ opacity: 0.7 }}>This filter does not have any files. You can request lessons to the developer via the feedback option.</p>
                                             </div>
                                             <button className="neo-button neo-glow-blue" onClick={onShowFeedback} style={{ padding: '0.8rem 2rem', gap: '8px' }}>
-                                                <MessageSquare size={18} /> Request Flashcards
+                                                <MessageSquare size={18} /> Request Lessons
                                             </button>
                                         </div>
                                     </div>
@@ -535,11 +524,11 @@ const Home = ({
                         <div className="card-loader-item"></div>
                         <div className="card-loader-item"></div>
                     </div>
-                    <p style={{ marginTop: '1rem', opacity: 0.6, fontSize: '0.9rem', fontWeight: 500 }}>Loading stacks...</p>
+                    <p style={{ marginTop: '1rem', opacity: 0.6, fontSize: '0.9rem', fontWeight: 500 }}>Loading lessons...</p>
                 </div>
             ) : !showIntro && (
                 <>
-                    {currentStacks.length === 0 && activeTab === 'my' && (
+                    {currentLessons.length === 0 && activeTab === 'my-lessons' && (
                         <div style={{
                             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
                             padding: '4rem 2rem', textAlign: 'center', gap: '2rem'
@@ -549,20 +538,20 @@ const Home = ({
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                 <h3 style={{ fontSize: '1.4rem' }}>Welcome to Chethan in Cardland!</h3>
-                                <p style={{ opacity: 0.7 }}>You don't have any flashcards yet. Create your own or explore our ready-made collection.</p>
+                                <p style={{ opacity: 0.7 }}>You don't have any lessons yet. Create your own or explore our Lessons collection.</p>
                             </div>
                             <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', justifyContent: 'center' }}>
-                                <button className="neo-button neo-glow-blue" onClick={onAddStack} style={{ padding: '0.8rem 2rem', gap: '8px' }}>
-                                    <Plus size={18} /> Create New Stack
+                                <button className="neo-button neo-glow-blue" onClick={onAddLesson} style={{ padding: '0.8rem 2rem', gap: '8px' }}>
+                                    <Plus size={18} /> Create New Lesson
                                 </button>
-                                <button className="neo-button" onClick={() => setActiveTab('ready-made')} style={{ padding: '0.8rem 2rem', gap: '8px' }}>
-                                    <Search size={18} /> Browse Ready-made
+                                <button className="neo-button" onClick={() => setActiveTab('lessons')} style={{ padding: '0.8rem 2rem', gap: '8px' }}>
+                                    <Search size={18} /> Browse Lessons
                                 </button>
                             </div>
                         </div>
                     )}
 
-                    {currentStacks.length === 0 && activeTab === 'ready-made' && (
+                    {currentLessons.length === 0 && activeTab === 'lessons' && (
                         <div style={{
                             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
                             padding: '4rem 2rem', textAlign: 'center', gap: '2rem'
@@ -572,22 +561,22 @@ const Home = ({
                                     <MessageSquare size={64} color="var(--accent-color)" />
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                    <h3 style={{ fontSize: '1.4rem' }}>No stacks found</h3>
-                                    <p style={{ opacity: 0.7 }}>This filter does not have any files. You can request flashcards to the developer via the feedback option.</p>
+                                    <h3 style={{ fontSize: '1.4rem' }}>No lessons found</h3>
+                                    <p style={{ opacity: 0.7 }}>This filter does not have any files. You can request lessons to the developer via the feedback option.</p>
                                 </div>
                                 <button className="neo-button neo-glow-blue" onClick={onShowFeedback} style={{ padding: '0.8rem 2rem', gap: '8px' }}>
-                                    <MessageSquare size={18} /> Request Flashcards
+                                    <MessageSquare size={18} /> Request Lessons
                                 </button>
                             </div>
                         </div>
                     )}
 
-                    {currentStacks.length > 0 && (
-                        <div className="stacks-grid">
-                            {currentStacks.map(stack => (
-                                <StackCard
-                                    key={stack.driveFileId || stack.id}
-                                    stack={stack}
+                    {currentLessons.length > 0 && (
+                        <div className="lessons-grid">
+                            {currentLessons.map(lesson => (
+                                <LessonCard
+                                    key={lesson.driveFileId || lesson.id}
+                                    lesson={lesson}
                                     onReview={onReview}
                                     onEdit={onEdit}
                                     onImport={onImport}

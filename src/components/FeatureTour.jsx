@@ -8,7 +8,7 @@ import { useTour } from './TourContext';
  * FeatureTour Component
  * High-available guidance system with dynamic positioning and context-aware flow.
  */
-const FeatureTour = ({ onStartDemo, onGoToMyCards, userName, onLogin, onAddStack }) => {
+const FeatureTour = ({ onStartDemo, onGoToMyLessons, userName, onLogin, onAddLesson }) => {
     const { isActive, currentStep, nextStep, setStep, endTour, isDemoGracePeriod } = useTour();
 
     const [targetRect, setTargetRect] = useState(null);
@@ -58,7 +58,7 @@ const FeatureTour = ({ onStartDemo, onGoToMyCards, userName, onLogin, onAddStack
         },
         {
             id: 3,
-            targetId: 'tab-ready-made',
+            targetId: 'tab-lessons',
             text: "Explore our collection of professionally curated lessons. You can easily add any of these to your personal library.",
             actionLabel: "Next",
             layout: 'tooltip',
@@ -67,20 +67,20 @@ const FeatureTour = ({ onStartDemo, onGoToMyCards, userName, onLogin, onAddStack
         },
         {
             id: 4,
-            targetId: 'stack-card-demo-stack',
-            text: "This is a sample stack. We recommend starting here to experience our active recall methodology first-hand.",
+            targetId: 'lesson-card-demo-lesson',
+            text: "This is a sample lesson. We recommend starting here to experience our active recall methodology first-hand.",
             actionLabel: "Launch Demo",
             actionIcon: <Play size={16} fill="white" />,
             onAction: onStartDemo,
             layout: 'tooltip',
             placement: 'top',
             canSkip: true,
-            onSkip: () => setStep(6) // Conditional Branching: Skip timing tip if demo skipped
+            onSkip: () => setStep(6)
         },
         {
             id: 5,
-            targetId: 'stack-card-demo-stack',
-            highlightId: 'next-review-indicator-demo-stack',
+            targetId: 'lesson-card-demo-lesson',
+            highlightId: 'next-review-indicator-demo-lesson',
             text: "Our intelligent algorithm calculates the optimal moment for your next review to ensure long-term retention.",
             actionLabel: "Continue",
             layout: 'tooltip',
@@ -89,10 +89,10 @@ const FeatureTour = ({ onStartDemo, onGoToMyCards, userName, onLogin, onAddStack
         },
         {
             id: 6,
-            targetId: 'fab-add-stack',
-            text: "Ready to create your own? Click the '+' button to start building your personal lesson stack.",
+            targetId: 'fab-add-lesson',
+            text: "Ready to create your own? Click the '+' button to start building your personal lesson.",
             onAction: () => {
-                onAddStack?.();
+                onAddLesson?.();
                 nextStep();
             },
             layout: 'tooltip',
@@ -101,8 +101,8 @@ const FeatureTour = ({ onStartDemo, onGoToMyCards, userName, onLogin, onAddStack
         },
         {
             id: 7,
-            targetId: 'modal-title-input',
-            text: "Give your stack a catchy title and start adding cards. You can use text, images, and even voice recordings!",
+            targetId: 'lesson-modal-title-input',
+            text: "Give your lesson a catchy title and start adding questions. You can use text, images, and even voice recordings!",
             actionLabel: "Got it",
             layout: 'tooltip',
             placement: 'bottom',
@@ -111,14 +111,14 @@ const FeatureTour = ({ onStartDemo, onGoToMyCards, userName, onLogin, onAddStack
         {
             id: 8,
             targetId: null,
-            text: "You are now fully equipped for success. Start creating your own personalized lesson stacks whenever you're ready.",
+            text: "You are now fully equipped for success. Start creating your own personalized lessons whenever you're ready.",
             actionLabel: "Get Started",
-            onAction: onGoToMyCards,
+            onAction: onGoToMyLessons,
             layout: 'duo-card',
             isFinalAction: true,
             canSkip: false
         }
-    ], [userName, onLogin, onStartDemo, onGoToMyCards, setStep, isMobile, onAddStack]);
+    ], [userName, onLogin, onStartDemo, onGoToMyLessons, setStep, isMobile, onAddLesson]);
 
     const currentStepIndex = steps.findIndex(s => s.id === currentStep);
     const currentConfig = steps[currentStepIndex] || steps[0];

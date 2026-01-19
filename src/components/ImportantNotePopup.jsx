@@ -4,18 +4,18 @@ import { Play, X, Edit2, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { ADMIN_EMAIL } from '../constants/config';
 
-const ImportantNotePopup = ({ stack, user, onStart, onClose, onEdit, onDelete, showConfirm }) => {
+const ImportantNotePopup = ({ lesson, user, onStart, onClose, onEdit, onDelete, showConfirm }) => {
     const containerRef = useRef(null);
-    const canEdit = user && (stack.ownedByMe || user.email === ADMIN_EMAIL);
+    const canEdit = user && (lesson.ownedByMe || user.email === ADMIN_EMAIL);
 
-    if (!stack || !stack.importantNote) return null;
+    if (!lesson || !lesson.importantNote) return null;
 
     useEffect(() => {
         // Reset scroll position when popup opens
         if (containerRef.current) {
             containerRef.current.scrollTop = 0;
         }
-    }, [stack]);
+    }, [lesson]);
 
     return (
         <motion.div
@@ -24,7 +24,7 @@ const ImportantNotePopup = ({ stack, user, onStart, onClose, onEdit, onDelete, s
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
             style={{
-                position: 'fixed', // Changed from absolute to fixed for better mobile coverage
+                position: 'fixed',
                 top: 0,
                 left: 0,
                 right: 0,
@@ -33,9 +33,9 @@ const ImportantNotePopup = ({ stack, user, onStart, onClose, onEdit, onDelete, s
                 zIndex: 1500,
                 display: 'flex',
                 flexDirection: 'column',
-                padding: window.innerWidth < 768 ? '1rem' : '2rem', // Responsive padding
+                padding: window.innerWidth < 768 ? '1rem' : '2rem',
                 overflowY: 'auto',
-                overscrollBehavior: 'contain' // Prevent background scrolling
+                overscrollBehavior: 'contain'
             }}
         >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexShrink: 0 }}>
@@ -45,13 +45,13 @@ const ImportantNotePopup = ({ stack, user, onStart, onClose, onEdit, onDelete, s
                         <>
                             <button
                                 className="neo-button icon-btn"
-                                onClick={() => showConfirm(`Delete "${stack.title}"?`, onDelete)}
-                                title="Delete Stack"
+                                onClick={() => showConfirm(`Delete "${lesson.title}"?`, onDelete)}
+                                title="Delete Lesson"
                                 style={{ color: '#ef4444' }}
                             >
                                 <Trash2 size={20} />
                             </button>
-                            <button className="neo-button icon-btn" onClick={onEdit} title="Edit Stack">
+                            <button className="neo-button icon-btn" onClick={onEdit} title="Edit Lesson">
                                 <Edit2 size={20} />
                             </button>
                         </>
@@ -61,16 +61,16 @@ const ImportantNotePopup = ({ stack, user, onStart, onClose, onEdit, onDelete, s
             </div>
 
             <div className="neo-inset" style={{
-                flex: 1, // Takes available space but allows scrolling
-                padding: window.innerWidth < 768 ? '1.25rem' : '2rem', // Responsive padding
+                flex: 1,
+                padding: window.innerWidth < 768 ? '1.25rem' : '2rem',
                 whiteSpace: 'pre-wrap',
                 fontSize: window.innerWidth < 768 ? '1rem' : '1.1rem',
                 lineHeight: '1.6',
                 color: 'var(--text-color)',
-                marginBottom: '8rem', // Increased margin to clear the floating button + safe area
+                marginBottom: '8rem',
                 borderRadius: '16px'
             }}>
-                {stack.importantNote}
+                {lesson.importantNote}
             </div>
 
             <button
@@ -78,7 +78,7 @@ const ImportantNotePopup = ({ stack, user, onStart, onClose, onEdit, onDelete, s
                 onClick={onStart}
                 style={{
                     position: 'fixed',
-                    bottom: '2rem', // Slightly adjusted for mobile feel
+                    bottom: '2rem',
                     left: '50%',
                     transform: 'translateX(-50%)',
                     padding: '1rem 2.5rem',
@@ -91,7 +91,7 @@ const ImportantNotePopup = ({ stack, user, onStart, onClose, onEdit, onDelete, s
                     alignItems: 'center',
                     gap: '10px',
                     zIndex: 1600,
-                    boxShadow: '0 4px 15px rgba(0,0,0,0.3)', // Added shadow for better separation
+                    boxShadow: '0 4px 15px rgba(0,0,0,0.3)',
                     width: 'max-content',
                     maxWidth: '90%'
                 }}

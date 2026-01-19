@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAdmin } from '../../context/AdminContext';
+import GrantCoinsModal from './GrantCoinsModal';
 import { requestDriveAccess } from '../../services/googleAuth';
 import { RefreshCw, AlertTriangle, CheckCircle, Database, Lock, UserPlus } from 'lucide-react';
 import { useAuth } from '../AuthProvider';
@@ -16,6 +17,7 @@ import { userService } from '../../services/userService';
 
 const IndexTable = () => {
     const { users, loading, error, stats, refresh, grantCoins, processingIds, recentlyGranted } = useAdmin();
+    const [selectedUser, setSelectedUser] = React.useState(null);
 
     if (loading && users.length === 0) {
         return <LoadingState />;
@@ -97,12 +99,7 @@ const IndexTable = () => {
                                             <td style={styles.td}>
                                                 <button
                                                     disabled={isProcessing}
-                                                    onClick={() => {
-                                                        const amount = prompt("Enter amount of coins to grant:", "100");
-                                                        if (amount && !isNaN(amount)) {
-                                                            grantCoins(user, parseInt(amount));
-                                                        }
-                                                    }}
+                                                    onClick={() => setSelectedUser(user)}
                                                     style={{
                                                         ...styles.actionLink,
                                                         color: isRecentlyGranted ? '#008060' : (isProcessing ? '#6d7175' : '#101010'),
@@ -129,6 +126,13 @@ const IndexTable = () => {
                     </div>
                 </div>
             )}
+
+            <GrantCoinsModal
+                user={selectedUser}
+                isOpen={!!selectedUser}
+                onClose={() => setSelectedUser(null)}
+                onGrant={grantCoins}
+            />
 
             <style>{`
                 .table-responsive { overflow-x: auto; }

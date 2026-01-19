@@ -1,35 +1,35 @@
 import React from 'react';
 import { Layers, Calendar, Star, Plus, Edit2, Coins, Trash2 } from 'lucide-react';
-import { sanitizeStackTitle, validateDataURI } from '../utils/securityUtils';
+import { sanitizeLessonTitle, validateDataURI } from '../utils/securityUtils';
 import { ADMIN_EMAIL } from '../constants/config';
 
-const StackCard = ({ stack, onReview, onEdit, onImport, user, onDelete, showConfirm }) => {
-    // SECURITY FIX (VULN-005): Sanitize stack title before using in URL
-    // SECURITY FIX (VULN-004): Validate titleImage and card images before using
-    const safeTitleForUrl = sanitizeStackTitle(stack.title);
+const LessonCard = ({ lesson, onReview, onEdit, onImport, user, onDelete, showConfirm }) => {
+    // SECURITY FIX (VULN-005): Sanitize lesson title before using in URL
+    // SECURITY FIX (VULN-004): Validate titleImage and question images before using
+    const safeTitleForUrl = sanitizeLessonTitle(lesson.title);
 
     const isAdmin = user?.email === ADMIN_EMAIL;
-    const canEdit = isAdmin || !stack.isPublic;
+    const canEdit = isAdmin || !lesson.isPublic;
 
     // Validate titleImage if it exists
     let titleImage = null;
-    if (stack.titleImage && validateDataURI(stack.titleImage, ['image/'])) {
-        titleImage = stack.titleImage;
-    } else if (stack.cards?.[0]?.question?.image && validateDataURI(stack.cards[0].question.image, ['image/'])) {
-        titleImage = stack.cards[0].question.image;
+    if (lesson.titleImage && validateDataURI(lesson.titleImage, ['image/'])) {
+        titleImage = lesson.titleImage;
+    } else if (lesson.questions?.[0]?.question?.image && validateDataURI(lesson.questions[0].question.image, ['image/'])) {
+        titleImage = lesson.questions[0].question.image;
     } else {
         // Use external avatar service as fallback with sanitized title
         titleImage = `https://ui-avatars.com/api/?name=${encodeURIComponent(safeTitleForUrl)}&background=random&color=fff&size=128`;
     }
 
     // Loading Skeleton
-    if (stack.loading) {
+    if (lesson.loading) {
         return (
-            <div className="neo-flat stack-card" style={{ height: '100%', position: 'relative', overflow: 'hidden' }}>
+            <div className="neo-flat lesson-card" style={{ height: '100%', position: 'relative', overflow: 'hidden' }}>
                 <div className="shimmer-wrapper">
                     <div className="shimmer" style={{ width: '40px', height: '20px', borderRadius: '12px', marginBottom: '1rem' }}></div>
                     <div className="shimmer" style={{ width: '100%', height: '140px', borderRadius: '12px', marginBottom: '1rem' }}></div>
-                    {stack.title && stack.title !== 'Loading...' ? (
+                    {lesson.title && lesson.title !== 'Loading...' ? (
                         <div style={{
                             marginBottom: '0.5rem',
                             height: '40px', // Approximate height of 2 lines
@@ -40,7 +40,7 @@ const StackCard = ({ stack, onReview, onEdit, onImport, user, onDelete, showConf
                             WebkitBoxOrient: 'vertical',
                             overflow: 'hidden'
                         }}>
-                            {stack.title}
+                            {lesson.title}
                         </div>
                     ) : (
                         <>
@@ -67,9 +67,9 @@ const StackCard = ({ stack, onReview, onEdit, onImport, user, onDelete, showConf
 
     return (
         <div
-            className="neo-flat stack-card"
-            id={stack.id === 'demo-stack' ? 'stack-card-demo-stack' : undefined}
-            onClick={() => onReview(stack)}
+            className="neo-flat lesson-card"
+            id={lesson.id === 'demo-lesson' ? 'lesson-card-demo-lesson' : undefined}
+            onClick={() => onReview(lesson)}
             style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%' }}
         >
             {canEdit && (
@@ -78,10 +78,10 @@ const StackCard = ({ stack, onReview, onEdit, onImport, user, onDelete, showConf
                         className="neo-button icon-btn"
                         onClick={(e) => {
                             e.stopPropagation();
-                            onEdit(stack);
+                            onEdit(lesson);
                         }}
                         style={{ background: 'var(--bg-color)', opacity: 0.8 }}
-                        title="Edit Stack"
+                        title="Edit Lesson"
                     >
                         <Edit2 size={18} color="var(--accent-color)" />
                     </button>
@@ -89,14 +89,10 @@ const StackCard = ({ stack, onReview, onEdit, onImport, user, onDelete, showConf
                         className="neo-button icon-btn"
                         onClick={(e) => {
                             e.stopPropagation();
-                            if (showConfirm) {
-                                showConfirm(`Delete "${stack.title}"?`, () => onDelete(stack));
-                            } else {
-                                if (window.confirm(`Delete "${stack.title}"?`)) onDelete(stack);
-                            }
+                            onDelete(lesson);
                         }}
                         style={{ background: 'var(--bg-color)', opacity: 0.8, color: '#ef4444' }}
-                        title="Delete Stack"
+                        title="Delete Lesson"
                     >
                         <Trash2 size={18} />
                     </button>
@@ -118,11 +114,11 @@ const StackCard = ({ stack, onReview, onEdit, onImport, user, onDelete, showConf
                 opacity: 0.9
             }}>
                 <Layers size={14} />
-                {stack.cardsCount !== undefined ? stack.cardsCount : (stack.cards?.length || 0)}
+                {lesson.questionCount !== undefined ? lesson.questionCount : (lesson.questions?.length || lesson.cards?.length || 0)}
             </div>
             <img
                 src={titleImage}
-                alt={stack.title}
+                alt={lesson.title}
                 style={{ width: '100%', height: '140px', objectFit: 'contain', borderRadius: '12px', background: 'var(--bg-color)' }}
             />
 
@@ -142,33 +138,48 @@ const StackCard = ({ stack, onReview, onEdit, onImport, user, onDelete, showConf
                     color: 'var(--text-color)',
                     opacity: 0.9,
                     padding: '0 2px'
-                }} title={stack.title}>{stack.title}</h3>
+                }} title={lesson.title}>{lesson.title}</h3>
             </div>
 
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', gap: '1rem', paddingTop: '1rem' }}>
-                {stack.isPublic && (
+                {lesson.isPublic && (
                     <button
-                        className="neo-button"
-                        style={{ flex: 1, padding: '0.6rem', background: stack.cost > 0 ? '#f59e0b' : 'var(--accent-color)', color: 'white', border: 'none', fontSize: '0.85rem', display: 'flex', gap: '6px', alignItems: 'center', justifyContent: 'center', borderRadius: '12px' }}
+                        className={`neo-button ${lesson.isOwned ? 'owned-btn' : ''}`}
+                        style={{
+                            flex: 1,
+                            padding: '0.6rem',
+                            background: lesson.isOwned ? 'var(--neo-shadow-light)' : (lesson.cost > 0 ? '#f59e0b' : 'var(--accent-color)'),
+                            color: lesson.isOwned ? 'var(--text-color)' : 'white',
+                            border: 'none',
+                            fontSize: '0.85rem',
+                            display: 'flex',
+                            gap: '6px',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            borderRadius: '12px',
+                            cursor: lesson.isOwned ? 'default' : 'pointer',
+                            opacity: lesson.isOwned ? 0.7 : 1
+                        }}
                         onClick={(e) => {
                             e.stopPropagation();
+                            if (lesson.isOwned) return;
                             if (user) {
-                                onImport(stack);
+                                onImport(lesson);
                             } else {
-                                onReview(stack);
+                                onReview(lesson);
                             }
                         }}
                     >
-                        {stack.cost > 0 ? <Coins size={14} /> : <Plus size={14} />}
-                        {user ? (
-                            stack.cost > 0 ? `Buy for ${stack.cost}` : 'Free - Add to My Cards'
+                        {lesson.isOwned ? <Layers size={14} /> : (lesson.cost > 0 ? <Coins size={14} /> : <Plus size={14} />)}
+                        {lesson.isOwned ? 'Owned' : (user ? (
+                            lesson.cost > 0 ? `Buy for ${lesson.cost}` : 'Free - Add to My Lessons'
                         ) : (
-                            `Preview (${stack.cost > 0 ? `Price: ${stack.cost}` : 'Free'})`
-                        )}
+                            `Preview (${lesson.cost > 0 ? `Price: ${lesson.cost}` : 'Free'})`
+                        ))}
                     </button>
                 )}
-                {!stack.isPublic && (
+                {!lesson.isPublic && (
                     <div className="neo-flat" style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -181,10 +192,10 @@ const StackCard = ({ stack, onReview, onEdit, onImport, user, onDelete, showConf
                         minWidth: '110px',
                         whiteSpace: 'nowrap'
                     }}>
-                        <span style={{ fontWeight: '700' }}>Marks : {stack.lastMarks !== undefined ? stack.lastMarks : '—'}/{stack.cards ? stack.cards.length * 2 : 0}</span>
+                        <span style={{ fontWeight: '700' }}>Marks : {lesson.lastMarks !== undefined ? lesson.lastMarks : '—'}/{lesson.questions ? lesson.questions.length * 2 : (lesson.cards ? lesson.cards.length * 2 : 0)}</span>
                     </div>
                 )}
-                {!stack.isPublic && (
+                {!lesson.isPublic && (
                     <div style={{
                         display: 'flex',
                         flexDirection: 'column',
@@ -195,12 +206,14 @@ const StackCard = ({ stack, onReview, onEdit, onImport, user, onDelete, showConf
                         minWidth: '100px',
                         textAlign: 'right'
                     }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', opacity: 0.7 }}>
-                            <Calendar size={12} />
-                            <span>Review in</span>
-                        </div>
-                        <div id={stack.id === 'demo-stack' ? 'next-review-indicator-demo-stack' : undefined}>
-                            <NextReviewDisplay nextReview={stack.nextReview} />
+                        {lesson.nextReview && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', opacity: 0.7 }}>
+                                <Calendar size={12} />
+                                <span>Review in</span>
+                            </div>
+                        )}
+                        <div id={lesson.id === 'demo-lesson' ? 'next-review-indicator-demo-lesson' : undefined}>
+                            <NextReviewDisplay nextReview={lesson.nextReview} />
                         </div>
                     </div>
                 )}
@@ -208,7 +221,7 @@ const StackCard = ({ stack, onReview, onEdit, onImport, user, onDelete, showConf
             </div>
 
             <style>{`
-        .stack-card:hover { transform: translateY(-5px); }
+        .lesson-card:hover { transform: translateY(-5px); }
       `}</style>
         </div >
     );
@@ -240,4 +253,4 @@ const NextReviewDisplay = ({ nextReview }) => {
     );
 };
 
-export default StackCard;
+export default LessonCard;

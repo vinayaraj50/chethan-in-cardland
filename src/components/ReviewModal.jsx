@@ -2,31 +2,30 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Edit2, SkipForward, Layers, AlertCircle, Brain, BookOpen, Sparkles } from 'lucide-react';
 import avatar from '../assets/avatar_guide_new.png';
-import { downloadStackAsZip } from '../utils/zipUtils';
+
 import CloseButton from './common/CloseButton';
 import ImageViewer from './ImageViewer';
 import congratulationsImg from '../assets/congratulations.png';
 import ReviewHeader from './review/ReviewHeader';
-import ReviewCard from './review/ReviewCard';
+import ReviewQuestion from './review/ReviewQuestion';
 import ReviewControls from './review/ReviewControls';
 import { useReviewSession } from '../hooks/useReviewSession';
 
-const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, showAlert, userCoins, onDeductCoins, isPreviewMode = false, onLoginRequired, previewProgress = null, onReviewStart, displayName }) => {
+const ReviewModal = ({ lesson, user, onClose, onEdit, onUpdate, showAlert, userCoins, onDeductCoins, isPreviewMode = false, onLoginRequired, previewProgress = null, onReviewStart, displayName }) => {
 
-    // EXTRACTED LOGIC: useReviewSession handles all state
     const {
         showModeSelection,
         currentIndex,
-        currentCard,
+        currentQuestion,
         isFlipped,
         rating,
         sessionResult,
         viewingImage,
         feedback,
         masteredCount,
-        totalOriginalCards,
-        studyCards,
-        difficultCardsCount,
+        totalOriginalQuestions,
+        studyQuestions,
+        difficultQuestionsCount,
         handleStartReview,
         handleNextSession,
         restartSession,
@@ -41,22 +40,13 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
         deleteRecording,
         toggleRecordedPlayback
     } = useReviewSession({
-        stack, user, onUpdate, onClose, onDuplicate, showAlert, isPreviewMode, onLoginRequired, previewProgress, onReviewStart
+        lesson, user, onUpdate, onClose, showAlert, isPreviewMode, onLoginRequired, previewProgress, onReviewStart
     });
 
-    const isDemoStack = stack.id === 'demo-stack';
+    const isDemoLesson = lesson.id === 'demo-lesson';
 
-    // Helper for download (View Logic only)
-    const handleDownload = async () => {
-        try {
-            await downloadStackAsZip(stack);
-            showAlert('Stack downloaded successfully!');
-        } catch (error) {
-            showAlert('Failed to download stack.');
-        }
-    };
 
-    // RENDER: Mode Selection View
+
     if (showModeSelection) {
         return (
             <div className="modal-overlay" style={{
@@ -104,19 +94,19 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                                     <img src={avatar} alt="Guide" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                 </div>
                                 <div style={{ textAlign: 'left' }}>
-                                    <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>Review All Cards</div>
-                                    <div style={{ fontSize: '0.85rem', opacity: 0.6 }}>Go through entire stack ({stack.cards?.length || 0} cards)</div>
+                                    <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>Review All Questions</div>
+                                    <div style={{ fontSize: '0.85rem', opacity: 0.6 }}>Go through entire lesson ({(lesson.questions || lesson.cards || []).length} questions)</div>
                                 </div>
                             </button>
 
                             <button
                                 className="neo-button"
-                                disabled={difficultCardsCount === 0}
+                                disabled={difficultQuestionsCount === 0}
                                 onClick={() => handleStartReview('difficult')}
                                 style={{
                                     padding: '1rem', display: 'flex', alignItems: 'center', gap: '1rem',
                                     border: '2px solid var(--border-color)', justifyContent: 'flex-start',
-                                    opacity: difficultCardsCount === 0 ? 0.5 : 1
+                                    opacity: difficultQuestionsCount === 0 ? 0.5 : 1
                                 }}
                             >
                                 <div style={{ padding: '0.5rem', background: '#fee2e2', borderRadius: '12px', color: '#dc2626' }}>
@@ -124,7 +114,7 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                                 </div>
                                 <div style={{ textAlign: 'left' }}>
                                     <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>Focus on Difficult</div>
-                                    <div style={{ fontSize: '0.85rem', opacity: 0.6 }}>Cards you missed previously ({difficultCardsCount} cards)</div>
+                                    <div style={{ fontSize: '0.85rem', opacity: 0.6 }}>Questions you missed previously ({difficultQuestionsCount} questions)</div>
                                 </div>
                             </button>
                         </div>
@@ -134,8 +124,7 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
         );
     }
 
-    // RENDER: Empty Stack View
-    if ((!studyCards || studyCards.length === 0) && !sessionResult) {
+    if ((!studyQuestions || studyQuestions.length === 0) && !sessionResult) {
         return (
             <div className="modal-overlay" style={{
                 position: 'fixed', top: 0, right: 0, bottom: 0, left: 0,
@@ -144,7 +133,7 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                 padding: 'max(1rem, 2vh)'
             }}>
                 <motion.div
-                    key="empty-stack"
+                    key="empty-lesson"
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
                     className="neo-flat"
@@ -157,12 +146,12 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                         <div className="neo-inset" style={{ padding: '20px', borderRadius: '50%', color: '#94a3b8' }}>
                             <Layers size={48} />
                         </div>
-                        <h2 style={{ fontSize: '1.5rem' }}>No Cards Found</h2>
-                        <p style={{ opacity: 0.6 }}>This stack appears to be empty. Would you like to add some cards?</p>
+                        <h2 style={{ fontSize: '1.5rem' }}>No Questions Found</h2>
+                        <p style={{ opacity: 0.6 }}>This lesson appears to be empty. Would you like to add some questions?</p>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                         <button className="neo-button neo-glow-blue" style={{ justifyContent: 'center', padding: '1rem' }} onClick={onEdit}>
-                            <Edit2 size={18} style={{ marginRight: '8px' }} /> Add Cards Now
+                            <Edit2 size={18} style={{ marginRight: '8px' }} /> Add Questions Now
                         </button>
                         <button className="neo-button" style={{ justifyContent: 'center', opacity: 0.6 }} onClick={onClose}>
                             Close
@@ -173,7 +162,6 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
         );
     }
 
-    // RENDER: Session Result
     if (sessionResult) {
         return (
             <div className="modal-overlay" style={{
@@ -252,14 +240,14 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                                 <p style={{ fontWeight: 'bold', fontSize: '1.2rem', lineHeight: '1.6' }}>
                                     Congratulations. <br />
                                     By royal decree, I name you Master of <br />
-                                    <span style={{ color: 'var(--accent-color)', fontSize: '1.4rem' }}>{stack.title}</span>
+                                    <span style={{ color: 'var(--accent-color)', fontSize: '1.4rem' }}>{lesson.title}</span>
                                 </p>
                             </div>
                         </div>
                     ) : (
                         <div style={{ padding: '1rem', background: 'rgba(59, 130, 246, 0.1)', borderRadius: '16px', border: '1px solid #3b82f6' }}>
                             <p style={{ fontWeight: 'bold', color: '#1d4ed8', marginBottom: '0.5rem', fontSize: '1.1rem' }}>Don't give up!</p>
-                            <p style={{ opacity: 0.8, fontSize: '0.95rem' }}>Mastery takes patience. <br />Why not try the tough cards again right now?</p>
+                            <p style={{ opacity: 0.8, fontSize: '0.95rem' }}>Mastery takes patience. <br />Why not try the tough questions again right now?</p>
                         </div>
                     )}
 
@@ -267,15 +255,15 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                         {!sessionResult.fullMarks && (
                             <button className="neo-button"
                                 style={{ justifyContent: 'center', background: 'var(--accent-color)', color: 'white', border: 'none', padding: '1rem' }}
-                                onClick={() => restartSession(sessionResult.lowRatedCards)}>
-                                Focus on Weak Cards ({sessionResult.lowRatedCards.length})
+                                onClick={() => restartSession(sessionResult.lowRatedQuestions)}>
+                                Focus on Weak Questions ({sessionResult.lowRatedQuestions.length})
                             </button>
                         )}
 
                         <button className="neo-button"
                             style={{ justifyContent: 'center', padding: '1rem', background: sessionResult.fullMarks ? 'var(--accent-color)' : 'transparent', color: sessionResult.fullMarks ? 'white' : 'inherit', border: sessionResult.fullMarks ? 'none' : '1px solid var(--border-color)' }}
-                            onClick={() => restartSession(stack.cards)}>
-                            Try All Cards Again
+                            onClick={() => restartSession(lesson.questions || lesson.cards || [])}>
+                            Try All Questions Again
                         </button>
 
                         <button className="neo-button" style={{ justifyContent: 'center', padding: '1rem', opacity: 0.7 }} onClick={onClose}>
@@ -287,50 +275,57 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
         );
     }
 
-    // RENDER: Main Review Interface
     return (
         <div className="modal-overlay" style={{
             position: 'fixed', top: 0, right: 0, bottom: 0, left: 0,
             backdropFilter: 'blur(1.2rem)', WebkitBackdropFilter: 'blur(1.2rem)', background: 'rgba(255,255,255,0.01)', zIndex: 2000,
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            padding: '1rem',
-            overflowY: 'auto'
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 0, // No padding on overlay for full screen feel on mobile
+            height: '100vh',
+            overflow: 'hidden'
         }}>
             <AnimatePresence mode="wait">
                 <div className="review-container" style={{
                     width: '100%', maxWidth: '35rem',
                     height: '100%',
                     display: 'flex', flexDirection: 'column',
-                    gap: '1rem',
                     position: 'relative',
-                    padding: '1rem 1rem 3.5rem' // Increased bottom padding for controls
+                    padding: '10px 1rem',
+                    background: 'var(--bg-color)'
                 }}>
 
-                    {/* Top bar */}
                     <ReviewHeader
                         currentIndex={currentIndex}
-                        totalCards={studyCards.length}
+                        totalQuestions={studyQuestions.length}
                         masteredCount={masteredCount}
-                        totalOriginalCards={totalOriginalCards}
+                        totalOriginalQuestions={totalOriginalQuestions}
                         rating={rating}
                         onClose={onClose}
-                        onDuplicate={onDuplicate}
                         user={user}
-                        stack={stack}
-                        handleDownload={handleDownload}
+                        lesson={lesson}
                     />
 
-                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '1rem 0', position: 'relative' }}>
+                    {/* Fixed Size Question Area */}
+                    <div style={{
+                        flex: 1,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        margin: '10px 0',
+                        position: 'relative',
+                        minHeight: 0 // Crucial for flex child with overflow
+                    }}>
                         <AnimatePresence mode="wait">
                             <motion.div
-                                key={currentCard ? currentCard.id : 'end'}
+                                key={currentQuestion ? (currentQuestion.id || currentQuestion.question?.text) : 'end'}
                                 initial={{ opacity: 0, x: 50 }}
                                 animate={{ opacity: 1, x: 0 }}
                                 exit={{ opacity: 0, x: -50 }}
-                                style={{ width: '100%', height: '100%' }}
+                                style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}
                             >
-                                <ReviewCard
-                                    currentCard={currentCard}
+                                <ReviewQuestion
+                                    currentQuestion={currentQuestion}
                                     isFlipped={isFlipped}
                                     setIsFlipped={setIsFlipped}
                                     setViewingImage={setViewingImage}
@@ -338,7 +333,7 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                                         if (opt?.isCorrect) {
                                             handleRating(2);
                                         } else {
-                                            const rightAnswer = currentCard.options.find(o => o.isCorrect)?.text || 'Unknown';
+                                            const rightAnswer = currentQuestion.options.find(o => o.isCorrect)?.text || 'Unknown';
                                             handleRating(0, `Incorrect. The right answer is "${rightAnswer}". I shall ask this again.`);
                                         }
                                     }}
@@ -346,38 +341,40 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                                 />
                             </motion.div>
                         </AnimatePresence>
+                    </div>
 
-                        {/* Feedback Bottom Panel */}
-                        <AnimatePresence>
-                            {feedback && (
+                    {/* Fixed Navigation Area at Bottom */}
+                    <div style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '1rem',
+                        width: '100%',
+                        paddingBottom: '0'
+                    }}>
+                        <AnimatePresence mode="wait">
+                            {feedback ? (
                                 <motion.div
-                                    initial={{ opacity: 0, y: 100 }}
+                                    key="feedback-actions"
+                                    initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: 100 }}
+                                    exit={{ opacity: 0, y: 20 }}
                                     className="neo-flat"
                                     style={{
-                                        position: 'absolute',
-                                        bottom: '4rem', // Raised higher to avoid overlapping buttons
-                                        left: '1.25rem',
-                                        right: '1.25rem',
-                                        padding: '1.25rem',
+                                        width: '100%',
+                                        padding: '1rem',
                                         borderRadius: '1.5rem',
                                         background: 'var(--bg-color)',
-                                        boxShadow: '0 0.5rem 2rem rgba(0,0,0,0.2)',
-                                        zIndex: 2100,
                                         display: 'flex',
                                         flexDirection: 'column',
                                         alignItems: 'center',
-                                        gap: '1rem',
+                                        gap: '0.75rem',
                                         border: '1px solid var(--border-color)',
-                                        backdropFilter: 'blur(12px)',
-                                        maxWidth: 'calc(100% - 2.5rem)',
-                                        margin: '0 auto'
+                                        boxShadow: 'var(--neo-box-shadow)'
                                     }}
                                 >
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', width: '100%' }}>
-                                        <img src={avatar} alt="Guide" style={{ width: '2.5rem', height: '2.5rem', borderRadius: '50%', flexShrink: 0, border: '2px solid var(--accent-color)' }} />
-                                        <h3 style={{ fontSize: '1rem', color: feedback.type === 'success' ? '#16a34a' : '#dc2626', margin: 0, flex: 1, fontWeight: '800' }}>
+                                        <img src={avatar} alt="Guide" style={{ width: '2rem', height: '2rem', borderRadius: '50%', flexShrink: 0, border: '1.5px solid var(--accent-color)' }} />
+                                        <h3 style={{ fontSize: '0.9rem', color: feedback.type === 'success' ? '#16a34a' : '#dc2626', margin: 0, flex: 1, fontWeight: '800' }}>
                                             {feedback.message}
                                         </h3>
                                     </div>
@@ -388,39 +385,38 @@ const ReviewModal = ({ stack, user, onClose, onEdit, onUpdate, onDuplicate, show
                                             width: '100%',
                                             justifyContent: 'center',
                                             padding: '1rem',
-                                            fontSize: '1rem',
+                                            fontSize: '1.1rem',
                                             background: feedback.type === 'success' ? '#16a34a' : 'var(--accent-color)',
                                             color: 'white',
                                             fontWeight: 'bold',
-                                            borderRadius: '1rem'
+                                            borderRadius: '1rem',
+                                            minHeight: '3.5rem'
                                         }}
                                     >
                                         Next Question
                                     </button>
                                 </motion.div>
+                            ) : (
+                                <ReviewControls
+                                    isFlipped={isFlipped}
+                                    currentQuestion={currentQuestion}
+                                    isRecording={isRecording}
+                                    recordedAudio={recordedAudio}
+                                    isPlayingRecorded={isPlayingRecorded}
+                                    startRecording={startRecording}
+                                    stopRecording={stopRecording}
+                                    deleteRecording={deleteRecording}
+                                    toggleRecordedPlayback={toggleRecordedPlayback}
+                                    setIsFlipped={setIsFlipped}
+                                    handleRating={(rating, msg) => handleRating(rating, msg)}
+                                    feedback={feedback}
+                                />
                             )}
                         </AnimatePresence>
                     </div>
-
-                    <ReviewControls
-                        isFlipped={isFlipped}
-                        currentCard={currentCard}
-                        isRecording={isRecording}
-                        recordedAudio={recordedAudio}
-                        isPlayingRecorded={isPlayingRecorded}
-                        startRecording={startRecording}
-                        stopRecording={stopRecording}
-                        deleteRecording={deleteRecording}
-                        toggleRecordedPlayback={toggleRecordedPlayback}
-                        setIsFlipped={setIsFlipped}
-                        handleRating={(rating, msg) => handleRating(rating, msg)}
-                        feedback={feedback}
-                    />
-
                 </div>
             </AnimatePresence>
 
-            {/* Image Viewer */}
             <AnimatePresence>
                 {viewingImage && (
                     <ImageViewer

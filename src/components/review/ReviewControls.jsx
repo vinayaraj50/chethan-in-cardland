@@ -5,7 +5,7 @@ import { playSwoosh } from '../../utils/soundEffects';
 
 const ReviewControls = ({
     isFlipped,
-    currentCard,
+    currentQuestion,
     isRecording,
     recordedAudio,
     isPlayingRecorded,
@@ -17,97 +17,100 @@ const ReviewControls = ({
     handleRating,
     feedback
 }) => {
-    if (isFlipped || !currentCard || currentCard.type === 'mcq') {
-        // Show Rating Controls or Feedback
-        if (feedback) return null; // Feedback is handled by parent overlay or separate component?
-        // Parent handles feedback overlay replacement.
+    // Early return if no question
+    if (!currentQuestion) return null;
 
-        if (isFlipped) {
-            return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%', minHeight: '5rem', justifyContent: 'center' }}>
-                    <AnimatePresence mode="wait">
-                        {currentCard.type !== 'mcq' ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%' }}>
-                                <div className="neo-flat" style={{ padding: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', borderRadius: '1rem' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                        <div style={{ width: '0.6rem', height: '0.6rem', borderRadius: '50%', background: 'var(--accent-color)', opacity: 0.6 }} />
-                                        <span style={{ fontSize: '0.85rem', fontWeight: 'bold', opacity: 0.7 }}>
-                                            SELECT MATCHING ANSWER
-                                        </span>
-                                    </div>
-                                    <div style={{ display: 'flex', gap: '0.75rem' }}>
-                                        {recordedAudio && (
-                                            <button
-                                                className="neo-button icon-btn"
-                                                onClick={toggleRecordedPlayback}
-                                                style={{ color: 'var(--accent-color)', width: '2rem', height: '2rem' }}
-                                            >
-                                                {isPlayingRecorded ? <Square size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                                <div style={{ display: 'flex', flexDirection: 'row', gap: '10px', width: '100%', justifyContent: 'center' }}>
-                                    <button
-                                        className="neo-button"
-                                        style={{
-                                            flex: 1, flexDirection: 'column', padding: '0.75rem 0.25rem',
-                                            background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca',
-                                            minWidth: '4rem', borderRadius: '0.75rem'
-                                        }}
-                                        onClick={(e) => { e.stopPropagation(); handleRating(-1); }}
-                                    >
-                                        <span style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Wrong</span>
-                                    </button>
-
-                                    <button
-                                        className="neo-button"
-                                        style={{
-                                            flex: 1, flexDirection: 'column', padding: '0.75rem 0.25rem',
-                                            background: '#f3f4f6', color: '#4b5563', border: '1px solid #e5e7eb',
-                                            minWidth: '4rem', borderRadius: '0.75rem'
-                                        }}
-                                        onClick={(e) => { e.stopPropagation(); handleRating(0); }}
-                                    >
-                                        <span style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Unsure</span>
-                                    </button>
-
-                                    <button
-                                        className="neo-button"
-                                        style={{
-                                            flex: 1, flexDirection: 'column', padding: '0.75rem 0.25rem',
-                                            background: '#e0f2fe', color: '#0284c7', border: '1px solid #bae6fd',
-                                            minWidth: '4rem', borderRadius: '0.75rem'
-                                        }}
-                                        onClick={(e) => { e.stopPropagation(); handleRating(1); }}
-                                    >
-                                        <span style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Partly</span>
-                                    </button>
-
-                                    <button
-                                        className="neo-button"
-                                        style={{
-                                            flex: 1, flexDirection: 'column', padding: '0.75rem 0.25rem',
-                                            background: '#dcfce7', color: '#16a34a', border: '1px solid #bbf7d0',
-                                            minWidth: '4rem', borderRadius: '0.75rem'
-                                        }}
-                                        onClick={(e) => { e.stopPropagation(); handleRating(2); }}
-                                    >
-                                        <span style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>By heart</span>
-                                    </button>
-                                </div>
-                            </div>
-                        ) : null}
-                    </AnimatePresence>
-                </div>
-            );
-        }
+    // MCQ handling: Don't show controls until user selects an option (which sets feedback)
+    if (currentQuestion.type === 'mcq') {
+        // MCQ reveals answer by clicking an option, not by "Show Answer" button
+        // Return null (no controls) until feedback is set
+        return null;
     }
 
-    // Default: Show Answer / Record UI
+    // For regular flashcards: show rating controls after flipping
+    if (isFlipped) {
+        if (feedback) return null; // Hide controls when feedback is showing
+
+        return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%', minHeight: '5rem', justifyContent: 'center' }}>
+                <AnimatePresence mode="wait">
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%' }}>
+                        <div className="neo-flat" style={{ padding: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', borderRadius: '1rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                <div style={{ width: '0.6rem', height: '0.6rem', borderRadius: '50%', background: 'var(--accent-color)', opacity: 0.6 }} />
+                                <span style={{ fontSize: '0.8rem', fontWeight: 'bold', opacity: 0.7 }}>
+                                    SELECT MATCHING ANSWER
+                                </span>
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.75rem' }}>
+                                {recordedAudio && (
+                                    <button
+                                        className="neo-button icon-btn"
+                                        onClick={toggleRecordedPlayback}
+                                        style={{ color: 'var(--accent-color)', width: '2.25rem', height: '2.25rem' }}
+                                    >
+                                        {isPlayingRecorded ? <Square size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'row', gap: '10px', width: '100%', justifyContent: 'center' }}>
+                            <button
+                                className="neo-button"
+                                style={{
+                                    flex: 1, flexDirection: 'column', padding: '0.75rem 0.25rem',
+                                    background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca',
+                                    minWidth: '4rem', borderRadius: '0.75rem', minHeight: '3.75rem'
+                                }}
+                                onClick={(e) => { e.stopPropagation(); handleRating(-1); }}
+                            >
+                                <span style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Wrong</span>
+                            </button>
+
+                            <button
+                                className="neo-button"
+                                style={{
+                                    flex: 1, flexDirection: 'column', padding: '0.75rem 0.25rem',
+                                    background: '#f3f4f6', color: '#4b5563', border: '1px solid #e5e7eb',
+                                    minWidth: '4rem', borderRadius: '0.75rem', minHeight: '3.75rem'
+                                }}
+                                onClick={(e) => { e.stopPropagation(); handleRating(0); }}
+                            >
+                                <span style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Unsure</span>
+                            </button>
+
+                            <button
+                                className="neo-button"
+                                style={{
+                                    flex: 1, flexDirection: 'column', padding: '0.75rem 0.25rem',
+                                    background: '#e0f2fe', color: '#0284c7', border: '1px solid #bae6fd',
+                                    minWidth: '4rem', borderRadius: '0.75rem', minHeight: '3.75rem'
+                                }}
+                                onClick={(e) => { e.stopPropagation(); handleRating(1); }}
+                            >
+                                <span style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Partly</span>
+                            </button>
+
+                            <button
+                                className="neo-button"
+                                style={{
+                                    flex: 1, flexDirection: 'column', padding: '0.75rem 0.25rem',
+                                    background: '#dcfce7', color: '#16a34a', border: '1px solid #bbf7d0',
+                                    minWidth: '4rem', borderRadius: '0.75rem', minHeight: '3.75rem'
+                                }}
+                                onClick={(e) => { e.stopPropagation(); handleRating(2); }}
+                            >
+                                <span style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>By heart</span>
+                            </button>
+                        </div>
+                    </div>
+                </AnimatePresence>
+            </div>
+        );
+    }
+
     return (
         <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {/* Record Answer UI */}
             <div className="neo-flat" style={{ padding: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', borderRadius: '1rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                     <div style={{

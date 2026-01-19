@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import CloseButton from './common/CloseButton';
-import { X, Mic, Image as ImageIcon, Plus, Trash2, Copy, Save, Check, Play, Square, Pause, ChevronDown, Download, Upload, Split, Merge, RefreshCw } from 'lucide-react';
+import { X, Mic, Image as ImageIcon, Plus, Trash2, Save, Check, Play, Square, Pause, ChevronDown, Split, Merge, RefreshCw } from 'lucide-react';
 import { signIn } from '../services/googleAuth';
-import { saveFile, deleteStack, listFilesInFolder, getFileContent, makeFilePublic } from '../services/googleDrive';
+import { saveFile, deleteLesson, getFileContent, makeFilePublic } from '../services/googleDrive';
 import { storageService } from '../services/storageOrchestrator';
-import { downloadStackAsZip, uploadStackFromZip } from '../utils/zipUtils';
 import { parseGeminiOutput } from '../utils/importUtils';
 import { validateDataURI, sanitizeText } from '../utils/securityUtils';
 import ImageViewer from './ImageViewer';
@@ -47,10 +46,10 @@ const AutoGrowingTextarea = ({ value, onChange, placeholder, style = {}, ...prop
     );
 };
 
-const CardItem = ({
-    card, index, totalCards, onUpdate, onRemove, onMove,
+const QuestionItem = ({
+    question, index, totalQuestions, onUpdate, onRemove, onMove,
     recording, startRecording, stopRecording, cancelRecording, recordingTime,
-    handleFileUpload, handleOptionChange, setViewingImage, showSplitUI, selectedCards, toggleCardSelection
+    handleFileUpload, handleOptionChange, setViewingImage, showSplitUI, selectedQuestions, toggleQuestionSelection
 }) => {
     const formatTime = (seconds) => {
         const mins = Math.floor(seconds / 60);
@@ -59,21 +58,21 @@ const CardItem = ({
     };
 
     return (
-        <div key={card.id} className="neo-inset" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', position: 'relative' }}>
+        <div key={question.id} className="neo-inset" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', position: 'relative' }}>
             {showSplitUI && (
                 <div style={{ position: 'absolute', top: '10px', left: '10px', zIndex: 5 }}>
                     <input
                         type="checkbox"
                         className="neo-checkbox"
-                        checked={selectedCards?.has(card.id)}
-                        onChange={() => toggleCardSelection?.(card.id)}
+                        checked={selectedQuestions?.has(question.id)}
+                        onChange={() => toggleQuestionSelection?.(question.id)}
                     />
                 </div>
             )}
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
                 <div style={{ fontSize: '0.9rem', fontWeight: 'bold', opacity: 0.5, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span>{card.type === 'mcq' ? 'MCQ' : 'CARD'} {index + 1}</span>
+                    <span>{question.type === 'mcq' ? 'MCQ' : 'QUESTION'} {index + 1}</span>
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -106,7 +105,7 @@ const CardItem = ({
                         className="neo-button icon-btn"
                         style={{ width: '32px', height: '32px', color: 'var(--error-color)', boxShadow: 'none' }}
                         onClick={onRemove}
-                        title="Delete Card"
+                        title="Delete Question"
                     >
                         <Trash2 size={16} />
                     </button>
@@ -121,18 +120,18 @@ const CardItem = ({
                             <div style={{ display: 'flex', gap: '5px' }}>
                                 <button
                                     className="neo-button icon-btn"
-                                    style={{ width: '32px', height: '32px', color: card.question.audio ? 'var(--accent-color)' : 'currentColor' }}
-                                    onClick={() => startRecording(card.id, 'question')}
+                                    style={{ width: '32px', height: '32px', color: question.question.audio ? 'var(--accent-color)' : 'currentColor' }}
+                                    onClick={() => startRecording(question.id, 'question')}
                                 >
                                     <Mic size={14} />
                                 </button>
-                                {card.question.audio && (
-                                    <button className="neo-button icon-btn" style={{ width: '32px', height: '32px' }} onClick={() => onUpdate('question', { ...card.question, audio: '' })}>
+                                {question.question.audio && (
+                                    <button className="neo-button icon-btn" style={{ width: '32px', height: '32px' }} onClick={() => onUpdate('question', { ...question.question, audio: '' })}>
                                         <Trash2 size={12} color="var(--error-color)" />
                                     </button>
                                 )}
                             </div>
-                        ) : recording.id === card.id && recording.field === 'question' ? (
+                        ) : recording.id === question.id && recording.field === 'question' ? (
                             <div className="neo-flat" style={{
                                 position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 10,
                                 borderRadius: '12px', display: 'flex', alignItems: 'center', padding: '0 1rem', gap: '1rem',
@@ -150,22 +149,22 @@ const CardItem = ({
                         ) : null}
 
                         <label className="neo-button icon-btn" style={{ width: '32px', height: '32px', cursor: 'pointer' }}>
-                            <ImageIcon size={14} color={card.question.image ? 'var(--accent-color)' : 'currentColor'} />
-                            <input type="file" hidden accept="image/*" onChange={(e) => handleFileUpload(e, (data) => onUpdate('question', { ...card.question, image: data }))} />
+                            <ImageIcon size={14} color={question.question.image ? 'var(--accent-color)' : 'currentColor'} />
+                            <input type="file" hidden accept="image/*" onChange={(e) => handleFileUpload(e, (data) => onUpdate('question', { ...question.question, image: data }))} />
                         </label>
                     </div>
                 </div>
-                {card.question.image && (
+                {question.question.image && (
                     <div style={{ position: 'relative', width: '100%', maxHeight: '150px' }}>
                         <img
-                            src={card.question.image}
+                            src={question.question.image}
                             style={{ width: '100%', height: '100%', maxHeight: '150px', objectFit: 'contain', borderRadius: '8px', cursor: 'pointer' }}
-                            onClick={() => setViewingImage(card.question.image)}
+                            onClick={() => setViewingImage(question.question.image)}
                         />
                         <button
                             className="neo-button icon-btn"
                             style={{ position: 'absolute', top: '5px', right: '5px', width: '24px', height: '24px' }}
-                            onClick={() => onUpdate('question', { ...card.question, image: '' })}
+                            onClick={() => onUpdate('question', { ...question.question, image: '' })}
                         >
                             <X size={12} />
                         </button>
@@ -174,22 +173,22 @@ const CardItem = ({
                 <div style={{ position: 'relative' }}>
                     <AutoGrowingTextarea
                         placeholder="The question... "
-                        value={card.question.text}
-                        onChange={(e) => onUpdate('question', { ...card.question, text: sanitizeText(e.target.value) })}
+                        value={question.question.text}
+                        onChange={(e) => onUpdate('question', { ...question.question, text: sanitizeText(e.target.value) })}
                         style={{ paddingRight: '30px' }}
                     />
                 </div>
             </div>
 
-            {card.type === 'mcq' ? (
+            {question.type === 'mcq' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     <span style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>OPTIONS</span>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                        {card.options?.map((opt, i) => (
+                        {question.options?.map((opt, i) => (
                             <div key={opt.id} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <input
                                     type="radio"
-                                    name={`correct-${card.id}`}
+                                    name={`correct-${question.id}`}
                                     checked={opt.isCorrect}
                                     onChange={() => handleOptionChange(opt.id, 'isCorrect', true)}
                                     style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: 'var(--accent-color)' }}
@@ -217,18 +216,18 @@ const CardItem = ({
                                 <div style={{ display: 'flex', gap: '5px' }}>
                                     <button
                                         className="neo-button icon-btn"
-                                        style={{ width: '32px', height: '32px', color: card.answer.audio ? 'var(--accent-color)' : 'currentColor' }}
-                                        onClick={() => startRecording(card.id, 'answer')}
+                                        style={{ width: '32px', height: '32px', color: question.answer.audio ? 'var(--accent-color)' : 'currentColor' }}
+                                        onClick={() => startRecording(question.id, 'answer')}
                                     >
                                         <Mic size={14} />
                                     </button>
-                                    {card.answer.audio && (
-                                        <button className="neo-button icon-btn" style={{ width: '32px', height: '32px' }} onClick={() => onUpdate('answer', { ...card.answer, audio: '' })}>
+                                    {question.answer.audio && (
+                                        <button className="neo-button icon-btn" style={{ width: '32px', height: '32px' }} onClick={() => onUpdate('answer', { ...question.answer, audio: '' })}>
                                             <Trash2 size={12} color="var(--error-color)" />
                                         </button>
                                     )}
                                 </div>
-                            ) : recording.id === card.id && recording.field === 'answer' ? (
+                            ) : recording.id === question.id && recording.field === 'answer' ? (
                                 <div className="neo-flat" style={{
                                     position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 10,
                                     borderRadius: '12px', display: 'flex', alignItems: 'center', padding: '0 1rem', gap: '1rem',
@@ -245,22 +244,22 @@ const CardItem = ({
                                 </div>
                             ) : null}
                             <label className="neo-button icon-btn" style={{ width: '32px', height: '32px', cursor: 'pointer' }}>
-                                <ImageIcon size={14} color={card.answer.image ? 'var(--accent-color)' : 'currentColor'} />
-                                <input type="file" hidden accept="image/*" onChange={(e) => handleFileUpload(e, (data) => onUpdate('answer', { ...card.answer, image: data }))} />
+                                <ImageIcon size={14} color={question.answer.image ? 'var(--accent-color)' : 'currentColor'} />
+                                <input type="file" hidden accept="image/*" onChange={(e) => handleFileUpload(e, (data) => onUpdate('answer', { ...question.answer, image: data }))} />
                             </label>
                         </div>
                     </div>
-                    {card.answer.image && (
+                    {question.answer.image && (
                         <div style={{ position: 'relative', width: '100%', maxHeight: '150px' }}>
                             <img
-                                src={card.answer.image}
+                                src={question.answer.image}
                                 style={{ width: '100%', height: '100%', maxHeight: '150px', objectFit: 'contain', borderRadius: '8px', cursor: 'pointer' }}
-                                onClick={() => setViewingImage(card.answer.image)}
+                                onClick={() => setViewingImage(question.answer.image)}
                             />
                             <button
                                 className="neo-button icon-btn"
                                 style={{ position: 'absolute', top: '5px', right: '5px', width: '24px', height: '24px' }}
-                                onClick={() => onUpdate('answer', { ...card.answer, image: '' })}
+                                onClick={() => onUpdate('answer', { ...question.answer, image: '' })}
                             >
                                 <X size={12} />
                             </button>
@@ -268,8 +267,8 @@ const CardItem = ({
                     )}
                     <AutoGrowingTextarea
                         placeholder="The answer... "
-                        value={card.answer.text}
-                        onChange={(e) => onUpdate('answer', { ...card.answer, text: sanitizeText(e.target.value) })}
+                        value={question.answer.text}
+                        onChange={(e) => onUpdate('answer', { ...question.answer, text: sanitizeText(e.target.value) })}
                     />
                 </div>
             )}
@@ -277,30 +276,30 @@ const CardItem = ({
     );
 };
 
-const AddStackModal = ({
-    user, stack, onClose, onSave, onDuplicate, onDelete,
-    showAlert, showConfirm, availableLabels, allStacks,
+const AddLessonModal = ({
+    user, lesson, onClose, onSave, onDelete,
+    showAlert, showConfirm, availableLabels, allLessons,
     activeTab, defaultMetadata
 }) => {
-    const [title, setTitle] = useState(stack?.title || '');
-    const [titleImage, setTitleImage] = useState(stack?.titleImage || '');
-    const [label, setLabel] = useState(stack?.label || 'No label');
-    const [importantNote, setImportantNote] = useState(stack?.importantNote || '');
+    const [title, setTitle] = useState(lesson?.title || '');
+    const [titleImage, setTitleImage] = useState(lesson?.titleImage || '');
+    const [label, setLabel] = useState(lesson?.label || 'No label');
+    const [importantNote, setImportantNote] = useState(lesson?.importantNote || '');
     const [newLabelInput, setNewLabelInput] = useState('');
-    const [cards, setCards] = useState(stack?.cards || [{ id: Date.now(), question: { text: '', image: '', audio: '' }, answer: { text: '', image: '', audio: '' } }]);
-    const [standard, setStandard] = useState(stack?.standard || (stack ? '' : (defaultMetadata?.standard || '')));
-    const [syllabus, setSyllabus] = useState(stack?.syllabus || (stack ? '' : (defaultMetadata?.syllabus || '')));
-    const [medium, setMedium] = useState(stack?.medium || (stack ? '' : (defaultMetadata?.medium || '')));
-    const [subject, setSubject] = useState(stack?.subject || (stack ? '' : (defaultMetadata?.subject || '')));
-    const [cost, setCost] = useState(stack?.cost || 0);
-    const [sections, setSections] = useState(stack?.sections || []);
-    const [isPublishing, setIsPublishing] = useState(activeTab === 'ready-made' && user?.email === ADMIN_EMAIL);
+    const [questions, setQuestions] = useState(lesson?.questions || lesson?.cards || [{ id: Date.now(), question: { text: '', image: '', audio: '' }, answer: { text: '', image: '', audio: '' } }]);
+    const [standard, setStandard] = useState(lesson?.standard || (lesson ? '' : (defaultMetadata?.standard || '')));
+    const [syllabus, setSyllabus] = useState(lesson?.syllabus || (lesson ? '' : (defaultMetadata?.syllabus || '')));
+    const [medium, setMedium] = useState(lesson?.medium || (lesson ? '' : (defaultMetadata?.medium || '')));
+    const [subject, setSubject] = useState(lesson?.subject || (lesson ? '' : (defaultMetadata?.subject || '')));
+    const [cost, setCost] = useState(lesson?.cost || 0);
+    const [sections, setSections] = useState(lesson?.sections || []);
+    const [isPublishing, setIsPublishing] = useState(activeTab === 'lessons' && user?.email === ADMIN_EMAIL);
     const [viewingImage, setViewingImage] = useState(null);
     const uploadInputRef = useRef(null);
 
     // Split/Merge state
     const [showSplitUI, setShowSplitUI] = useState(false);
-    const [selectedCards, setSelectedCards] = useState(new Set());
+    const [selectedQuestions, setSelectedQuestions] = useState(new Set());
     const [showMergeUI, setShowMergeUI] = useState(false);
     const [mergeTargetId, setMergeTargetId] = useState('');
     const [isSaving, setIsSaving] = useState(false);
@@ -313,22 +312,23 @@ const AddStackModal = ({
     const [mediaRecorder, setMediaRecorder] = useState(null);
     const timerRef = useRef(null);
 
-    const handleAddCard = () => {
-        const newCard = { id: Date.now(), type: 'flashcard', question: { text: '', image: '', audio: '' }, answer: { text: '', image: '', audio: '' } };
+    const handleAddQuestion = () => {
+        const newQuestion = { id: Date.now(), type: 'flashcard', question: { text: '', image: '', audio: '' }, answer: { text: '', image: '', audio: '' } };
         if (sections.length > 0) {
             const lastIdx = sections.length - 1;
             const newSections = [...sections];
-            newSections[lastIdx].cards.push(newCard);
+            newSections[lastIdx].questions = newSections[lastIdx].questions || newSections[lastIdx].cards || [];
+            newSections[lastIdx].questions.push(newQuestion);
             setSections(newSections);
-            setCards(newSections.flatMap(s => s.cards));
+            setQuestions(newSections.flatMap(s => s.questions || s.cards));
         } else {
-            setCards([...cards, newCard]);
+            setQuestions([...questions, newQuestion]);
         }
         scrollToBottom();
     };
 
     const handleAddMCQ = () => {
-        const newCard = {
+        const newQuestion = {
             id: Date.now(),
             type: 'mcq',
             question: { text: '', image: '', audio: '' },
@@ -344,17 +344,18 @@ const AddStackModal = ({
         if (sections.length > 0) {
             const lastIdx = sections.length - 1;
             const newSections = [...sections];
-            newSections[lastIdx].cards.push(newCard);
+            newSections[lastIdx].questions = newSections[lastIdx].questions || newSections[lastIdx].cards || [];
+            newSections[lastIdx].questions.push(newQuestion);
             setSections(newSections);
-            setCards(newSections.flatMap(s => s.cards));
+            setQuestions(newSections.flatMap(s => s.questions || s.cards));
         } else {
-            setCards([...cards, newCard]);
+            setQuestions([...questions, newQuestion]);
         }
         scrollToBottom();
     };
 
     const handleAddSection = () => {
-        setSections([...sections, { noteSegment: '', cards: [] }]);
+        setSections([...sections, { noteSegment: '', questions: [] }]);
     };
 
     const scrollToBottom = () => {
@@ -368,28 +369,29 @@ const AddStackModal = ({
         }, 100);
     };
 
-    const handleMoveCard = (index, newPosition, sIndex = null) => {
+    const handleMoveQuestion = (index, newPosition, sIndex = null) => {
         const newIndex = parseInt(newPosition) - 1;
         if (sIndex !== null) {
             const newSections = [...sections];
-            const sectionCards = newSections[sIndex].cards;
-            if (isNaN(newIndex) || newIndex < 0 || newIndex >= sectionCards.length || newIndex === index) return;
-            const [movedCard] = sectionCards.splice(index, 1);
-            sectionCards.splice(newIndex, 0, movedCard);
+            const sectionQuestions = newSections[sIndex].questions || newSections[sIndex].cards || [];
+            if (isNaN(newIndex) || newIndex < 0 || newIndex >= sectionQuestions.length || newIndex === index) return;
+            const [movedQuestion] = sectionQuestions.splice(index, 1);
+            sectionQuestions.splice(newIndex, 0, movedQuestion);
+            newSections[sIndex].questions = sectionQuestions;
             setSections(newSections);
-            setCards(newSections.flatMap(s => s.cards));
+            setQuestions(newSections.flatMap(s => s.questions || s.cards));
         } else {
-            if (isNaN(newIndex) || newIndex < 0 || newIndex >= cards.length || newIndex === index) return;
-            const newCards = [...cards];
-            const [movedCard] = newCards.splice(index, 1);
-            newCards.splice(newIndex, 0, movedCard);
-            setCards(newCards);
+            if (isNaN(newIndex) || newIndex < 0 || newIndex >= questions.length || newIndex === index) return;
+            const newQuestions = [...questions];
+            const [movedQuestion] = newQuestions.splice(index, 1);
+            newQuestions.splice(newIndex, 0, movedQuestion);
+            setQuestions(newQuestions);
         }
     };
 
-    const handleOptionChange = (cardId, optionId, field, value) => {
-        setCards(cards.map(c => {
-            if (c.id !== cardId) return c;
+    const handleOptionChange = (questionId, optionId, field, value) => {
+        setQuestions(questions.map(c => {
+            if (c.id !== questionId) return c;
             if (field === 'isCorrect') {
                 return {
                     ...c,
@@ -406,14 +408,14 @@ const AddStackModal = ({
         }));
     };
 
-    const handleRemoveCard = (id) => {
-        if (cards.length > 1) {
-            setCards(cards.filter(c => c.id !== id));
+    const handleRemoveQuestion = (id) => {
+        if (questions.length > 1) {
+            setQuestions(questions.filter(c => c.id !== id));
         }
     };
 
-    const handleUpdateCard = (id, field, value) => {
-        setCards(cards.map(c => c.id === id ? { ...c, [field]: value } : c));
+    const handleUpdateQuestion = (id, field, value) => {
+        setQuestions(questions.map(c => c.id === id ? { ...c, [field]: value } : c));
     };
 
     const handleFileUpload = (e, callback, fileType = 'image') => {
@@ -444,7 +446,7 @@ const AddStackModal = ({
                 const blob = new Blob(chunks, { type: 'audio/webm' });
                 const reader = new FileReader();
                 reader.onloadend = () => {
-                    setCards(prevCards => prevCards.map(c => c.id === id ? { ...c, [field]: { ...c[field], audio: reader.result } } : c));
+                    setQuestions(prevQuestions => prevQuestions.map(c => c.id === id ? { ...c, [field]: { ...c[field], audio: reader.result } } : c));
                 };
                 reader.readAsDataURL(blob);
                 stream.getTracks().forEach(track => track.stop());
@@ -484,150 +486,128 @@ const AddStackModal = ({
     const handleSave = async () => {
         if (!title.trim()) return showAlert('Please enter a title');
 
-        const finalCards = sections.length > 0 ? sections.flatMap(s => s.cards) : cards;
+        const finalQuestions = sections.length > 0 ? sections.flatMap(s => s.questions || s.cards) : questions;
 
-        for (let i = 0; i < finalCards.length; i++) {
-            const card = finalCards[i];
-            const hasQuestion = card.question.text.trim() || card.question.image || card.question.audio;
-            const hasAnswer = card.answer.text.trim() || card.answer.image || card.answer.audio;
-            if (card.type === 'mcq') {
-                const hasCorrectOption = card.options?.some(o => o.isCorrect);
+        for (let i = 0; i < finalQuestions.length; i++) {
+            const questionItem = finalQuestions[i];
+            const hasQuestion = questionItem.question.text.trim() || questionItem.question.image || questionItem.question.audio;
+            const hasAnswer = questionItem.answer.text.trim() || questionItem.answer.image || questionItem.answer.audio;
+            if (questionItem.type === 'mcq') {
+                const hasCorrectOption = questionItem.options?.some(o => o.isCorrect);
                 if (!hasQuestion) return showAlert(`Question is required for MCQ ${i + 1}`);
                 if (!hasCorrectOption) return showAlert(`Please select a correct answer for MCQ ${i + 1}`);
             } else {
-                if (!hasQuestion) return showAlert(`Question is required for card ${i + 1}`);
-                if (!hasAnswer) return showAlert(`Answer is required for card ${i + 1}`);
+                if (!hasQuestion) return showAlert(`Question is required for question ${i + 1}`);
+                if (!hasAnswer) return showAlert(`Answer is required for question ${i + 1}`);
             }
         }
 
-        const newStack = {
-            id: stack?.id || Date.now().toString(),
+        const newLesson = {
+            id: lesson?.id || Date.now().toString(),
             title, titleImage, label, standard, syllabus, medium, subject, importantNote,
-            cards: finalCards, sections,
+            questions: finalQuestions, sections,
             owner: user.email,
-            avgRating: stack?.avgRating || null,
-            lastReviewed: stack?.lastReviewed || null,
+            avgRating: lesson?.avgRating || null,
+            lastReviewed: lesson?.lastReviewed || null,
             cost: parseInt(cost) || 0,
+            questionCount: finalQuestions.length
         };
 
         try {
             setIsSaving(true);
-            let savedStack;
+            let savedLesson;
 
             if (isPublishing) {
                 // Authoritative Move to Firebase for Public Lessons
                 const { savePublicLesson } = await import('../services/publicDrive');
-                savedStack = await savePublicLesson(newStack);
+                savedLesson = await savePublicLesson(newLesson);
             } else {
                 // Personal Storage strictly stays on Google Drive
-                savedStack = await storageService.saveStack(newStack);
+                savedLesson = await storageService.saveLesson(newLesson);
             }
 
-            const resultId = savedStack.driveFileId || savedStack.id;
-            onSave({ ...savedStack, driveFileId: resultId }, true, isPublishing);
+            const resultId = savedLesson.driveFileId || savedLesson.id;
+            onSave({ ...savedLesson, driveFileId: resultId }, true, isPublishing);
         } catch (error) {
             setIsSaving(false);
-            if (error.message === 'REAUTH_NEEDED') {
-                signIn('consent', () => handleSave(), showAlert);
+            if (error.message === 'REAUTH_NEEDED' || error.message.includes('REAUTH_NEEDED')) {
+                // Token missing or expired. Prompt re-connection.
+                showAlert('Please reconnect to Google Drive to save.');
+                try {
+                    await signIn({ prompt: 'consent' });
+                    // Retry save after successful login
+                    await handleSave();
+                } catch (e) {
+                    console.error('Re-auth failed/cancelled', e);
+                    // User cancelled or failed to sign in
+                }
             } else {
                 console.error('Save failed:', error);
                 if (error.code === 'storage/unknown' || error.message.includes('storage/unknown')) {
                     showAlert('Cloud upload failed (likely CORS). Please use the "Download" button to save locally.');
                 } else {
-                    showAlert(`Failed to save stack: ${error.message}`);
+                    showAlert(`Failed to save lesson: ${error.message}`);
                 }
             }
         }
     };
 
-    const handleDownload = async () => {
-        if (!title) return showAlert('Please save the stack first');
-        const stackToDownload = {
-            id: stack?.id || Date.now().toString(),
-            title, titleImage, label, cards,
-            createdAt: stack?.createdAt || new Date().toISOString()
-        };
-        try {
-            await downloadStackAsZip(stackToDownload);
-            showAlert('Stack downloaded successfully!');
-        } catch (error) {
-            showAlert('Failed to download stack.');
-        }
-    };
 
-    const handleUpload = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        try {
-            const importedStack = await uploadStackFromZip(file);
-            setTitle(importedStack.title);
-            setTitleImage(importedStack.titleImage || '');
-            setLabel(importedStack.label || 'No label');
-            setImportantNote(importedStack.importantNote || '');
 
-            // Set Metadata
-            setStandard(importedStack.standard || '');
-            setSyllabus(importedStack.syllabus || '');
-            setMedium(importedStack.medium || '');
-            setSubject(importedStack.subject || '');
-            setCost(importedStack.cost || 0);
-
-            setCards(importedStack.cards);
-            if (importedStack.sections) setSections(importedStack.sections);
-            showAlert('Stack imported successfully! Review and save.');
-        } catch (error) {
-            showAlert(error.message || 'Failed to import stack.');
-        }
-    };
-
-    const handleSplitStack = () => {
-        if (selectedCards.size === 0) return showAlert('Please select at least one card to split.');
-        if (selectedCards.size === cards.length) return showAlert('Cannot split all cards.');
-        showConfirm(`Split ${selectedCards.size} card(s) into a new stack?`, async () => {
-            const cardsToSplit = cards.filter(c => selectedCards.has(c.id));
-            const remainingCards = cards.filter(c => !selectedCards.has(c.id));
-            const newStack = {
+    const handleSplitLesson = () => {
+        if (selectedQuestions.size === 0) return showAlert('Please select at least one question to split.');
+        if (selectedQuestions.size === questions.length) return showAlert('Cannot split all questions.');
+        showConfirm(`Split ${selectedQuestions.size} question(s) into a new lesson?`, async () => {
+            const questionsToSplit = questions.filter(c => selectedQuestions.has(c.id));
+            const remainingQuestions = questions.filter(c => !selectedQuestions.has(c.id));
+            const newLesson = {
                 id: Date.now().toString(),
                 title: `${title} (Split)`,
-                titleImage, label, cards: cardsToSplit,
-                owner: user.email
+                titleImage, label, questions: questionsToSplit,
+                owner: user.email,
+                questionCount: questionsToSplit.length
             };
             try {
-                const savedNewStack = await storageService.saveStack(newStack);
-                onSave({ ...savedNewStack, driveFileId: savedNewStack.driveFileId || savedNewStack.id }, false);
-                setCards(remainingCards);
-                setSelectedCards(new Set());
+                const savedNewLesson = await storageService.saveLesson(newLesson);
+                onSave({ ...savedNewLesson, driveFileId: savedNewLesson.driveFileId || savedNewLesson.id }, false);
+                setQuestions(remainingQuestions);
+                setSelectedQuestions(new Set());
                 setShowSplitUI(false);
-                showAlert(`Stack split successfully!`);
+                showAlert(`Lesson split successfully!`);
                 await handleSave();
             } catch (error) {
-                showAlert('Failed to split stack.');
+                showAlert('Failed to split lesson.');
             }
         });
     };
 
-    const handleMergeStack = async () => {
-        if (!mergeTargetId) return showAlert('Please select a stack to merge with.');
-        const targetStack = allStacks?.find(s => s.id === mergeTargetId);
-        if (!targetStack) return showAlert('Target stack not found.');
-        showConfirm(`Merge "${title}" into "${targetStack.title}"?`, async () => {
+    const handleMergeLesson = async () => {
+        if (!mergeTargetId) return showAlert('Please select a lesson to merge with.');
+        const targetLesson = allLessons?.find(s => s.id === mergeTargetId);
+        if (!targetLesson) return showAlert('Target lesson not found.');
+        showConfirm(`Merge "${title}" into "${targetLesson.title}"?`, async () => {
             try {
-                const updatedStack = { ...targetStack, cards: [...targetStack.cards, ...cards] };
-                await storageService.saveStack(updatedStack);
-                if (stack?.driveFileId) await deleteStack(user.token, stack.driveFileId);
-                showAlert(`Stacks merged successfully!`);
+                const targetQuestions = targetLesson.questions || targetLesson.cards || [];
+                const updatedLesson = {
+                    ...targetLesson,
+                    questions: [...targetQuestions, ...questions],
+                    questionCount: (targetQuestions.length + questions.length)
+                };
+                await storageService.saveLesson(updatedLesson);
+                if (lesson?.driveFileId) await deleteLesson(user.token, lesson.driveFileId);
+                showAlert(`Lessons merged successfully!`);
                 onClose();
             } catch (error) {
-                showAlert('Failed to merge stacks.');
+                showAlert('Failed to merge lessons.');
             }
         });
     };
 
-    const toggleCardSelection = (cardId) => {
-        setSelectedCards(prev => {
+    const toggleQuestionSelection = (questionId) => {
+        setSelectedQuestions(prev => {
             const newSet = new Set(prev);
-            if (newSet.has(cardId)) newSet.delete(cardId);
-            else newSet.add(cardId);
+            if (newSet.has(questionId)) newSet.delete(questionId);
+            else newSet.add(questionId);
             return newSet;
         });
     };
@@ -656,10 +636,8 @@ const AddStackModal = ({
                     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                     background: 'var(--bg-color)', zIndex: 10
                 }}>
-                    <h2 style={{ fontSize: '1.5rem', margin: 0 }}>{stack ? 'Edit Stack' : 'New Flashcard Stack'}</h2>
+                    <h2 style={{ fontSize: '1.5rem', margin: 0 }}>{lesson ? 'Edit Lesson' : 'New Lesson'}</h2>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        {stack && <button className="neo-button icon-btn" title="Download Stack" onClick={handleDownload}><Download size={18} /></button>}
-                        {stack && <button className="neo-button icon-btn" title="Duplicate" onClick={() => onDuplicate(stack)}><Copy size={18} /></button>}
                         <CloseButton onClick={onClose} size={18} />
                     </div>
                 </div>
@@ -677,9 +655,9 @@ const AddStackModal = ({
                             <div style={{ display: 'flex', gap: '10px' }}>
                                 <div style={{ position: 'relative', flex: 1 }}>
                                     <input
-                                        id="modal-title-input"
+                                        id="lesson-modal-title-input"
                                         className="neo-input"
-                                        placeholder="Stack Title "
+                                        placeholder="Lesson Title "
                                         value={title}
                                         onChange={(e) => setTitle(sanitizeText(e.target.value))}
                                         style={{ paddingRight: '30px' }}
@@ -809,107 +787,116 @@ const AddStackModal = ({
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
                         {sections && sections.length > 0 ? (
-                            sections.map((section, sIndex) => (
-                                <div key={sIndex} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1rem', borderRadius: '12px', border: '1px solid var(--shadow-dark)' }}>
-                                    <div className="neo-flat" style={{ padding: '1rem', borderLeft: '4px solid var(--accent-color)', borderRadius: '8px' }}>
-                                        <label style={{ fontSize: '0.7rem', fontWeight: 'bold', opacity: 0.5, textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Section Note</label>
-                                        <AutoGrowingTextarea
-                                            value={section.noteSegment}
-                                            onChange={(e) => {
+                            sections.map((section, sIndex) => {
+                                const sectionQuestions = section.questions || section.cards || [];
+                                return (
+                                    <div key={sIndex} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1rem', borderRadius: '12px', border: '1px solid var(--shadow-dark)' }}>
+                                        <div className="neo-flat" style={{ padding: '1rem', borderLeft: '4px solid var(--accent-color)', borderRadius: '8px' }}>
+                                            <label style={{ fontSize: '0.7rem', fontWeight: 'bold', opacity: 0.5, textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Section Note</label>
+                                            <AutoGrowingTextarea
+                                                value={section.noteSegment}
+                                                onChange={(e) => {
+                                                    const newSections = [...sections];
+                                                    newSections[sIndex].noteSegment = e.target.value;
+                                                    setSections(newSections);
+                                                }}
+                                                placeholder="Enter section note..."
+                                                style={{ minHeight: '40px', background: 'transparent', boxShadow: 'none' }}
+                                            />
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                                            {sectionQuestions.map((question, index) => (
+                                                <QuestionItem
+                                                    key={question.id}
+                                                    question={question}
+                                                    index={index}
+                                                    totalQuestions={sectionQuestions.length}
+                                                    onUpdate={(field, val) => {
+                                                        const newSections = [...sections];
+                                                        const sq = newSections[sIndex].questions || newSections[sIndex].cards || [];
+                                                        sq[index] = { ...question, [field]: val };
+                                                        newSections[sIndex].questions = sq;
+                                                        setSections(newSections);
+                                                        setQuestions(newSections.flatMap(s => s.questions || s.cards));
+                                                    }}
+                                                    onRemove={() => {
+                                                        const newSections = [...sections];
+                                                        const sq = newSections[sIndex].questions || newSections[sIndex].cards || [];
+                                                        sq.splice(index, 1);
+                                                        newSections[sIndex].questions = sq;
+                                                        setSections(newSections);
+                                                        setQuestions(newSections.flatMap(s => s.questions || s.cards));
+                                                    }}
+                                                    onMove={(newPos) => handleMoveQuestion(index, newPos, sIndex)}
+                                                    recording={recording}
+                                                    startRecording={startRecording}
+                                                    stopRecording={stopRecording}
+                                                    cancelRecording={cancelRecording}
+                                                    recordingTime={recordingTime}
+                                                    handleFileUpload={handleFileUpload}
+                                                    handleOptionChange={(optId, f, v) => {
+                                                        const newSections = [...sections];
+                                                        const sq = newSections[sIndex].questions || newSections[sIndex].cards || [];
+                                                        const q = sq[index];
+                                                        if (f === 'isCorrect') {
+                                                            q.options = q.options.map(o => ({ ...o, isCorrect: o.id === optId }));
+                                                        } else {
+                                                            q.options = q.options.map(o => o.id === optId ? { ...o, [f]: v } : o);
+                                                        }
+                                                        newSections[sIndex].questions = sq;
+                                                        setSections(newSections);
+                                                        setQuestions(newSections.flatMap(s => s.questions || s.cards));
+                                                    }}
+                                                    setViewingImage={setViewingImage}
+                                                    showSplitUI={showSplitUI}
+                                                    selectedQuestions={selectedQuestions}
+                                                    toggleQuestionSelection={toggleQuestionSelection}
+                                                />
+                                            ))}
+                                        </div>
+                                        <button
+                                            className="neo-button"
+                                            style={{ alignSelf: 'center', fontSize: '0.8rem', opacity: 0.6 }}
+                                            onClick={() => {
                                                 const newSections = [...sections];
-                                                newSections[sIndex].noteSegment = e.target.value;
+                                                newSections.splice(sIndex + 1, 0, { noteSegment: '', questions: [] });
                                                 setSections(newSections);
                                             }}
-                                            placeholder="Enter section note..."
-                                            style={{ minHeight: '40px', background: 'transparent', boxShadow: 'none' }}
-                                        />
+                                        >
+                                            <Plus size={14} /> Insert Section Here
+                                        </button>
                                     </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                                        {section.cards.map((card, index) => (
-                                            <CardItem
-                                                key={card.id}
-                                                card={card}
-                                                index={index}
-                                                totalCards={section.cards.length}
-                                                onUpdate={(field, val) => {
-                                                    const newSections = [...sections];
-                                                    newSections[sIndex].cards[index] = { ...card, [field]: val };
-                                                    setSections(newSections);
-                                                    setCards(newSections.flatMap(s => s.cards));
-                                                }}
-                                                onRemove={() => {
-                                                    const newSections = [...sections];
-                                                    newSections[sIndex].cards.splice(index, 1);
-                                                    setSections(newSections);
-                                                    setCards(newSections.flatMap(s => s.cards));
-                                                }}
-                                                onMove={(newPos) => handleMoveCard(index, newPos, sIndex)}
-                                                recording={recording}
-                                                startRecording={startRecording}
-                                                stopRecording={stopRecording}
-                                                cancelRecording={cancelRecording}
-                                                recordingTime={recordingTime}
-                                                handleFileUpload={handleFileUpload}
-                                                handleOptionChange={(optId, f, v) => {
-                                                    const newSections = [...sections];
-                                                    const c = newSections[sIndex].cards[index];
-                                                    if (f === 'isCorrect') {
-                                                        c.options = c.options.map(o => ({ ...o, isCorrect: o.id === optId }));
-                                                    } else {
-                                                        c.options = c.options.map(o => o.id === optId ? { ...o, [f]: v } : o);
-                                                    }
-                                                    setSections(newSections);
-                                                    setCards(newSections.flatMap(s => s.cards));
-                                                }}
-                                                setViewingImage={setViewingImage}
-                                                showSplitUI={showSplitUI}
-                                                selectedCards={selectedCards}
-                                                toggleCardSelection={toggleCardSelection}
-                                            />
-                                        ))}
-                                    </div>
-                                    <button
-                                        className="neo-button"
-                                        style={{ alignSelf: 'center', fontSize: '0.8rem', opacity: 0.6 }}
-                                        onClick={() => {
-                                            const newSections = [...sections];
-                                            newSections.splice(sIndex + 1, 0, { noteSegment: '', cards: [] });
-                                            setSections(newSections);
-                                        }}
-                                    >
-                                        <Plus size={14} /> Insert Section Here
-                                    </button>
-                                </div>
-                            ))
+                                )
+                            })
                         ) : (
-                            cards.map((card, index) => (
-                                <CardItem
-                                    key={card.id}
-                                    card={card}
+                            questions.map((question, index) => (
+                                <QuestionItem
+                                    key={question.id}
+                                    question={question}
                                     index={index}
-                                    totalCards={cards.length}
-                                    onUpdate={(field, val) => handleUpdateCard(card.id, field, val)}
-                                    onRemove={() => handleRemoveCard(card.id)}
-                                    onMove={(newPos) => handleMoveCard(index, newPos)}
+                                    totalQuestions={questions.length}
+                                    onUpdate={(field, val) => handleUpdateQuestion(question.id, field, val)}
+                                    onRemove={() => handleRemoveQuestion(question.id)}
+                                    onMove={(newPos) => handleMoveQuestion(index, newPos)}
                                     recording={recording}
                                     startRecording={startRecording}
                                     stopRecording={stopRecording}
                                     cancelRecording={cancelRecording}
                                     recordingTime={recordingTime}
                                     handleFileUpload={handleFileUpload}
-                                    handleOptionChange={(optId, f, v) => handleOptionChange(card.id, optId, f, v)}
+                                    handleOptionChange={(optId, f, v) => handleOptionChange(question.id, optId, f, v)}
                                     setViewingImage={setViewingImage}
                                     showSplitUI={showSplitUI}
-                                    selectedCards={selectedCards}
-                                    toggleCardSelection={toggleCardSelection}
+                                    selectedQuestions={selectedQuestions}
+                                    toggleQuestionSelection={toggleQuestionSelection}
                                 />
                             ))
                         )}
                     </div>
 
                     <div style={{ display: 'flex', gap: '1rem' }}>
-                        <button className="neo-button neo-glow-blue" style={{ flex: 1, justifyContent: 'center', background: 'var(--accent-soft)', color: 'var(--accent-color)' }} onClick={handleAddCard}>
-                            <Plus size={18} /> Add Card
+                        <button className="neo-button neo-glow-blue" style={{ flex: 1, justifyContent: 'center', background: 'var(--accent-soft)', color: 'var(--accent-color)' }} onClick={handleAddQuestion}>
+                            <Plus size={18} /> Add Question
                         </button>
                         <button className="neo-button neo-glow-blue" style={{ flex: 1, justifyContent: 'center', background: 'var(--accent-soft)', color: 'var(--accent-color)' }} onClick={handleAddMCQ}>
                             <Plus size={18} /> Add MCQ
@@ -919,60 +906,60 @@ const AddStackModal = ({
                         </button>
                     </div>
 
-                    {stack && cards.length > 1 && (
+                    {lesson && questions.length > 1 && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                                 <button
                                     className={`neo-button ${showSplitUI ? 'neo-inset' : ''}`}
                                     style={{ flex: 1, justifyContent: 'center', fontSize: '0.9rem' }}
-                                    onClick={() => { setShowSplitUI(!showSplitUI); setShowMergeUI(false); setSelectedCards(new Set()); }}
+                                    onClick={() => { setShowSplitUI(!showSplitUI); setShowMergeUI(false); setSelectedQuestions(new Set()); }}
                                 >
-                                    <Split size={16} /> {showSplitUI ? 'Cancel Split' : 'Split Stack'}
+                                    <Split size={16} /> {showSplitUI ? 'Cancel Split' : 'Split Lesson'}
                                 </button>
-                                {allStacks && allStacks.filter(s => s.id !== stack?.id).length > 0 && (
+                                {allLessons && allLessons.filter(s => s.id !== lesson?.id).length > 0 && (
                                     <button
                                         className={`neo-button ${showMergeUI ? 'neo-inset' : ''}`}
                                         style={{ flex: 1, justifyContent: 'center', fontSize: '0.9rem' }}
-                                        onClick={() => { setShowMergeUI(!showMergeUI); setShowSplitUI(false); setSelectedCards(new Set()); }}
+                                        onClick={() => { setShowMergeUI(!showMergeUI); setShowSplitUI(false); setSelectedQuestions(new Set()); }}
                                     >
-                                        <Merge size={16} /> {showMergeUI ? 'Cancel Merge' : 'Merge Stack'}
+                                        <Merge size={16} /> {showMergeUI ? 'Cancel Merge' : 'Merge Lesson'}
                                     </button>
                                 )}
                             </div>
 
                             {showSplitUI && (
                                 <div className="neo-inset" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                    <p style={{ fontSize: '0.9rem', opacity: 0.7 }}>Select cards to move to a new stack:</p>
+                                    <p style={{ fontSize: '0.9rem', opacity: 0.7 }}>Select questions to move to a new lesson:</p>
                                     <button
                                         className="neo-button neo-glow-blue"
                                         style={{ background: 'var(--accent-color)', color: 'white', border: 'none', justifyContent: 'center' }}
-                                        onClick={handleSplitStack}
+                                        onClick={handleSplitLesson}
                                     >
-                                        Create New Stack with {selectedCards.size} Selected Card(s)
+                                        Create New Lesson with {selectedQuestions.size} Selected Question(s)
                                     </button>
                                 </div>
                             )}
 
                             {showMergeUI && (
                                 <div className="neo-inset" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                    <p style={{ fontSize: '0.9rem', opacity: 0.7 }}>Select stack to merge into:</p>
+                                    <p style={{ fontSize: '0.9rem', opacity: 0.7 }}>Select lesson to merge into:</p>
                                     <NeoDropdown
                                         value={mergeTargetId}
-                                        options={allStacks?.filter(s => s.id !== stack?.id).map(s => ({
-                                            label: `${s.title} (${s.cards?.length || 0} cards)`,
+                                        options={allLessons?.filter(s => s.id !== lesson?.id).map(s => ({
+                                            label: `${s.title} (${(s.questions?.length || s.cards?.length || 0)} questions)`,
                                             value: s.id
                                         }))}
                                         onChange={setMergeTargetId}
-                                        placeholder="-- Select Stack --"
-                                        displayValue={(id) => allStacks.find(s => s.id === id)?.title}
+                                        placeholder="-- Select Lesson --"
+                                        displayValue={(id) => allLessons.find(s => s.id === id)?.title}
                                     />
                                     <button
                                         className="neo-button neo-glow-blue"
                                         style={{ background: 'var(--accent-color)', color: 'white', border: 'none', justifyContent: 'center' }}
-                                        onClick={handleMergeStack}
+                                        onClick={handleMergeLesson}
                                         disabled={!mergeTargetId}
                                     >
-                                        Merge Into Selected Stack
+                                        Merge Into Selected Lesson
                                     </button>
                                 </div>
                             )}
@@ -985,26 +972,15 @@ const AddStackModal = ({
                     display: 'flex', flexDirection: 'column', gap: '1rem',
                     background: 'var(--bg-color)', zIndex: 10
                 }}>
-                    {!stack && user?.email === ADMIN_EMAIL && (
-                        <div style={{ display: 'flex', gap: '1rem' }}>
-                            <input ref={uploadInputRef} type="file" hidden accept=".zip" onChange={handleUpload} />
-                            <button
-                                className="neo-button neo-glow-blue"
-                                style={{ flex: 1, justifyContent: 'center', background: 'var(--accent-soft)', color: 'var(--accent-color)' }}
-                                onClick={() => uploadInputRef.current?.click()}
-                            >
-                                <Upload size={18} /> Upload from Device
-                            </button>
-                        </div>
-                    )}
+
                     <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                        {stack && (
+                        {lesson && (
                             <button
                                 className="neo-button neo-glow-red"
                                 style={{ flex: '1 1 8.75rem', justifyContent: 'center', color: 'var(--error-color)', padding: '0.8rem' }}
-                                onClick={() => showConfirm(`Delete "${stack.title}"?`, () => onDelete(stack))}
+                                onClick={() => onDelete(lesson)}
                             >
-                                <Trash2 size={18} /> Delete Stack
+                                <Trash2 size={18} /> Delete Lesson
                             </button>
                         )}
                         <button className="neo-button" style={{ flex: '1 1 6.25rem', justifyContent: 'center', padding: '0.8rem' }} onClick={onClose}>
@@ -1027,7 +1003,7 @@ const AddStackModal = ({
                             {isSaving ? (
                                 <><RefreshCw size={18} className="spin" style={{ marginRight: '8px' }} /> Saving...</>
                             ) : (
-                                <><Save size={18} style={{ marginRight: '8px' }} /> {stack ? 'Save Changes' : 'Create Stack'}</>
+                                <><Save size={18} style={{ marginRight: '8px' }} /> {lesson ? 'Save Changes' : 'Create Lesson'}</>
                             )}
                         </button>
                     </div>
@@ -1041,4 +1017,4 @@ const AddStackModal = ({
     );
 };
 
-export default AddStackModal;
+export default AddLessonModal;

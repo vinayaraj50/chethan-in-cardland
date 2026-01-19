@@ -8,5 +8,8 @@ export default defineConfig({
   server: {
     port: 6160,
     strictPort: true,
+    // NOTE: COOP/COEP headers removed for Firebase Auth compatibility.
+    // signInWithPopup requires cross-origin popup access to accounts.google.com
+    // which is blocked by any COOP policy other than 'unsafe-none' (default).
   },
 })

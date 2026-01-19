@@ -44,10 +44,41 @@ export const resilientFetch = async (url, options = {}, retryCount = 0) => {
         }
 
         // 3. Permission/Scope Error (403)
-        // If the token is valid but lacks scope (or App Verification failed), we MUST re-auth.
         if (response.status === 403) {
-            console.warn('[Network] 403 Forbidden. Token scopes might be missing or app unverified.');
-            throw new Error('REAUTH_NEEDED');
+            const errorBody = await response.json().catch(() => ({}));
+            const reason = errorBody.error?.errors?.[0]?.reason || 'unknown';
+            const message = errorBody.error?.message || 'No detailed message';
+
+            console.error(`[Audit] 403 Forbidden detected.`, {
+                url,
+                reason,
+                message,
+                tokenPrefix: options.headers?.Authorization?.substring(0, 17) + '...',
+                fullError: errorBody
+            });
+
+            if (reason === 'accessNotConfigured') {
+                console.error('[Audit] ROOT CAUSE: Google Drive API is likely DISABLED in the Google Cloud Console for this project.');
+            } else if (reason === 'insufficientPermissions') {
+                console.error('[Audit] ROOT CAUSE: OAuth token is missing required scopes (drive.file or drive).');
+                // Deep Audit: Check active scopes via tokeninfo
+                try {
+                    const cleanToken = options.headers?.Authorization?.replace('Bearer ', '');
+                    if (cleanToken) {
+                        const infoResp = await fetch(`https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=${cleanToken}`);
+                        const info = await infoResp.json();
+                        console.info('[Audit] Token Scope Info:', {
+                            scopes: info.scope,
+                            expires_in: info.expires_in,
+                            email: info.email
+                        });
+                    }
+                } catch (e) {
+                    console.warn('[Audit] Could not verify token scopes:', e);
+                }
+            }
+
+            throw new Error(`REAUTH_NEEDED: ${reason}: ${message}`);
         }
 
         // 3. Transient Errors (Network, 5xx, 429)

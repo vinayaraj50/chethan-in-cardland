@@ -1,39 +1,39 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../components/AuthProvider';
-import { useFlashcards } from '../hooks/useFlashcards'; // Adjust path if needed
+import { useLessons } from '../hooks/useLessons'; // Adjust path if needed
 import { useUI } from './UIContext';
 
-const StackContext = createContext(null);
+const LessonContext = createContext(null);
 
-export const StackProvider = ({ children }) => {
+export const LessonProvider = ({ children }) => {
     const { user, hasDrive } = useAuth();
     const { showNotification } = useUI();
 
     // We lift the hook usage here.
-    // Note: useFlashcards was originally designed to take setNotification.
+    // Note: useLessons was originally designed to take setNotification.
     // Ideally, Notification should also be a context, but for now we might need to pass it or refactor UIContext first.
     // BETTER APPROACH: UIContext should come first so we can use useNotification() here.
 
-    // Adapter for useFlashcards which expects an object { type, message } setter
+    // Adapter for useLessons which expects an object { type, message } setter
     const setNotificationAdapter = useCallback((notif) => {
         if (!notif) return; // Handle null clear?
         showNotification(notif.type, notif.message, notif.onConfirm);
     }, [showNotification]);
 
-    const flashcardData = useFlashcards(user, hasDrive, setNotificationAdapter);
+    const lessonData = useLessons(user, hasDrive, setNotificationAdapter);
 
     return (
-        <StackContext.Provider value={flashcardData}>
+        <LessonContext.Provider value={lessonData}>
             {children}
-        </StackContext.Provider>
+        </LessonContext.Provider>
     );
 };
 
-export const useStack = () => {
-    const context = useContext(StackContext);
+export const useLesson = () => {
+    const context = useContext(LessonContext);
     if (!context) {
-        throw new Error('useStack must be used within a StackProvider');
+        throw new Error('useLesson must be used within a LessonProvider');
     }
     return context;
 };

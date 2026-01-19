@@ -19,9 +19,10 @@ const RootLayout = ({
     onToggleAdminQuickTools,
     onShowCoinModal,
     onShowMenu,
-    onAddStack,
+    onAddLesson,
     onLogin,
     isProfileLoading,
+    headerLoading,
     children
 }) => {
     return (
@@ -42,7 +43,7 @@ const RootLayout = ({
                     {user && (
                         <div onClick={onShowCoinModal} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                             <CoinsDisplay coins={userProfile?.coins || 0} isUnlimited={isUnlimited} />
-                            {isProfileLoading && (
+                            {(isProfileLoading || headerLoading) && (
                                 <RefreshCw
                                     size={14}
                                     className="spin"
@@ -64,16 +65,44 @@ const RootLayout = ({
 
                 {(user || isTourActive) && (
                     <button
-                        id="fab-add-stack"
+                        id="fab-add-lesson"
                         className="neo-button neo-glow-blue fab-add-button"
-                        onClick={onAddStack}
+                        onClick={onAddLesson}
                     >
                         <Plus size={32} />
                     </button>
                 )}
             </div>
 
+            <footer className="main-footer">
+                <a href="/privacy.html" target="_blank" rel="noopener noreferrer">Privacy Policy</a>
+                <span className="footer-v">v{localStorage.getItem('app_version') || '1.1.4'}</span>
+            </footer>
+
             <style>{`
+                .main-footer {
+                    padding: 1.5rem;
+                    text-align: center;
+                    border-top: 1px solid rgba(0,0,0,0.05);
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    gap: 1rem;
+                    opacity: 0.6;
+                    font-size: 0.8rem;
+                }
+                .main-footer a {
+                    color: var(--text-color);
+                    text-decoration: none;
+                    font-weight: 600;
+                }
+                .main-footer a:hover {
+                    text-decoration: underline;
+                    color: var(--accent-color);
+                }
+                .footer-v {
+                    opacity: 0.5;
+                }
                 .app-layout {
                     display: flex;
                     flex-direction: column;

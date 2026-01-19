@@ -1,25 +1,23 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Download, Brain, BookOpen, Copy } from 'lucide-react';
+import { Brain, BookOpen } from 'lucide-react';
 import CloseButton from '../common/CloseButton'; // Adjust path
 import { ADMIN_EMAIL } from '../../constants/config';
 
 const ReviewHeader = ({
     currentIndex,
-    totalCards,
+    totalQuestions,
     masteredCount,
-    totalOriginalCards,
+    totalOriginalQuestions,
     rating,
     onClose,
-    onDuplicate,
     user,
-    stack,
-    handleDownload
+    lesson
 }) => {
     return (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
             <div className="neo-button" style={{ height: '2.25rem', padding: '0 1rem', fontSize: '1rem', justifyContent: 'center', minWidth: '5rem' }}>
-                {currentIndex + 1} / {totalCards}
+                {currentIndex + 1} / {totalQuestions}
             </div>
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 20px' }}>
                 {/* Progress Bar */}
@@ -31,7 +29,7 @@ const ReviewHeader = ({
 
                     <motion.div
                         animate={{
-                            left: `${totalOriginalCards > 0 ? (masteredCount / totalOriginalCards) * 100 : 0}%`,
+                            left: `${totalOriginalQuestions > 0 ? (masteredCount / totalOriginalQuestions) * 100 : 0}%`,
                             y: rating === 2 ? [0, -15, 0] : rating === 1 ? [0, -5, 0] : 0
                         }}
                         transition={{
@@ -50,7 +48,7 @@ const ReviewHeader = ({
                     </motion.div>
 
                     <div style={{
-                        width: `${totalOriginalCards > 0 ? (masteredCount / totalOriginalCards) * 100 : 0}%`,
+                        width: `${totalOriginalQuestions > 0 ? (masteredCount / totalOriginalQuestions) * 100 : 0}%`,
                         height: '100%',
                         background: rating === 2 ? 'linear-gradient(90deg, var(--accent-color), #22c55e)' : 'var(--accent-color)',
                         borderRadius: '10px',
@@ -64,9 +62,6 @@ const ReviewHeader = ({
                 </div>
             </div>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
-                {user?.email === ADMIN_EMAIL && (
-                    <button className="neo-button icon-btn" style={{ width: '36px', height: '36px' }} title="Download Stack" onClick={handleDownload}><Download size={18} /></button>
-                )}
                 <CloseButton onClick={onClose} size={18} />
             </div>
         </div>

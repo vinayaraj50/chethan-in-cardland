@@ -1,23 +1,23 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import confetti from 'canvas-confetti';
 import { playTada, playSwoosh, playTing, playCompletion, playDopamine, playPartial } from '../utils/soundEffects';
-import { saveStack } from '../services/googleDrive';
+// 2026 Note: Drive interaction now managed via storageService
 import { getRandomPhrase } from '../constants/phrases';
 
 export const useReviewSession = ({
-    stack,
+    lesson,
     user,
     onUpdate,
     onClose,
-    onDuplicate,
     showAlert,
     isPreviewMode = false,
     onLoginRequired,
     previewProgress = null,
     onReviewStart
 }) => {
-    // Determine initial state based on stack history or preview
-    const hasPreviousRatings = stack.cards?.some(card => card.lastRating !== undefined) || false;
+    // Determine initial state
+    const questions = lesson.questions || lesson.cards || [];
+    const hasPreviousRatings = questions.some(q => q.lastRating !== undefined) || false;
 
     // State
     const [showModeSelection, setShowModeSelection] = useState(hasPreviousRatings);
@@ -25,13 +25,13 @@ export const useReviewSession = ({
     const [isFlipped, setIsFlipped] = useState(false);
     const [rating, setRating] = useState(0);
     const [sessionRatings, setSessionRatings] = useState(previewProgress?.sessionRatings || []);
-    const [studyCards, setStudyCards] = useState(hasPreviousRatings ? [] : (stack.cards || []));
+    const [studyQuestions, setStudyQuestions] = useState(hasPreviousRatings ? [] : questions);
     const [sessionResult, setSessionResult] = useState(null);
     const [viewingImage, setViewingImage] = useState(null);
     const [feedback, setFeedback] = useState(null);
     const [masteredCount, setMasteredCount] = useState(0);
     const [firstRatings, setFirstRatings] = useState({});
-    const [totalOriginalCards, setTotalOriginalCards] = useState(hasPreviousRatings ? 0 : (stack.cards?.length || 0));
+    const [totalOriginalQuestions, setTotalOriginalQuestions] = useState(hasPreviousRatings ? 0 : questions.length);
     const [reviewedCountSession, setReviewedCountSession] = useState(0);
 
     // Audio Recording State
@@ -43,7 +43,7 @@ export const useReviewSession = ({
     const chunksRef = useRef([]);
 
     // Derived State
-    const currentCard = studyCards[currentIndex];
+    const currentQuestion = studyQuestions[currentIndex];
 
     // Effects
     useEffect(() => {
@@ -53,7 +53,6 @@ export const useReviewSession = ({
     }, [sessionRatings, onReviewStart]);
 
     useEffect(() => {
-        // Cleanup recorded audio on unmount
         return () => {
             if (recordedAudioRef.current) {
                 recordedAudioRef.current.pause();
@@ -63,16 +62,16 @@ export const useReviewSession = ({
     }, []);
 
     useEffect(() => {
-        if (!showModeSelection && !hasPreviousRatings && studyCards.length > 0) {
+        if (!showModeSelection && !hasPreviousRatings && studyQuestions.length > 0) {
             playTada();
         }
-    }, [showModeSelection, hasPreviousRatings, studyCards.length]);
+    }, [showModeSelection, hasPreviousRatings, studyQuestions.length]);
 
     // Logic Functions
     const handleStartReview = useCallback((mode) => {
-        let baseCards = [...(stack.cards || [])];
+        const baseQuestions = [...(lesson.questions || lesson.cards || [])];
 
-        baseCards.sort((a, b) => {
+        baseQuestions.sort((a, b) => {
             const rA = a.lastRating !== undefined ? a.lastRating : -2;
             const rB = b.lastRating !== undefined ? b.lastRating : -2;
             return rA - rB;
@@ -80,13 +79,13 @@ export const useReviewSession = ({
 
         let selected = [];
         if (mode === 'all') {
-            selected = baseCards;
+            selected = baseQuestions;
         } else if (mode === 'difficult') {
-            selected = baseCards.filter(c => c.lastRating !== undefined && c.lastRating < 2);
+            selected = baseQuestions.filter(q => q.lastRating !== undefined && q.lastRating < 2);
         }
 
-        setStudyCards(selected);
-        setTotalOriginalCards(selected.length);
+        setStudyQuestions(selected);
+        setTotalOriginalQuestions(selected.length);
         setShowModeSelection(false);
         setCurrentIndex(0);
         setSessionRatings([]);
@@ -94,7 +93,7 @@ export const useReviewSession = ({
         setMasteredCount(0);
         setFirstRatings({});
         setFeedback(null);
-    }, [stack.cards]);
+    }, [lesson.questions, lesson.cards]);
 
     const getNextInterval = (currentStage) => {
         const stages = [1, 3, 7, 30];
@@ -111,23 +110,25 @@ export const useReviewSession = ({
         const newMasteredCount = isByHeart ? masteredCount + 1 : masteredCount;
         if (isByHeart) setMasteredCount(newMasteredCount);
 
-        const isLast = newMasteredCount === totalOriginalCards;
+        const isLast = newMasteredCount === totalOriginalQuestions;
 
         if (isLast) {
             // Calculate final results
-            const finalRatings = studyCards.slice(0, totalOriginalCards).map((card) => {
-                const cardId = card.id || card.question.text;
-                return firstRatings[cardId] ?? 0;
+            const activeQuestions = studyQuestions.slice(0, totalOriginalQuestions);
+            const finalRatings = activeQuestions.map((q) => {
+                const qId = q.id || q.question.text;
+                return firstRatings[qId] ?? 0;
             });
 
             const totalMarks = finalRatings.reduce((a, b) => a + b, 0);
-            const maxPossibleMarks = totalOriginalCards * 2;
-            const avg = (totalMarks / totalOriginalCards).toFixed(1);
+            const maxPossibleMarks = totalOriginalQuestions * 2;
+            const avg = totalOriginalQuestions > 0 ? (totalMarks / totalOriginalQuestions).toFixed(1) : 0;
             const fullMarks = totalMarks === maxPossibleMarks;
 
-            const lowRatedCards = stack.cards.filter((card) => {
-                const cardId = card.id || card.question.text;
-                const r = firstRatings[cardId];
+            const lessonQuestions = lesson.questions || lesson.cards || [];
+            const lowRatedQuestions = lessonQuestions.filter((q) => {
+                const qId = q.id || q.question.text;
+                const r = firstRatings[qId];
                 return r !== undefined && r < 2;
             });
 
@@ -136,7 +137,7 @@ export const useReviewSession = ({
                 totalMarks,
                 maxPossibleMarks,
                 fullMarks,
-                lowRatedCards
+                lowRatedQuestions
             });
             playCompletion();
 
@@ -150,26 +151,26 @@ export const useReviewSession = ({
                 });
             }
 
-            // Demo Mode Check: Don't save to drive if demo
-            if (stack.id === 'demo-stack' || isPreviewMode) {
+            // Demo Mode Check
+            if (lesson.id === 'demo-lesson' || isPreviewMode) {
                 return;
             }
 
-            if (totalOriginalCards < stack.cards.length) {
+            if (totalOriginalQuestions < lessonQuestions.length) {
                 return;
             }
 
             // Update Progress Logic
-            const updatedCards = stack.cards.map((card) => {
-                const cardId = card.id || card.question.text;
-                const fRating = firstRatings[cardId];
+            const updatedQuestions = lessonQuestions.map((q) => {
+                const qId = q.id || q.question.text;
+                const fRating = firstRatings[qId];
                 if (fRating !== undefined) {
-                    return { ...card, lastRating: fRating };
+                    return { ...q, lastRating: fRating };
                 }
-                return card;
+                return q;
             });
 
-            const currentStage = stack.reviewStage || -1;
+            const currentStage = lesson.reviewStage || -1;
             let nextReviewDate = new Date();
             let nextStage = currentStage;
 
@@ -181,23 +182,19 @@ export const useReviewSession = ({
                 nextStage = -1;
             }
 
-            const updatedStack = {
-                ...stack,
-                cards: updatedCards,
+            const updatedLesson = {
+                ...lesson,
+                questions: updatedQuestions,
                 lastMarks: totalMarks,
-                cardsCountAtLastReview: totalOriginalCards,
+                questionCountAtLastReview: totalOriginalQuestions,
                 lastReviewed: new Date().toLocaleDateString(),
                 nextReview: nextReviewDate.toISOString(),
                 reviewStage: nextStage
             };
 
-            if (stack.ownedByMe && user) {
-                saveStack(user.token, updatedStack, stack.driveFileId)
-                    .then(() => onUpdate(updatedStack))
-                    .catch((error) => console.warn('Background save failed', error));
-            } else {
-                onUpdate(updatedStack);
-            }
+            // 2026 Strategy: Use authoritative onUpdate pipeline.
+            // This ensures both Local + Drive stay in sync via storageService.
+            onUpdate(updatedLesson);
         } else {
             setIsFlipped(false);
             setRating(0);
@@ -208,9 +205,9 @@ export const useReviewSession = ({
         }
     };
 
-    const restartSession = (cardsToUse) => {
-        setStudyCards(cardsToUse);
-        setTotalOriginalCards(cardsToUse.length);
+    const restartSession = (questionsToUse) => {
+        setStudyQuestions(questionsToUse);
+        setTotalOriginalQuestions(questionsToUse.length);
         setCurrentIndex(0);
         setIsFlipped(false);
         setRating(0);
@@ -235,22 +232,22 @@ export const useReviewSession = ({
         }
         setRating(val);
 
-        const cardId = currentCard.id || currentCard.question.text;
+        const qId = currentQuestion.id || currentQuestion.question.text;
 
-        if (firstRatings[cardId] === undefined) {
-            setFirstRatings(prev => ({ ...prev, [cardId]: val }));
+        if (firstRatings[qId] === undefined) {
+            setFirstRatings(prev => ({ ...prev, [qId]: val }));
         }
 
         if (!isByHeart) {
-            setStudyCards(prev => [...prev, currentCard]);
+            setStudyQuestions(prev => [...prev, currentQuestion]);
         }
 
         const msg = customFeedbackMsg || getRandomPhrase(isByHeart ? 'mastered' : 'retry');
         setFeedback({ message: msg, type: isByHeart ? 'success' : 'retry' });
 
         // Preview Limit Logic
-        const isPublicOrDemo = stack.isPublic || stack.id === 'demo-stack';
-        const isOwnedByMe = stack.ownedByMe;
+        const isPublicOrDemo = lesson.isPublic || lesson.id === 'demo-lesson';
+        const isOwnedByMe = lesson.ownedByMe;
 
         if (isPublicOrDemo && !isOwnedByMe) {
             const nextIndex = currentIndex + 1;
@@ -259,17 +256,16 @@ export const useReviewSession = ({
                 if (!user) {
                     if (onLoginRequired) {
                         onLoginRequired({
-                            stack,
+                            lesson,
                             currentIndex: nextIndex,
                             sessionRatings: [...sessionRatings, val]
                         });
                     }
-                } else if (onUpdate) { // Weak check for showing alert
+                } else if (onUpdate) {
                     showAlert({
                         type: 'confirm',
-                        message: "You've reached the preview limit. Add this stack to 'My Cards' to continue?",
+                        message: "You've reached the preview limit. Add this lesson to 'My Lessons' to continue?",
                         onConfirm: () => {
-                            if (onDuplicate) onDuplicate(stack);
                             onClose();
                         }
                     });
@@ -341,19 +337,21 @@ export const useReviewSession = ({
         }
     };
 
+    const lessonQuestions = lesson.questions || lesson.cards || [];
+
     return {
         // State
         showModeSelection,
         currentIndex,
-        currentCard,
+        currentQuestion,
         isFlipped,
         rating,
         sessionResult,
         viewingImage,
         feedback,
         masteredCount,
-        totalOriginalCards,
-        studyCards,
+        totalOriginalQuestions,
+        studyQuestions,
 
         // Actions
         handleStartReview,
@@ -373,6 +371,6 @@ export const useReviewSession = ({
         toggleRecordedPlayback,
 
         // Computed
-        difficultCardsCount: (stack.cards || []).filter(c => c.lastRating !== undefined && c.lastRating < 2).length
+        difficultQuestionsCount: lessonQuestions.filter(q => q.lastRating !== undefined && q.lastRating < 2).length
     };
 };

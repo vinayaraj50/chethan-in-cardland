@@ -1,12 +1,12 @@
 import logo from '../assets/logo.png';
 import { ADMIN_EMAIL } from './config';
 
-export const DEMO_STACK = {
-    id: 'demo-stack',
+export const DEMO_LESSON = {
+    id: 'demo-lesson',
     title: 'General Knowledge (Demo)',
     titleImage: logo,
     label: 'Science',
-    cards: [
+    questions: [
         {
             id: 1,
             question: { text: "What is the role of red blood cells?", image: '', audio: '' },

@@ -65,11 +65,11 @@ export const sanitizeText = (text, maxLength = 10000) => {
 };
 
 /**
- * Sanitizes stack title for safe use in URLs
- * @param {string} title - The stack title
+ * Sanitizes lesson title for safe use in URLs
+ * @param {string} title - The lesson title
  * @returns {string} - Sanitized title
  */
-export const sanitizeStackTitle = (title) => {
+export const sanitizeLessonTitle = (title) => {
     if (!title || typeof title !== 'string') {
         return 'Untitled';
     }
@@ -90,6 +90,9 @@ export const sanitizeStackTitle = (title) => {
 
     return sanitized || 'Untitled';
 };
+
+// Backward compatibility alias
+export const sanitizeStackTitle = sanitizeLessonTitle;
 
 /**
  * Validates if a URL is a valid HTTPS URL
@@ -132,6 +135,7 @@ export const sanitizeFeedbackText = (text) => {
 
     return sanitized.trim();
 };
+
 
 /**
  * Validates email format

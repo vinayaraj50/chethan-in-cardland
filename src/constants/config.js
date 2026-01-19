@@ -12,6 +12,7 @@ export const APPS_SCRIPT_KEY = import.meta.env.VITE_APPS_SCRIPT_KEY || 'chethan_
 
 // Admin Configuration
 export const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL || 'chethanincardland@gmail.com';
+export const DECRYPTION_API_URL = import.meta.env.VITE_DECRYPTION_API_URL;
 
 // Payment Configuration
 export const UPI_ID = import.meta.env.VITE_UPI_ID || 'vinayarajh1-1@okhdfcbank';

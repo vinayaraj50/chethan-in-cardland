@@ -8,7 +8,8 @@ vi.mock('../services/userService', () => ({
     userService: {
         syncProfile: vi.fn(),
         checkDailyBonus: vi.fn(),
-        applyReferral: vi.fn()
+        applyReferral: vi.fn(),
+        updateBalance: vi.fn().mockResolvedValue(true)
     }
 }));
 

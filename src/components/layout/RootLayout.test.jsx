@@ -24,7 +24,7 @@ describe('RootLayout Component', () => {
         isProfileLoading: false,
         onShowMenu: vi.fn(),
         onShowCoinModal: vi.fn(),
-        onAddStack: vi.fn(),
+        onAddLesson: vi.fn(),
         onLogin: vi.fn(),
         children: <div data-testid="child">Child Content</div>
     };

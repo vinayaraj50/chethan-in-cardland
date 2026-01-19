@@ -58,10 +58,34 @@ const HamburgerMenu = ({ user, theme, onToggleTheme, soundsEnabled, onToggleSoun
 
                 {user ? (
                     <div className="neo-card flex items-center gap-3 p-3" style={{ padding: '1rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        <img src={user.picture} alt={user.name} style={{ width: '48px', height: '48px', borderRadius: '50%' }} />
-                        <div style={{ overflow: 'hidden' }}>
-                            <div style={{ fontWeight: '600', truncate: true }}>{user.name}</div>
-                            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.email}</div>
+                        <div style={{ position: 'relative', width: '48px', height: '48px', flexShrink: 0 }}>
+                            {user.picture ? (
+                                <img
+                                    src={user.picture}
+                                    alt={user.name}
+                                    style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }}
+                                    onError={(e) => {
+                                        e.target.style.display = 'none';
+                                        e.target.nextSibling.style.display = 'flex';
+                                    }}
+                                />
+                            ) : null}
+                            <div style={{
+                                width: '100%',
+                                height: '100%',
+                                borderRadius: '50%',
+                                background: 'var(--accent-soft)',
+                                display: user.picture ? 'none' : 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: 'var(--accent-color)'
+                            }}>
+                                <User size={24} />
+                            </div>
+                        </div>
+                        <div style={{ overflow: 'hidden', flex: 1 }}>
+                            <div style={{ fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</div>
+                            <div style={{ fontSize: '0.8rem', color: 'var(--text-color)', opacity: 0.6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</div>
                         </div>
                     </div>
                 ) : (

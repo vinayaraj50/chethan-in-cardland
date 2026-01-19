@@ -19,12 +19,13 @@ export const showPicker = (token, onFilePicked) => {
 
     const view = new window.google.picker.DocsView(window.google.picker.ViewId.DOCS);
     view.setMimeTypes('application/json');
-    view.setQuery('flashcard_stack_'); // Filter to our stacks
+    // Filter to our lessons (supporting both old and new prefixes)
+    view.setQuery('cic_lesson_ OR flashcard_stack_');
 
     const picker = new window.google.picker.PickerBuilder()
         .addView(view)
         .setOAuthToken(token)
-        .setDeveloperKey(import.meta.env.VITE_GOOGLE_API_KEY) // You'll need an API Key for the Picker
+        .setDeveloperKey(import.meta.env.VITE_GOOGLE_API_KEY)
         .setCallback((data) => {
             if (data.action === window.google.picker.Action.PICKED) {
                 const fileId = data.docs[0].id;

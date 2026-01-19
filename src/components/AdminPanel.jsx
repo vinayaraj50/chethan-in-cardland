@@ -6,7 +6,7 @@ import IndexTable from './admin/IndexTable';
 import { parseGeminiOutput } from '../utils/importUtils';
 import { Check, Clipboard, AlertCircle, Edit3 } from 'lucide-react';
 
-const AdminPanel = ({ onClose, showAlert, onEditStack, initialSection = 'users' }) => {
+const AdminPanel = ({ onClose, showAlert, onEditLesson, initialSection = 'users' }) => {
     const { user } = useAuth();
     const [activeSection, setActiveSection] = useState(initialSection);
     const [pastedText, setPastedText] = useState('');
@@ -23,7 +23,8 @@ const AdminPanel = ({ onClose, showAlert, onEditStack, initialSection = 'users' 
         try {
             setProcessError(null);
             const data = parseGeminiOutput(pastedText);
-            if (!data.title && data.cards.length === 0 && data.sections.length === 0) {
+            const questions = data.questions || data.cards || [];
+            if (!data.title && questions.length === 0 && (data.sections?.length || 0) === 0) {
                 throw new Error("Could not find any valid lesson data in the paste.");
             }
             setParsedData(data);
@@ -34,18 +35,21 @@ const AdminPanel = ({ onClose, showAlert, onEditStack, initialSection = 'users' 
     };
 
     const handleOpenInEditor = () => {
-        if (parsedData && onEditStack) {
-            // Transform parsedData to match expected stack structure
-            const stackToEdit = {
+        if (parsedData && onEditLesson) {
+            // Transform parsedData to match expected lesson structure
+            const lessonToEdit = {
                 ...parsedData,
+                questions: parsedData.questions || parsedData.cards || [],
                 id: `draft-${Date.now()}`,
                 isPublic: true, // Admin-pasted content is usually intended for public
                 owner: user?.email
             };
-            onEditStack(stackToEdit);
+            onEditLesson(lessonToEdit);
             onClose(); // Close admin panel to show editor
         }
     };
+
+    const parsedQuestions = parsedData ? (parsedData.questions || parsedData.cards || []) : [];
 
     return (
         <AdminProvider>
@@ -112,7 +116,7 @@ const AdminPanel = ({ onClose, showAlert, onEditStack, initialSection = 'users' 
                                     <MetaItem label="Subject" value={parsedData.subject} />
                                     <MetaItem label="Standard" value={parsedData.standard} />
                                     <MetaItem label="Syllabus" value={parsedData.syllabus} />
-                                    <MetaItem label="Cards" value={parsedData.cards?.length} />
+                                    <MetaItem label="Questions" value={parsedQuestions.length} />
                                     <MetaItem label="Sections" value={parsedData.sections?.length} />
                                 </div>
                                 <button
@@ -188,4 +192,3 @@ const styles = {
 };
 
 export default AdminPanel;
-

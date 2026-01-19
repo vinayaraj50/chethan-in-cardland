@@ -23,7 +23,7 @@ export const checkSubscriptionGrant = async (email, publicFolderId) => {
 
         // Actually, the simplest check is to iterate the list like Admin does, but filtered for this user.
         // But that's slow if there are many.
-        // Let's rely on the 'listPublicStacks' equivalent but for grants.
+        // Let's rely on the 'listPublicLessons' equivalent but for grants.
 
         // BETTER APPROACH: Use the Apps Script to find the file by name explicitly if possible.
         // But our current script is generic. 

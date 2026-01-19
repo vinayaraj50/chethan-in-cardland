@@ -6,53 +6,49 @@
 const DRIVE_API_URL = 'https://www.googleapis.com/drive/v3/files';
 const UPLOAD_API_URL = 'https://www.googleapis.com/upload/drive/v3/files';
 
-// Persistent cache for stack contents to avoid redundant fetches
-const CACHE_KEY = 'cic_stack_content_cache';
+// Persistent cache for lesson contents to avoid redundant fetches
+import { sessionManager } from './sessionManager';
 
-const getPersistentCache = () => {
+const CACHE_KEY = 'lesson_content_cache';
+
+const getCache = () => {
     try {
-        const cached = localStorage.getItem(CACHE_KEY);
-        if (!cached) return new Map();
-        const data = JSON.parse(cached);
-        return new Map(Object.entries(data));
+        const raw = sessionManager.userStore.get(CACHE_KEY, {});
+        return new Map(Object.entries(raw));
     } catch (e) {
-        console.warn('Failed to load persistent cache:', e);
+        // If no session or error, return empty map
         return new Map();
     }
 };
 
-const savePersistentCache = (cacheMap) => {
+const saveCache = (map) => {
     try {
-        // Simple size management: if map has more than 50 items, remove oldest (lowest ID)
-        if (cacheMap.size > 50) {
-            const keys = Array.from(cacheMap.keys());
-            // Sort by creation time if we had it, but for now just take the first few
-            const keysToRemove = keys.slice(0, cacheMap.size - 50);
-            keysToRemove.forEach(k => cacheMap.delete(k));
+        if (map.size > 50) {
+            const keys = Array.from(map.keys());
+            const keysToRemove = keys.slice(0, map.size - 50);
+            keysToRemove.forEach(k => map.delete(k));
         }
-
-        const data = Object.fromEntries(cacheMap);
-        localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+        const obj = Object.fromEntries(map);
+        sessionManager.userStore.set(CACHE_KEY, obj);
     } catch (e) {
-        if (e.name === 'QuotaExceededError') {
-            console.warn('localStorage quota exceeded, clearing cache...');
-            localStorage.removeItem(CACHE_KEY);
-        }
+        // Quota exceeded handled by StorageStore or silent fail
+        console.warn('Failed to save cache:', e);
     }
 };
-
-let fileContentCache = getPersistentCache();
 
 /**
  * Clear cache for a specific file ID
- * Used after editing to ensure fresh data is loaded
  */
-export const clearStackCache = (fileId) => {
+export const clearLessonCache = (fileId) => {
     if (fileId) {
-        fileContentCache.delete(fileId);
-        savePersistentCache(fileContentCache);
+        const cache = getCache();
+        cache.delete(fileId);
+        saveCache(cache);
     }
 };
+
+// Backward compatibility alias
+export const clearStackCache = clearLessonCache;
 
 const getHeaders = (token) => ({
     Authorization: `Bearer ${token}`,
@@ -62,11 +58,11 @@ const getHeaders = (token) => ({
 import { resilientFetch } from '../utils/resilientFetch';
 
 /**
- * List all flashcard stacks metadata (ID, Name, ModifiedTime) without fetching full content.
- * This is much faster and allows for progressive loading.
+ * List all lesson/stack metadata without fetching full content.
  */
-export const listStackMetadata = async (token) => {
-    const query = "mimeType = 'application/json' and name contains 'flashcard_stack_' and trashed = false";
+export const listLessonMetadata = async (token) => {
+    // Look for both new 'cic_lesson_' and old 'flashcard_stack_' files
+    const query = "mimeType = 'application/json' and (name contains 'cic_lesson_' or name contains 'flashcard_stack_') and trashed = false";
     const fields = 'files(id, name, owners, permissions, ownedByMe, sharingUser, starred, createdTime, modifiedTime, appProperties)';
     const url = `${DRIVE_API_URL}?q=${encodeURIComponent(query)}&fields=${fields}&supportsAllDrives=true&includeItemsFromAllDrives=true&spaces=drive&t=${Date.now()}`;
 
@@ -83,29 +79,34 @@ export const listStackMetadata = async (token) => {
     return data.files || [];
 };
 
+// Backward compatibility alias
+export const listStackMetadata = listLessonMetadata;
+
 /**
- * Check if a stack is in the local cache and valid.
+ * Check if a lesson is in the local cache and valid.
  */
-export const getCachedStack = (fileId, modifiedTime) => {
-    const cached = fileContentCache.get(fileId);
+export const getCachedLesson = (fileId, modifiedTime) => {
+    const cache = getCache();
+    const cached = cache.get(fileId);
     if (cached && cached.modifiedTime === modifiedTime) {
         return {
             ...cached.content,
             driveFileId: fileId,
-            // Additional metadata that might be lost in simple content cache
             _isCached: true
         };
     }
     return null;
 };
 
+// Backward compatibility alias
+export const getCachedStack = getCachedLesson;
+
 /**
- * Fetch full content for a single stack and update cache.
+ * Fetch full content for a single lesson and update cache.
  */
-export const fetchStackContent = async (token, file) => {
+export const fetchLessonContent = async (token, file) => {
     try {
-        // Check cache one more time in case of race conditions
-        const cached = getCachedStack(file.id, file.modifiedTime);
+        const cached = getCachedLesson(file.id, file.modifiedTime);
         if (cached) return {
             ...cached,
             ownedByMe: file.ownedByMe,
@@ -117,12 +118,28 @@ export const fetchStackContent = async (token, file) => {
         const content = await getFileContent(token, file.id);
 
         // Update cache
-        fileContentCache.set(file.id, {
+        const cache = getCache();
+        cache.set(file.id, {
             content,
             modifiedTime: file.modifiedTime
         });
-        savePersistentCache(fileContentCache);
+        saveCache(cache);
 
+        if (typeof content === 'string') {
+            // It's an encrypted blob. Do NOT spread it.
+            // Return a wrapper object that StorageOrchestrator recognizes.
+            return {
+                encryptedContent: content,
+                driveFileId: file.id,
+                ownedByMe: file.ownedByMe,
+                ownerName: file.owners?.[0]?.displayName,
+                sharingUser: file.sharingUser,
+                isAccepted: file.ownedByMe || file.starred,
+                modifiedTime: file.modifiedTime
+            };
+        }
+
+        // It's a JSON object (legacy or unencrypted). Safe to spread.
         return {
             ...content,
             driveFileId: file.id,
@@ -132,63 +149,22 @@ export const fetchStackContent = async (token, file) => {
             isAccepted: file.ownedByMe || file.starred
         };
     } catch (error) {
-        console.error(`Failed to fetch stack ${file.id}`, error);
+        console.error(`[Drive] Fetch failed for ${file.id}`, error);
         return {
-            id: file.id,
-            title: file.name.replace('flashcard_stack_', '').replace('.json', '') || 'Error Loading Stack',
-            driveFileId: file.id,
-            ownedByMe: file.ownedByMe,
-            ownerName: file.owners?.[0]?.displayName,
-            sharingUser: file.sharingUser,
-            isAccepted: file.ownedByMe || file.starred,
-            cards: [],
-            error: true
+            ...mapDriveFileToLesson(file),
+            error: true,
+            errorMessage: error.message
         };
     }
 };
 
-/**
- * DEPRECATED: Use listStackMetadata + fetchStackContent instead.
- * Kept for backward compatibility if needed, but App.jsx uses it so we will likely remove usage there.
- */
-export const listStacks = async (token) => {
-    const files = await listStackMetadata(token);
-    return Promise.all(files.map(file => fetchStackContent(token, file)));
-};
-
-/**
- * List all files in a specific folder (for Admin Indexing)
- */
-export const listFilesInFolder = async (token, folderId) => {
-    // Modified query to include the 'trashed = false' check and filter by JSON mimeType
-    const query = `'${folderId}' in parents and mimeType = 'application/json' and trashed = false`;
-    const fields = 'files(id, name, createdTime, modifiedTime)';
-    const url = `${DRIVE_API_URL}?q=${encodeURIComponent(query)}&fields=${fields}&supportsAllDrives=true&includeItemsFromAllDrives=true&spaces=drive&t=${Date.now()}`;
-
-    const response = await resilientFetch(url, {
-        headers: getHeaders(token),
-        _isElevated: true
-    });
-
-    if (response.status === 401) {
-        throw new Error('REAUTH_NEEDED');
-    }
-
-    const data = await response.json();
-    return data.files || [];
-};
-
-
-
-
-
-
+// Backward compatibility alias
+export const fetchStackContent = fetchLessonContent;
 
 /**
  * Get content of a specific file.
  */
 export const getFileContent = async (token, fileId) => {
-    // Append timestamp to prevent caching
     const url = `${DRIVE_API_URL}/${fileId}?alt=media&t=${Date.now()}`;
     const response = await resilientFetch(url, {
         headers: getHeaders(token),
@@ -203,10 +179,77 @@ export const getFileContent = async (token, fileId) => {
     try {
         return JSON.parse(text);
     } catch (e) {
-        // Return raw text if not valid JSON (likely encrypted content)
         return text;
     }
 };
+
+/**
+ * Creates a normalized Lesson object from Drive file data.
+ */
+export const mapDriveFileToLesson = (file) => {
+    const props = file.appProperties || {};
+    return {
+        id: props.id || file.id,
+        driveFileId: file.id,
+        title: props.title || file.name.replace('cic_lesson_', '').replace('flashcard_stack_', '').replace('.json', '') || 'Error Loading Lesson',
+        label: props.label || 'Unknown',
+        questions: [],
+        questionCount: parseInt(props.questionCount || props.cardsCount) || 0,
+        modifiedTime: file.modifiedTime,
+        ownedByMe: file.ownedByMe,
+        source: 'drive'
+    };
+};
+
+/**
+ * Create or Update a Lesson.
+ */
+export const saveLesson = async (token, lesson, fileId = null, folderId = null) => {
+    // 2026 Strategy: Metadata Shadowing
+    // These properties are stored in the Drive File metadata (appProperties)
+    // allowing listLessonMetadata() to show progress without downloading/decrypting full JSON.
+    const metadata = {
+        id: lesson.id,
+        title: lesson.title,
+        label: lesson.label || '',
+        questionCount: String(lesson.questionCount !== undefined ? lesson.questionCount : (lesson.questions?.length || lesson.cards?.length || 0)),
+        lastMarks: lesson.lastMarks !== undefined ? String(lesson.lastMarks) : '',
+        nextReview: lesson.nextReview || '',
+        reviewStage: lesson.reviewStage !== undefined ? String(lesson.reviewStage) : '-1'
+    };
+
+    const fileName = `cic_lesson_${lesson.id}.json`;
+    return saveFile(token, fileName, lesson, fileId, 'application/json', folderId, metadata);
+};
+
+// Backward compatibility alias
+export const saveStack = saveLesson;
+
+/**
+ * Delete a Lesson.
+ */
+export const deleteLesson = async (token, fileId) => {
+    const response = await resilientFetch(`${DRIVE_API_URL}/${fileId}`, {
+        method: 'DELETE',
+        headers: getHeaders(token),
+        _isElevated: true
+    });
+
+    if (!response.ok && response.status !== 404) {
+        throw new Error(`Drive Delete Failed: ${response.status}`);
+    }
+
+    if (fileId) {
+        const cache = getCache();
+        cache.delete(fileId);
+        saveCache(cache);
+    }
+
+    return true;
+};
+
+// Backward compatibility alias
+export const deleteStack = deleteLesson;
 
 /**
  * Generic function to Save a File to Google Drive.
@@ -265,12 +308,13 @@ export const saveFile = async (token, name, content, fileId = null, mimeType = '
 
         const result = await response.json();
 
-        // Update cache with the new content
-        fileContentCache.set(result.id, {
+
+        const cache = getCache();
+        cache.set(result.id, {
             content: content,
             modifiedTime: result.modifiedTime || new Date().toISOString()
         });
-        savePersistentCache(fileContentCache);
+        saveCache(cache);
 
         return result;
     } catch (error) {
@@ -279,28 +323,9 @@ export const saveFile = async (token, name, content, fileId = null, mimeType = '
 };
 
 /**
- * Create or Update a Flashcard Stack.
+ * Share a file with another user.
  */
-export const saveStack = async (token, stack, fileId = null, folderId = null) => {
-    // Extract metadata for appProperties (must be strings, max 100 properties, 124 bytes per prop)
-    const metadata = {
-        title: stack.title || '',
-        cardsCount: String(stack.cardsCount !== undefined ? stack.cardsCount : (stack.cards?.length || 0)),
-        lastMarks: String(stack.lastMarks !== undefined ? stack.lastMarks : ''),
-        nextReview: stack.nextReview || '',
-        label: stack.label || 'No label'
-    };
-
-    return saveFile(token, `flashcard_stack_${stack.id}.json`, stack, fileId, 'application/json', folderId, metadata);
-};
-
-
-
-
-/**
- * Share a file with another user (used for feedback).
- */
-export const shareStack = async (token, fileId, email, role = 'reader', message = '') => {
+export const shareLesson = async (token, fileId, email, role = 'reader', message = '') => {
     const body = {
         role,
         type: 'user',
@@ -326,69 +351,19 @@ export const shareStack = async (token, fileId, email, role = 'reader', message 
     return await response.json();
 };
 
-
-/**
- * Make a file public (Anyone with the link can view).
- */
-export const makeFilePublic = async (token, fileId) => {
-    const body = {
-        role: 'reader',
-        type: 'anyone',
-    };
-
-    const response = await resilientFetch(`${DRIVE_API_URL}/${fileId}/permissions`, {
-        method: 'POST',
-        headers: getHeaders(token),
-        body: JSON.stringify(body),
-        _isElevated: true
-    });
-
-    if (!response.ok) {
-        throw new Error('Failed to make file public');
-    }
-
-    return await response.json();
-};
-
-
-/**
- * Delete a specific stack.
- */
-export const deleteStack = async (token, fileId) => {
-    const response = await resilientFetch(`${DRIVE_API_URL}/${fileId}`, {
-        method: 'DELETE',
-        headers: getHeaders(token),
-        _isElevated: true
-    });
-    if (!response.ok) {
-        throw new Error('Failed to delete stack');
-    }
-    return true;
-};
+// Backward compatibility alias
+export const shareStack = shareLesson;
 
 /**
  * Delete all data (Dangerous!)
  */
 export const deleteAllData = async (token) => {
-    const query = "name contains 'flashcard_' and trashed = false";
-    const response = await resilientFetch(`${DRIVE_API_URL}?q=${encodeURIComponent(query)}`, {
-        headers: getHeaders(token),
-        _isElevated: true
-    });
-    if (response.status === 401) throw new Error('REAUTH_NEEDED');
-
-    const data = await response.json();
-
+    const files = await listLessonMetadata(token);
     await Promise.all(
-        data.files.map((file) =>
-            resilientFetch(`${DRIVE_API_URL}/${file.id}`, {
-                method: 'DELETE',
-                headers: getHeaders(token),
-                _isElevated: true
-            })
-        )
+        files.map((file) => deleteLesson(token, file.id))
     );
 };
+
 /**
  * Get storage quota information.
  */
@@ -413,7 +388,6 @@ export const getStorageQuota = async (token) => {
 
 /**
  * Find a folder by name.
- * Useful for finding system folders like 'ChethanCardland_System'.
  */
 export const findFolderByName = async (token, folderName) => {
     const query = `mimeType = 'application/vnd.google-apps.folder' and name = '${folderName}' and trashed = false`;
@@ -446,4 +420,11 @@ export const findFileByName = async (token, fileName, folderId) => {
 
     const data = await response.json();
     return data.files && data.files.length > 0 ? data.files[0].id : null;
+};
+
+/**
+ * Make a file specifically public to anyone with the link.
+ */
+export const makeFilePublic = async (token, fileId) => {
+    return shareLesson(token, fileId, null, 'reader');
 };

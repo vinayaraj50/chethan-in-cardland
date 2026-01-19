@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { 
-    validateDataURI, 
-    sanitizeText, 
-    sanitizeStackTitle, 
-    isValidHttpsUrl, 
-    sanitizeFeedbackText, 
-    isValidEmail 
+import {
+    validateDataURI,
+    sanitizeText,
+    sanitizeLessonTitle,
+    isValidHttpsUrl,
+    sanitizeFeedbackText,
+    isValidEmail
 } from './securityUtils';
 
 describe('securityUtils', () => {
@@ -59,19 +59,19 @@ describe('securityUtils', () => {
         });
     });
 
-    describe('sanitizeStackTitle', () => {
+    describe('sanitizeLessonTitle', () => {
         it('should return "Untitled" for invalid inputs', () => {
-            expect(sanitizeStackTitle(null)).toBe('Untitled');
-            expect(sanitizeStackTitle('')).toBe('Untitled');
+            expect(sanitizeLessonTitle(null)).toBe('Untitled');
+            expect(sanitizeLessonTitle('')).toBe('Untitled');
         });
 
         it('should remove characters that break URL structure', () => {
-            expect(sanitizeStackTitle('Math & Science? #1')).toBe('Math  Science 1');
+            expect(sanitizeLessonTitle('Math & Science? #1')).toBe('Math  Science 1');
         });
 
         it('should trim whitespace and limit length', () => {
             const longTitle = '   ' + 'a'.repeat(60) + '   ';
-            const result = sanitizeStackTitle(longTitle);
+            const result = sanitizeLessonTitle(longTitle);
             expect(result).toHaveLength(50);
             expect(result).not.toMatch(/^\s/);
             expect(result).not.toMatch(/\s$/);

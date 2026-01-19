@@ -11,6 +11,14 @@ console.log(`Build Version: 1.1.1 | Sync: ${new Date().toISOString()}`);
 
 import { AuthProvider } from './components/AuthProvider';
 import { TourProvider } from './components/TourContext';
+import { SessionManager } from './services/sessionManager';
+
+// 2026 Strategy: We no longer purge all sessions on every boot.
+// SessionManager now uses "Smart Purge" during startSession(uid) to preserve current user data.
+// SessionManager.purgeAllUserSessions();
+// Cold-Start Purge is now managed internally by SessionManager during identity verification
+// to prevent premature deletion of valid user data on browser refresh.
+
 
 ReactDOM.createRoot(document.getElementById('root')).render(
     <React.StrictMode>

@@ -3,7 +3,7 @@ import { deriveUserKey, encryptLesson, decryptLesson } from './lessonCrypto';
 
 describe('lessonCrypto', () => {
     const mockUID = 'user_123_abc';
-    const mockData = { id: 'stack_1', title: 'Test Stack', cards: [] };
+    const mockData = { id: 'lesson_1', title: 'Test Lesson', questions: [] };
 
     it('should derive a consistent key for the same UID', async () => {
         const key1 = await deriveUserKey(mockUID);

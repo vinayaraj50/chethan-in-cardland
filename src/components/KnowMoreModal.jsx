@@ -23,10 +23,10 @@ const KnowMoreModal = ({ isOpen, onClose, onLogin }) => {
         },
         {
             icon: <PenTool size={28} />,
-            title: "Create flashcards your way",
+            title: "Create lessons your way",
             content: (
                 <div>
-                    <p style={{ margin: '0 0 1rem 0', lineHeight: '1.5', fontSize: '0.95rem', opacity: 0.8 }}>Make flashcards using one or more options:</p>
+                    <p style={{ margin: '0 0 1rem 0', lineHeight: '1.5', fontSize: '0.95rem', opacity: 0.8 }}>Make lessons using one or more options:</p>
                     <div style={{ display: 'flex', gap: '2.5rem', justifyContent: 'flex-start', marginBottom: '0.5rem', marginTop: '1rem' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
                             <div className="neo-inset" style={{
@@ -76,8 +76,8 @@ const KnowMoreModal = ({ isOpen, onClose, onLogin }) => {
         },
         {
             icon: <BookOpen size={28} />,
-            title: "Ready-made expert content",
-            text: "Study curated flashcard stacks built from real previous question papers and exam patterns."
+            title: "Expert Lesson Content",
+            text: "Study curated lessons built from real previous question papers and exam patterns."
         }
     ];
 
@@ -159,4 +159,3 @@ const KnowMoreModal = ({ isOpen, onClose, onLogin }) => {
 };
 
 export default KnowMoreModal;
-

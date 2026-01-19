@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { useAuth, AuthProvider } from './components/AuthProvider';
-import { StackProvider, useStack } from './context/StackContext';
+import { LessonProvider, useLesson } from './context/LessonContext';
 import { UIProvider, useUI } from './context/UIContext';
 import { storage } from './utils/storage';
 import { useUserProfile } from './hooks/useUserProfile';
@@ -16,24 +16,25 @@ import CoinRewardAnimation from './components/CoinRewardAnimation';
 import FeatureTour from './components/FeatureTour';
 import { useAppActions } from './hooks/useAppActions';
 
-import { DEMO_STACK } from './constants/data';
+import { DEMO_LESSON } from './constants/data';
 import { ADMIN_EMAIL } from './constants/config';
 
 const AppContent = () => {
     const { user, signIn, signOut } = useAuth();
     const { allowExit: allowAppExit } = useNavigationGuard(!!user);
     const {
-        stacks, setStacks, publicStacks, setPublicStacks,
-        loading: hookLoading, publicLoading, fetchStacks, fetchPublicStacks,
-        handleUpdateLocalStack
-    } = useStack();
+        lessons, setLessons, publicLessons, setPublicLessons,
+        loading: hookLoading, publicLoading, fetchLessons, fetchPublicLessons,
+        handleUpdateLocalLesson
+    } = useLesson();
 
     const {
         modals, toggleModal,
-        activeStack, setActiveStack,
-        reviewStack, setReviewStack,
-        noteStack, setNoteStack,
-        showNotification
+        activeLesson, setActiveLesson,
+        reviewLesson, setReviewLesson,
+        noteLesson, setNoteLesson,
+        showNotification,
+        headerLoading
     } = useUI();
 
     const {
@@ -53,7 +54,7 @@ const AppContent = () => {
     const [sortBy, setSortBy] = useState('Creation Date');
     const [filterLabel, setFilterLabel] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
-    const [activeTab, setActiveTab] = useState('my');
+    const [activeTab, setActiveTab] = useState('my-lessons');
     const [publicFilters, setPublicFilters] = useState({ standard: '', syllabus: '', medium: '', subject: '' });
     const [soundsEnabled, setSoundsEnabled] = useState(localStorage.getItem('soundsEnabled') !== 'false');
     const [previewSession, setPreviewSession] = useState(null);
@@ -67,10 +68,10 @@ const AppContent = () => {
     } = useUserProfile(user, setNotificationAdapter, setRewardData);
 
     const {
-        handleImportStack,
-        handleDeleteStack,
+        handleImportLesson,
+        handleDeleteLesson,
         handleDeleteAllData,
-        handleEditStack,
+        handleEditLesson,
         handleReviewLaunch
     } = useAppActions();
 
@@ -112,37 +113,37 @@ const AppContent = () => {
             toggleModal('showAdminPanel', true);
         }
 
-        fetchPublicStacks();
+        fetchPublicLessons();
         if (user) {
-            fetchStacks();
+            fetchLessons();
             toggleModal('showMenu', false);
         } else {
-            setStacks([DEMO_STACK]);
+            setLessons([DEMO_LESSON]);
             // Profile is cleared reactively by useUserProfile when user becomes null
         }
-    }, [user, fetchStacks, fetchPublicStacks, setStacks, toggleModal]);
+    }, [user, fetchLessons, fetchPublicLessons, setLessons, toggleModal]);
 
     useEffect(() => {
         if (isTourActive) {
-            if (tourStep === 3) setActiveTab('ready-made');
-            if (tourStep === 4) setActiveTab('my');
+            if (tourStep === 3) setActiveTab('lessons');
+            if (tourStep === 4) setActiveTab('my-lessons');
             if (tourStep === 2 && user) setTourStep(3);
         }
     }, [isTourActive, tourStep, user, setTourStep]);
 
     useEffect(() => {
-        if (isDemoGracePeriod && !reviewStack) {
+        if (isDemoGracePeriod && !reviewLesson) {
             setIsDemoGracePeriod(false);
             setTourStep(5);
-            setActiveTab('my');
+            setActiveTab('my-lessons');
         }
-    }, [reviewStack, isDemoGracePeriod, setTourStep, setIsDemoGracePeriod]);
+    }, [reviewLesson, isDemoGracePeriod, setTourStep, setIsDemoGracePeriod]);
 
     useEffect(() => {
         const handlePopState = (e) => {
             if (rewardData) setRewardData(null);
             else if (modals.showLoginPrompt) toggleModal('showLoginPrompt', false);
-            else if (noteStack) setNoteStack(null);
+            else if (noteLesson) setNoteLesson(null);
             else if (modals.showReferral) toggleModal('showReferral', false);
             else if (modals.showFeedback) toggleModal('showFeedback', false);
             else if (modals.showKnowMore) toggleModal('showKnowMore', false);
@@ -150,15 +151,15 @@ const AppContent = () => {
             else if (modals.showAdminQuickTools) toggleModal('showAdminQuickTools', false);
             else if (modals.showCoinModal) toggleModal('showCoinModal', false);
             else if (modals.showAddModal) toggleModal('showAddModal', false);
-            else if (reviewStack) {
+            else if (reviewLesson) {
                 if (reviewStarted) {
                     window.history.pushState({ modalOpen: true }, '', window.location.pathname);
                     showNotification('confirm', "End session?", () => {
-                        setReviewStack(null);
+                        setReviewLesson(null);
                         setReviewStarted(false);
                         window.history.back();
                     });
-                } else setReviewStack(null);
+                } else setReviewLesson(null);
             }
             else if (modals.showMenu) toggleModal('showMenu', false);
             else if (user && (!e.state || e.state.guard !== 'active')) {
@@ -172,20 +173,20 @@ const AppContent = () => {
         };
         window.addEventListener('popstate', handlePopState);
         return () => window.removeEventListener('popstate', handlePopState);
-    }, [rewardData, modals, noteStack, reviewStack, reviewStarted, user, signOut, allowAppExit, toggleModal, setNoteStack, setReviewStack, showNotification]);
+    }, [rewardData, modals, noteLesson, reviewLesson, reviewStarted, user, signOut, allowAppExit, toggleModal, setNoteLesson, setReviewLesson, showNotification]);
 
-    const sortedStacks = useMemo(() => {
-        let filtered = filterLabel ? stacks.filter(s => s.label === filterLabel) : stacks;
+    const sortedLessons = useMemo(() => {
+        let filtered = filterLabel ? lessons.filter(s => s.label === filterLabel) : lessons;
         if (searchQuery.trim()) filtered = filtered.filter(s => s.title.toLowerCase().includes(searchQuery.toLowerCase()));
 
         return [...filtered].sort((a, b) => {
             if (isTourActive) {
-                if (a.id === 'demo-stack') return -1;
-                if (b.id === 'demo-stack') return 1;
+                if (a.id === 'demo-lesson') return -1;
+                if (b.id === 'demo-lesson') return 1;
             }
             return (b.id || 0) - (a.id || 0);
         });
-    }, [stacks, filterLabel, searchQuery, isTourActive]);
+    }, [lessons, filterLabel, searchQuery, isTourActive]);
 
     const isUnlimited = userProfile?.unlimitedCoinsExpiry && new Date(userProfile.unlimitedCoinsExpiry).getTime() > Date.now();
 
@@ -204,50 +205,51 @@ const AppContent = () => {
             }}
             onShowCoinModal={() => { window.history.pushState({ modal: 'active' }, '', window.location.pathname); toggleModal('showCoinModal', true); }}
             onShowMenu={() => toggleModal('showMenu', true)}
-            onAddStack={() => {
+            onAddLesson={() => {
                 if (!user) { signIn('consent'); return; }
-                setActiveStack(null);
+                setActiveLesson(null);
                 window.history.pushState({ modal: 'active' }, '', window.location.pathname);
                 toggleModal('showAddModal', true);
             }}
+            headerLoading={headerLoading || isGlobalLoading}
         >
             <Home
                 activeTab={activeTab} setActiveTab={setActiveTab}
-                stacks={sortedStacks}
-                publicStacks={publicStacks} user={user}
+                lessons={sortedLessons}
+                publicLessons={publicLessons} user={user}
                 onLogin={(prompt) => signIn(prompt || 'consent')}
                 loading={isGlobalLoading} publicLoading={publicLoading}
                 userCoins={userProfile?.coins || 0}
                 onReview={handleReviewLaunch}
-                onEdit={handleEditStack}
-                onImport={(s) => handleImportStack(s, userProfile, handleUpdateCoins)}
+                onEdit={handleEditLesson}
+                onImport={(s) => handleImportLesson(s, userProfile, handleUpdateCoins)}
                 searchQuery={searchQuery} setSearchQuery={setSearchQuery}
                 onShowFeedback={() => { window.history.pushState({ modal: 'active' }, '', window.location.pathname); toggleModal('showFeedback', true); }}
                 filters={publicFilters} setFilters={setPublicFilters}
                 sortBy={sortBy} onSortChange={setSortBy}
                 filterLabel={filterLabel} onLabelChange={setFilterLabel}
-                availableLabels={[...new Set(stacks.map(s => s.label).filter(l => l))]}
+                availableLabels={[...new Set(lessons.map(s => s.label).filter(l => l))]}
                 onShowKnowMore={() => { window.history.pushState({ modal: 'active' }, '', window.location.pathname); toggleModal('showKnowMore', true); }}
-                onDelete={handleDeleteStack} showConfirm={(msg, cb) => showNotification('confirm', msg, cb)}
-                onAddStack={() => { setActiveStack(null); window.history.pushState({ modal: 'active' }, '', window.location.pathname); toggleModal('showAddModal', true); }}
+                onDelete={handleDeleteLesson} showConfirm={(msg, cb) => showNotification('confirm', msg, cb)}
+                onAddLesson={() => { setActiveLesson(null); window.history.pushState({ modal: 'active' }, '', window.location.pathname); toggleModal('showAddModal', true); }}
                 onRefresh={() => {
-                    if (activeTab === 'my' && user) {
-                        fetchStacks();
+                    if (activeTab === 'my-lessons' && user) {
+                        fetchLessons();
                         reloadProfile(); // Also refresh user profile (coins)
                     } else {
-                        fetchPublicStacks();
+                        fetchPublicLessons();
                     }
                 }}
             />
 
             <ModalRegistry
                 user={user}
-                stacks={stacks}
-                publicStacks={publicStacks}
+                lessons={lessons}
+                publicLessons={publicLessons}
                 userProfile={userProfile}
-                activeStack={activeStack}
-                reviewStack={reviewStack}
-                noteStack={noteStack}
+                activeLesson={activeLesson}
+                reviewLesson={reviewLesson}
+                noteLesson={noteLesson}
                 theme={theme}
                 onToggleTheme={() => setTheme(p => p === 'light' ? 'dark' : 'light')}
                 soundsEnabled={soundsEnabled}
@@ -255,19 +257,20 @@ const AppContent = () => {
                 onLogout={() => { allowAppExit(); signOut(); }}
                 onDeleteData={() => handleDeleteAllData(allowAppExit)}
                 onShowTour={() => { toggleModal('showMenu', false); handleTourEnd(); setTimeout(() => startTour(), 300); }}
-                onSaveStack={(upd, sc, ip) => { handleUpdateLocalStack(upd); if (upd.isPublic || ip) fetchPublicStacks(); if (sc !== false) window.history.back(); }}
-                onDeleteStack={handleDeleteStack}
-                onImportStack={(s) => handleImportStack(s, userProfile, handleUpdateCoins)}
+                onSaveLesson={(upd, sc, ip) => { handleUpdateLocalLesson(upd); if (upd.isPublic || ip) fetchPublicLessons(); if (sc !== false) window.history.back(); }}
+                onDeleteLesson={handleDeleteLesson}
+                onImportLesson={(s) => handleImportLesson(s, userProfile, handleUpdateCoins)}
                 onUpdateCoins={handleUpdateCoins}
                 isUnlimited={isUnlimited}
                 onLoginRequired={handleLoginRequired}
+                signIn={signIn}  // Pass direct sign-in handler
                 previewSession={previewSession}
                 onReviewStart={() => setReviewStarted(true)}
-                handleEditStack={handleEditStack}
+                handleEditLesson={handleEditLesson}
                 handleReviewLaunch={handleReviewLaunch}
                 activeTab={activeTab}
-                fetchPublicStacks={fetchPublicStacks}
-                fetchStacks={fetchStacks}
+                fetchPublicLessons={fetchPublicLessons}
+                fetchLessons={fetchLessons}
                 ADMIN_EMAIL={ADMIN_EMAIL}
                 APP_VERSION={APP_VERSION}
                 showNotification={showNotification}
@@ -278,18 +281,18 @@ const AppContent = () => {
             <FeatureTour
                 userName={userProfile?.displayName}
                 onLogin={() => signIn('consent')}
-                onAddStack={() => {
-                    setActiveStack(null);
+                onAddLesson={() => {
+                    setActiveLesson(null);
                     window.history.pushState({ modal: 'active' }, '', window.location.pathname);
                     toggleModal('showAddModal', true);
                 }}
                 onStartDemo={() => {
-                    const demo = stacks.find(s => s.id === 'demo-stack') || DEMO_STACK;
+                    const demo = lessons.find(s => s.id === 'demo-lesson') || DEMO_LESSON;
                     handleReviewLaunch(demo);
                     setIsDemoGracePeriod(true);
                 }}
-                onGoToMyCards={() => {
-                    setActiveTab('my');
+                onGoToMyLessons={() => {
+                    setActiveTab('my-lessons');
                     handleTourEnd();
                 }}
             />
@@ -303,7 +306,7 @@ const AppContent = () => {
                     />
                 )}
             </AnimatePresence>
-        </RootLayout>
+        </RootLayout >
     );
 };
 
@@ -312,9 +315,9 @@ const App = () => {
         <AuthProvider>
             <UIProvider>
                 <TourProvider>
-                    <StackProvider>
+                    <LessonProvider>
                         <AppContent />
-                    </StackProvider>
+                    </LessonProvider>
                 </TourProvider>
             </UIProvider>
         </AuthProvider>

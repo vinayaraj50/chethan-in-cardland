@@ -21,7 +21,7 @@ export const AuthProvider = ({ children }) => {
     }, []);
 
     const signIn = useCallback((prompt = 'select_account') => {
-        identityService.signIn({ prompt });
+        return identityService.signIn({ prompt });
     }, []);
 
     const signOut = useCallback(() => {
@@ -36,7 +36,7 @@ export const AuthProvider = ({ children }) => {
         hasDrive: authState.hasDrive,
         signIn,
         signOut,
-        isLoading: authState.status === IdentityState.INITIALIZING || authState.status === IdentityState.AUTHENTICATING || authState.status === IdentityState.AUTHORIZING,
+        isLoading: authState.status === IdentityState.INITIALIZING || authState.status === IdentityState.AUTHENTICATING,
         isReady: authState.status !== IdentityState.IDLE && authState.status !== IdentityState.INITIALIZING
     };
 
