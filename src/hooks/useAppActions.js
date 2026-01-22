@@ -128,7 +128,9 @@ export const useAppActions = () => {
                 console.log('[AppActions] Saving imported lesson as new local lesson. Questions:', questionCount);
                 const savedLesson = await storageService.saveLesson(newLesson);
 
-                handleUpdateLocalLesson({ ...newLesson, driveFileId: savedLesson.driveFileId || savedLesson.id });
+                // CRITICAL: Do NOT set driveFileId to the local ID. 
+                // It must remain null/undefined until the SyncQueue successfully uploads it to Drive.
+                handleUpdateLocalLesson(newLesson);
                 showHeaderNotice(cost > 0 ? `Purchased "${lesson.title}"!` : `Added "${lesson.title}"!`);
             };
 

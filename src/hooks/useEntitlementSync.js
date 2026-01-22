@@ -103,8 +103,8 @@ export const useEntitlementSync = () => {
 
                     finalLesson.id = lessonId;
 
-                    // C. Save to Local Storage
-                    await storageService.saveLesson(finalLesson, user.uid);
+                    // C. Save to Local Storage (Auth-bound sync handled by Orchestrator)
+                    await storageService.saveLesson(finalLesson);
                     restoredCount++;
                     console.log(`[EntitlementSync] Restored ${lessonId} successfully.`);
                 } catch (err) {

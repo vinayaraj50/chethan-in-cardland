@@ -296,7 +296,10 @@ class StorageOrchestrator {
                 dataToSave = await encryptLesson(lessonToPersist, key);
             }
 
-            const result = await drive.saveLesson(this.#token, lessonToPersist, lessonToPersist.driveFileId, folderId, dataToSave);
+            // 2026 Resiliency Guard: Ensure we aren't using a corrupted ID (UID or local timestamp) as a Drive File ID.
+            // Google Drive IDs are typically ~33 character alphanumeric strings.
+            const driveId = (lessonToPersist.driveFileId && lessonToPersist.driveFileId.length > 20) ? lessonToPersist.driveFileId : null;
+            const result = await drive.saveLesson(this.#token, lessonToPersist, driveId, folderId, dataToSave);
 
             // Update local lesson with the new Drive ID and timestamps
             const store = getStore();
