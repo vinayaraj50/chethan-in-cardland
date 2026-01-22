@@ -146,7 +146,7 @@ const CoinPurchaseModal = ({ user, onClose, userCoins, onShare, onShowFeedback }
                                 padding: '4px 12px', borderRadius: '0 0 0 16px',
                                 fontWeight: '700', fontSize: '0.75rem', letterSpacing: '0.5px'
                             }}>
-                                MOST POPULAR
+                                LAUNCH OFFER
                             </div>
 
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.2rem', marginTop: '0.5rem' }}>

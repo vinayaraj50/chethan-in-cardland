@@ -1,173 +1,172 @@
 import React, { useState } from 'react';
-import CloseButton from '../common/CloseButton';
-import { Coins, CheckCircle, AlertTriangle } from 'lucide-react';
+import { X, Check } from 'lucide-react';
 
 const GrantCoinsModal = ({ user, isOpen, onClose, onGrant }) => {
-    const [amount, setAmount] = useState('50');
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
-    const [success, setSuccess] = useState(false);
+    const [amount, setAmount] = useState('');
+    const [reason, setReason] = useState('Manual Grant');
+    const [submitting, setSubmitting] = useState(false);
 
     if (!isOpen || !user) return null;
 
+    const quickOptions = [50, 200, 500];
+
     const handleSubmit = async (e) => {
         e.preventDefault();
-        const coins = parseInt(amount, 10);
+        if (!amount || amount <= 0) return;
 
-        if (isNaN(coins) || coins <= 0) {
-            setError("Please enter a valid positive number.");
-            return;
-        }
-
-        setLoading(true);
-        setError(null);
-
+        setSubmitting(true);
         try {
-            await onGrant(user, coins);
-            setSuccess(true);
-            setTimeout(() => {
-                onClose();
-                setSuccess(false);
-                setAmount('50');
-            }, 1500);
-        } catch (err) {
-            setError(err.message || "Failed to grant coins.");
+            await onGrant(user, parseInt(amount));
+            onClose();
+        } catch (error) {
+            console.error('Grant failed:', error);
+            // Error handling usually in parent via toast
         } finally {
-            setLoading(false);
+            setSubmitting(false);
+            setAmount('');
         }
     };
 
     return (
-        <div className="modal-overlay" style={{
-            position: 'fixed', top: 0, right: 0, bottom: 0, left: 0,
-            backdropFilter: 'blur(4px)', background: 'rgba(0,0,0,0.5)', zIndex: 3000,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
-        }}>
-            <div className="neo-flat" style={{
-                background: 'white',
-                padding: '2rem',
-                borderRadius: '16px',
-                width: '100%',
-                maxWidth: '400px',
-                position: 'relative',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '1.5rem',
-                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
-            }}>
+        <div style={styles.overlay} onClick={onClose}>
+            <div style={styles.modal} onClick={e => e.stopPropagation()}>
                 {/* Header */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div>
-                        <h2 style={{ fontSize: '1.25rem', fontWeight: '700', margin: 0 }}>Grant Coins</h2>
-                        <p style={{ margin: 0, fontSize: '0.9rem', color: '#64748b' }}>
-                            to <span style={{ fontWeight: '600', color: '#0f172a' }}>{user.displayName || user.email}</span>
-                        </p>
-                    </div>
-                    {!loading && <CloseButton onClick={onClose} />}
+                <div style={styles.header}>
+                    <h3 style={styles.title}>Grant Coins</h3>
+                    <button onClick={onClose} style={styles.closeBtn}>
+                        <X size={20} />
+                    </button>
                 </div>
 
-                {success ? (
-                    <div style={{
-                        padding: '2rem',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        textAlign: 'center',
-                        color: '#008060',
-                        gap: '1rem'
-                    }}>
-                        <CheckCircle size={48} />
-                        <div>
-                            <h3 style={{ margin: 0 }}>Success!</h3>
-                            <p style={{ margin: 0, opacity: 0.8 }}>Granted {amount} coins.</p>
-                        </div>
+                <div style={styles.body}>
+                    <p style={styles.userText}>
+                        To: <strong>{user.email}</strong>
+                    </p>
+
+                    {/* Quick Options */}
+                    <div style={styles.quickGrid}>
+                        {quickOptions.map(opt => (
+                            <button
+                                key={opt}
+                                type="button"
+                                onClick={() => setAmount(opt)}
+                                style={{
+                                    ...styles.optionBtn,
+                                    background: amount === opt ? '#e3f1df' : 'white',
+                                    borderColor: amount === opt ? '#008060' : '#e1e3e5',
+                                    color: amount === opt ? '#008060' : '#202223'
+                                }}
+                            >
+                                {opt}
+                            </button>
+                        ))}
                     </div>
-                ) : (
-                    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                        {/* Coin Input */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <label style={{ fontSize: '0.85rem', fontWeight: '600', color: '#475569' }}>Amount</label>
-                            <div style={{ position: 'relative' }}>
-                                <Coins size={20} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#f59e0b' }} />
-                                <input
-                                    type="number"
-                                    className="neo-input"
-                                    value={amount}
-                                    onChange={(e) => setAmount(e.target.value)}
-                                    placeholder="Enter amount"
-                                    disabled={loading}
-                                    style={{
-                                        width: '100%',
-                                        padding: '12px 12px 12px 40px',
-                                        fontSize: '1.1rem',
-                                        fontWeight: '600',
-                                        borderRadius: '8px',
-                                        border: '1px solid #e2e8f0',
-                                        outline: 'none'
-                                    }}
-                                    autoFocus
-                                />
-                            </div>
-                        </div>
 
-                        {error && (
-                            <div style={{
-                                padding: '0.75rem',
-                                background: '#fef2f2',
-                                color: '#ef4444',
-                                borderRadius: '8px',
-                                fontSize: '0.9rem',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.5rem'
-                            }}>
-                                <AlertTriangle size={16} />
-                                {error}
-                            </div>
-                        )}
+                    <form onSubmit={handleSubmit} style={styles.form}>
+                        <label style={styles.label}>
+                            Custom Amount
+                            <input
+                                type="number"
+                                min="1"
+                                value={amount}
+                                onChange={(e) => setAmount(e.target.value)}
+                                style={styles.input}
+                                placeholder="Enter coin amount..."
+                            />
+                        </label>
 
-                        {/* Actions */}
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+                        <div style={styles.actions}>
                             <button
                                 type="button"
                                 onClick={onClose}
-                                disabled={loading}
-                                style={{
-                                    padding: '0.75rem 1.5rem',
-                                    borderRadius: '8px',
-                                    border: 'none',
-                                    background: 'transparent',
-                                    color: '#64748b',
-                                    fontWeight: '600',
-                                    cursor: 'pointer'
-                                }}
+                                style={styles.cancelBtn}
+                                disabled={submitting}
                             >
                                 Cancel
                             </button>
                             <button
                                 type="submit"
-                                disabled={loading || !amount}
-                                className="primary-btn"
+                                disabled={!amount || submitting}
                                 style={{
-                                    padding: '0.75rem 2rem',
-                                    borderRadius: '8px',
-                                    border: 'none',
-                                    background: '#008060',
-                                    color: 'white',
-                                    fontWeight: '600',
-                                    cursor: loading ? 'wait' : 'pointer',
-                                    opacity: loading ? 0.7 : 1,
-                                    boxShadow: '0 4px 6px -1px rgba(0, 128, 96, 0.4)'
+                                    ...styles.submitBtn,
+                                    opacity: (!amount || submitting) ? 0.5 : 1,
+                                    cursor: (!amount || submitting) ? 'not-allowed' : 'pointer'
                                 }}
                             >
-                                {loading ? 'Granting...' : 'Grant Coins'}
+                                {submitting ? 'Granting...' : `Grant ${amount || '...'} Coins`}
                             </button>
                         </div>
                     </form>
-                )}
+                </div>
             </div>
         </div>
     );
+};
+
+const styles = {
+    overlay: {
+        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+        background: 'rgba(0, 0, 0, 0.5)', zIndex: 1000,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '1rem'
+    },
+    modal: {
+        background: 'white',
+        borderRadius: '8px',
+        width: '100%',
+        maxWidth: '400px',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+    },
+    header: {
+        padding: '1rem',
+        borderBottom: '1px solid #e1e3e5',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+    },
+    title: { margin: 0, fontSize: '1rem', fontWeight: 600 },
+    closeBtn: {
+        background: 'none', border: 'none', cursor: 'pointer', padding: '4px',
+        color: '#5c5f62', display: 'flex'
+    },
+    body: { padding: '1.5rem' },
+    userText: { marginTop: 0, marginBottom: '1.5rem', color: '#5c5f62' },
+    quickGrid: {
+        display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', marginBottom: '1.5rem'
+    },
+    optionBtn: {
+        padding: '0.75rem',
+        border: '1px solid #e1e3e5',
+        borderRadius: '4px',
+        fontWeight: 600,
+        cursor: 'pointer',
+        fontSize: '0.9rem',
+        transition: 'all 0.2s'
+    },
+    form: { display: 'flex', flexDirection: 'column', gap: '1.5rem' },
+    label: { display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.9rem', fontWeight: 500 },
+    input: {
+        padding: '0.75rem',
+        border: '1px solid #e1e3e5',
+        borderRadius: '4px',
+        fontSize: '1rem'
+    },
+    actions: { display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' },
+    cancelBtn: {
+        padding: '0.75rem 1rem',
+        background: 'white',
+        border: '1px solid #e1e3e5',
+        borderRadius: '4px',
+        fontWeight: 600,
+        cursor: 'pointer'
+    },
+    submitBtn: {
+        padding: '0.75rem 1rem',
+        background: '#008060', // Shopify Green
+        color: 'white',
+        border: 'none',
+        borderRadius: '4px',
+        fontWeight: 600,
+        boxShadow: '0 1px 0 rgba(0,0,0,0.05)'
+    }
 };
 
 export default GrantCoinsModal;

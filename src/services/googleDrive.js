@@ -203,8 +203,13 @@ export const mapDriveFileToLesson = (file) => {
 
 /**
  * Create or Update a Lesson.
+ * @param {string} token - OAuth token
+ * @param {object} lesson - Lesson object for metadata extraction
+ * @param {string|null} fileId - Optional Drive file ID for updates
+ * @param {string|null} folderId - Optional folder ID
+ * @param {string|object|null} content - Optional content to save (e.g., encrypted blob). If null, saves lesson as content.
  */
-export const saveLesson = async (token, lesson, fileId = null, folderId = null) => {
+export const saveLesson = async (token, lesson, fileId = null, folderId = null, content = null) => {
     // 2026 Strategy: Metadata Shadowing
     // These properties are stored in the Drive File metadata (appProperties)
     // allowing listLessonMetadata() to show progress without downloading/decrypting full JSON.
@@ -219,7 +224,9 @@ export const saveLesson = async (token, lesson, fileId = null, folderId = null) 
     };
 
     const fileName = `cic_lesson_${lesson.id}.json`;
-    return saveFile(token, fileName, lesson, fileId, 'application/json', folderId, metadata);
+    // If content is provided (e.g., encrypted blob), use it. Otherwise, use the lesson object itself.
+    const contentToSave = content !== null ? content : lesson;
+    return saveFile(token, fileName, contentToSave, fileId, 'application/json', folderId, metadata);
 };
 
 // Backward compatibility alias

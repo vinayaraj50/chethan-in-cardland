@@ -1,0 +1,15 @@
+{
+    "name": "functions",
+    "description": "Cloud Functions for Chethan in Cardland",
+    "version": "1.0.0",
+    "main": "index.js",
+    "engines": {
+        "node": "18"
+    },
+    "type": "module",
+    "dependencies": {
+        "firebase-admin": "^13.0.0",
+        "firebase-functions": "^6.0.0"
+    },
+    "private": true
+}

@@ -1,13 +1,39 @@
 /**
  * Phrases for the "well-wisher friend" persona.
- * Split into Mastered (success) and Retry (guidance) categories.
+ * Split into context-aware categories.
  */
 
-export const MASTERED_PHRASES = [
+export const FIRST_QUESTION_SUCCESS = [
+    "Off to a flying start!",
+    "Great beginning!",
+    "First one down, perfectly done!",
+    "Strong start!",
+    "Excellent opener!",
+    "That's how we start!",
+    "Right out of the gate - perfect!",
+    "Setting a great pace!",
+    "Boom! First one nailed!",
+    "You're ready for this!"
+];
+
+export const STREAK_SUCCESS = [
+    "You're on fire!",
+    "Unstoppable!",
+    "Look at you go!",
+    "Nothing can stop you now!",
+    "Incredible momentum!",
+    "You're crushing this!",
+    "Back-to-back brilliance!",
+    "Another one! Perfect!",
+    "You're in the zone!",
+    "Keeping the streak alive!"
+];
+
+// For general success when not first question or streak
+export const GENERIC_SUCCESS = [
     "Great job!",
     "Very good!",
     "Super!",
-    "You're on fire!",
     "Excellent work!",
     "Spot on!",
     "You've got this by heart!",
@@ -24,23 +50,19 @@ export const MASTERED_PHRASES = [
     "You nailed it!",
     "Outstanding!",
     "Way to go!",
-    "You're crushing this!",
     "Incredible focus!",
     "Gold star for you!",
     "You're making this look easy!",
     "Top notch!",
     "Simply superb!",
     "Bravo!",
-    "You're unstoppable!",
     "Pure genius!",
     "Love that confidence!",
     "Right on the money!",
     "You're a star student!",
     "Marvelous!",
     "High five!",
-    "You're getting so good at this!",
     "That's exactly right!",
-    "You're a master in the making!",
     "Spectacular!",
     "So proud of your progress!",
     "You're really shining today!",
@@ -49,22 +71,32 @@ export const MASTERED_PHRASES = [
     "Clear and confident - well done!",
     "Your hard work is paying off!",
     "Solid effort, perfect result!",
-    "Keep that momentum going!",
     "You're built for this!",
     "A-plus performance!",
-    "You're a knowledge wizard!",
     "Victory is yours!"
 ];
 
+export const PARTIAL_SUCCESS = [
+    "Almost there! A quick review will help.",
+    "Good effort! Just missed a detail.",
+    "On the right track, let's polish it.",
+    "Refining this will make it perfect.",
+    "You're getting close, keep going!",
+    "A little bit more practice on this one.",
+    "Not quite 100%, but good try!",
+    "Let's turn that 'almost' into 'perfect'.",
+    "Close! We'll nail it next time.",
+    "Good recall, just needs sharpening."
+];
+
 export const RETRY_PHRASES = [
+    "Every mistake is a step toward mastery. Reviewing now!",
     "Give it another careful read; we’ll revisit this question.",
     "Take your time and read it again — I’ll ask it once more.",
     "No worries! Let's try this one again in a bit.",
-    "Almost there! A quick review will help it stick.",
     "Let's keep this one in the loop for a little longer.",
     "Practice makes perfect! We'll come back to this.",
     "Don't lose heart, let's give it another look together.",
-    "Every mistake is a step toward mastery. Reviewing now!",
     "Slow and steady wins the race. Read it once more.",
     "I'll ask this again soon to help you remember.",
     "It's okay! Even the best need a second look sometimes.",
@@ -109,7 +141,31 @@ export const RETRY_PHRASES = [
     "Final check is coming soon. Give it a good read now!"
 ];
 
-export const getRandomPhrase = (category) => {
-    const list = category === 'mastered' ? MASTERED_PHRASES : RETRY_PHRASES;
+/**
+ * Returns a random phrase based on context.
+ * @param {Object} options
+ * @param {string} options.type - 'success' | 'partial' | 'retry'
+ * @param {boolean} options.isFirstQuestion - Is this the first question of the session?
+ * @param {number} options.streakCount - Current streak of 'success' answers
+ */
+export const getRandomPhrase = ({ type, isFirstQuestion = false, streakCount = 0 } = {}) => {
+    let list = [];
+
+    if (type === 'success') {
+        if (isFirstQuestion) {
+            list = FIRST_QUESTION_SUCCESS;
+        } else if (streakCount >= 3) {
+            // Mix streak phrases with generic ones to avoid repetition, but prioritize streak feel
+            list = Math.random() > 0.4 ? STREAK_SUCCESS : GENERIC_SUCCESS;
+        } else {
+            list = GENERIC_SUCCESS;
+        }
+    } else if (type === 'partial') {
+        list = PARTIAL_SUCCESS;
+    } else {
+        // Retry / Default
+        list = RETRY_PHRASES;
+    }
+
     return list[Math.floor(Math.random() * list.length)];
 };

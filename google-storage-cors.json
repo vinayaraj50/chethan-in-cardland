@@ -1,0 +1,26 @@
+[
+    {
+        "origin": [
+            "http://localhost:6160",
+            "http://localhost:6161",
+            "http://localhost:5173",
+            "https://chethan-in-cardland.web.app",
+            "https://mindcraft-admin.web.app"
+        ],
+        "method": [
+            "GET",
+            "HEAD",
+            "POST",
+            "DELETE",
+            "PUT"
+        ],
+        "maxAgeSeconds": 3600,
+        "responseHeader": [
+            "Content-Type",
+            "Access-Control-Allow-Origin",
+            "Authorization",
+            "X-Firebase-Storage-Version",
+            "x-goog-resumable"
+        ]
+    }
+]

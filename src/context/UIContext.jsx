@@ -111,7 +111,16 @@ export const UIProvider = ({ children }) => {
             {children}
             {/* Global Notification Rendered Here */}
             <AnimatePresence>
-
+                {toast && (
+                    <Toast
+                        key={toast.id}
+                        message={toast.message}
+                        type={toast.type}
+                        onUndo={toast.onUndo}
+                        duration={toast.duration}
+                        onClose={hideToast}
+                    />
+                )}
             </AnimatePresence>
 
 

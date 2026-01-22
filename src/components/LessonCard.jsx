@@ -1,7 +1,8 @@
 import React from 'react';
-import { Layers, Calendar, Star, Plus, Edit2, Coins, Trash2 } from 'lucide-react';
+import { Layers, Calendar, Star, Plus, Edit2, Coins, Trash2, Sparkles } from 'lucide-react';
 import { sanitizeLessonTitle, validateDataURI } from '../utils/securityUtils';
 import { ADMIN_EMAIL } from '../constants/config';
+import { getRelativeTimeStatus } from '../utils/dateUtils';
 
 const LessonCard = ({ lesson, onReview, onEdit, onImport, user, onDelete, showConfirm }) => {
     // SECURITY FIX (VULN-005): Sanitize lesson title before using in URL
@@ -149,8 +150,8 @@ const LessonCard = ({ lesson, onReview, onEdit, onImport, user, onDelete, showCo
                         style={{
                             flex: 1,
                             padding: '0.6rem',
-                            background: lesson.isOwned ? 'var(--neo-shadow-light)' : (lesson.cost > 0 ? '#f59e0b' : 'var(--accent-color)'),
-                            color: lesson.isOwned ? 'var(--text-color)' : 'white',
+                            background: lesson.isOwned ? '#16a34a' : (lesson.cost > 0 ? '#f59e0b' : 'var(--accent-color)'),
+                            color: 'white',
                             border: 'none',
                             fontSize: '0.85rem',
                             display: 'flex',
@@ -159,7 +160,7 @@ const LessonCard = ({ lesson, onReview, onEdit, onImport, user, onDelete, showCo
                             justifyContent: 'center',
                             borderRadius: '12px',
                             cursor: lesson.isOwned ? 'default' : 'pointer',
-                            opacity: lesson.isOwned ? 0.7 : 1
+                            opacity: lesson.isOwned ? 0.9 : 1
                         }}
                         onClick={(e) => {
                             e.stopPropagation();
@@ -180,19 +181,50 @@ const LessonCard = ({ lesson, onReview, onEdit, onImport, user, onDelete, showCo
                     </button>
                 )}
                 {!lesson.isPublic && (
-                    <div className="neo-flat" style={{
+                    <div style={{
                         display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '0.3rem',
-                        fontSize: '0.85rem',
-                        color: 'var(--accent-color)',
-                        padding: '6px 8px',
-                        borderRadius: '12px',
-                        minWidth: '110px',
-                        whiteSpace: 'nowrap'
+                        flexDirection: 'column',
+                        gap: '0.6rem',
+                        flex: 1,
+                        minWidth: 0
                     }}>
-                        <span style={{ fontWeight: '700' }}>Marks : {lesson.lastMarks !== undefined ? lesson.lastMarks : '—'}/{lesson.questions ? lesson.questions.length * 2 : (lesson.cards ? lesson.cards.length * 2 : 0)}</span>
+                        {lesson.lastMarks !== undefined ? (
+                            <div className="neo-flat" style={{
+                                padding: '6px 10px',
+                                borderRadius: '12px',
+                                textAlign: 'center',
+                                fontSize: '0.8rem',
+                                color: 'var(--accent-color)',
+                                fontWeight: '700'
+                            }}>
+                                Marks: {lesson.lastMarks}/{(lesson.questionCountAtLastReview || (lesson.questions?.length || lesson.cards?.length || 0)) * 2}
+                            </div>
+                        ) : lesson.lastSessionIndex !== undefined ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                <div className="neo-inset" style={{ height: '6px', width: '100%', borderRadius: '3px', overflow: 'hidden', padding: '0' }}>
+                                    <div style={{ height: '100%', width: `${(lesson.lastSessionIndex / (lesson.questions?.length || lesson.cards?.length || 1)) * 100}%`, background: 'var(--accent-color)' }}></div>
+                                </div>
+                                <button
+                                    className="neo-button"
+                                    style={{
+                                        width: '100%',
+                                        padding: '0.4rem',
+                                        fontSize: '0.75rem',
+                                        fontWeight: '800',
+                                        background: 'var(--accent-color)',
+                                        color: 'white',
+                                        border: 'none',
+                                        justifyContent: 'center'
+                                    }}
+                                >
+                                    RESUME
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="neo-flat" style={{ padding: '6px 10px', borderRadius: '12px', textAlign: 'center', fontSize: '0.8rem', opacity: 0.5, fontWeight: '700' }}>
+                                New
+                            </div>
+                        )}
                     </div>
                 )}
                 {!lesson.isPublic && (
@@ -200,19 +232,19 @@ const LessonCard = ({ lesson, onReview, onEdit, onImport, user, onDelete, showCo
                         display: 'flex',
                         flexDirection: 'column',
                         alignItems: 'flex-end',
+                        justifyContent: 'center',
                         gap: '0.1rem',
-                        fontSize: '0.75rem',
+                        fontSize: '0.7rem',
                         opacity: 0.8,
-                        minWidth: '100px',
+                        flexShrink: 0, // Don't let it shrink to nothing
                         textAlign: 'right'
                     }}>
                         {lesson.nextReview && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', opacity: 0.7 }}>
-                                <Calendar size={12} />
-                                <span>Review in</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '3px', opacity: 0.7 }}>
+                                <Calendar size={10} />
                             </div>
                         )}
-                        <div id={lesson.id === 'demo-lesson' ? 'next-review-indicator-demo-lesson' : undefined}>
+                        <div id={lesson.id === 'demo-lesson' ? 'next-review-indicator-demo-lesson' : undefined} style={{ whiteSpace: 'nowrap' }}>
                             <NextReviewDisplay nextReview={lesson.nextReview} />
                         </div>
                     </div>
@@ -228,26 +260,14 @@ const LessonCard = ({ lesson, onReview, onEdit, onImport, user, onDelete, showCo
 };
 
 const NextReviewDisplay = ({ nextReview }) => {
-    if (!nextReview) return <span>New</span>;
-
-    const calculateTimeLeft = () => {
-        const diff = new Date(nextReview) - new Date();
-        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-
-        if (days < 0 || (days === 0 && hours < 0)) {
-            const absDays = Math.abs(days);
-            return { text: `Due: ${absDays} days ago`, isDue: true };
-        }
-
-        if (days === 0) return { text: `${hours} hours`, isDue: false };
-        return { text: `${days} days`, isDue: false };
-    };
-
-    const { text, isDue } = calculateTimeLeft();
+    const { text, isOverdue, color } = getRelativeTimeStatus(nextReview);
 
     return (
-        <span style={{ color: isDue ? '#ef4444' : 'inherit', fontWeight: isDue ? '700' : '600', fontSize: isDue ? '0.85rem' : '0.9rem' }}>
+        <span style={{
+            color: color,
+            fontWeight: isOverdue ? '700' : '600',
+            fontSize: isOverdue ? '0.85rem' : '0.9rem'
+        }}>
             {text}
         </span>
     );

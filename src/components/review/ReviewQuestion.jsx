@@ -38,12 +38,12 @@ const SectionNoteCard = ({ noteText, onStart }) => {
                 overflow: 'hidden'
             }}>
                 <div style={{ flex: 1, width: '100%', display: 'flex', flexDirection: 'column', overflowY: 'auto', paddingRight: '0.25rem' }} className="custom-scrollbar">
-                    <div style={{ padding: '0.5rem 0.5rem 2rem' }}>
+                    <div style={{ padding: '0.5rem 0.5rem 2rem', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                         <div style={{
                             fontSize: '1.2rem',
                             lineHeight: '1.6',
                             color: 'var(--text-color)',
-                            textAlign: 'left',
+                            textAlign: 'center',
                         }}>
                             {renderNoteContent(noteText)}
                         </div>
@@ -86,7 +86,7 @@ const ReviewQuestion = ({
     setViewingImage,
     onRateMCQ,
     feedback,
-    showSectionNotes = true // Default to true for backwards compatibility
+    showSectionNotes = false // Default to false per 2026 requirements
 }) => {
     const [sectionNoteAcknowledged, setSectionNoteAcknowledged] = useState(false);
 
@@ -125,7 +125,7 @@ const ReviewQuestion = ({
                     overflow: 'hidden'
                 }}>
                     <div style={{ flex: 1, width: '100%', display: 'flex', flexDirection: 'column', overflowY: 'auto', paddingRight: '0.25rem' }} className="custom-scrollbar">
-                        <div style={{ padding: '0.5rem 0.5rem 2rem' }}>
+                        <div style={{ padding: '0.5rem 0.5rem 2rem', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                             {currentQuestion.question.image && (
                                 <img
                                     src={currentQuestion.question.image}
@@ -134,7 +134,7 @@ const ReviewQuestion = ({
                                     onClick={() => setViewingImage(currentQuestion.question.image)}
                                 />
                             )}
-                            <h2 style={{ fontSize: '1.3rem', fontWeight: '800', margin: 0, textAlign: 'left', lineHeight: '1.4' }}>
+                            <h2 style={{ fontSize: '1.3rem', fontWeight: '800', margin: 0, textAlign: 'center', lineHeight: '1.4' }}>
                                 {currentQuestion.question.text}
                             </h2>
                             {currentQuestion.question.audio && <div style={{ marginTop: '1rem' }}><AudioPlayer audioData={currentQuestion.question.audio} /></div>}
@@ -195,8 +195,8 @@ const ReviewQuestion = ({
                         position: 'absolute', width: '100%', height: '100%', backfaceVisibility: 'hidden',
                         display: 'flex', flexDirection: 'column', padding: '1.5rem', overflow: 'hidden'
                     }}>
-                        <div style={{ flex: 1, width: '100%', overflowY: 'auto', paddingRight: '0.25rem' }} className="custom-scrollbar">
-                            <div style={{ padding: '0.5rem 0.5rem 2rem' }}>
+                        <div style={{ flex: 1, width: '100%', overflowY: 'auto', paddingRight: '0.25rem', display: 'flex', flexDirection: 'column' }} className="custom-scrollbar">
+                            <div style={{ padding: '0.5rem 0.5rem 2rem', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                                 {currentQuestion && currentQuestion.question.image && (
                                     <img
                                         src={currentQuestion.question.image}
@@ -205,7 +205,7 @@ const ReviewQuestion = ({
                                         onClick={(e) => { e.stopPropagation(); setViewingImage(currentQuestion.question.image); }}
                                     />
                                 )}
-                                <h2 style={{ fontSize: '1.5rem', fontWeight: '800', textAlign: 'left', lineHeight: '1.4' }}>
+                                <h2 style={{ fontSize: '1.5rem', fontWeight: '800', textAlign: 'center', lineHeight: '1.4' }}>
                                     {currentQuestion ? currentQuestion.question.text : 'No more questions'}
                                 </h2>
                                 {currentQuestion && currentQuestion.question.audio && (
@@ -225,8 +225,8 @@ const ReviewQuestion = ({
                         position: 'absolute', width: '100%', height: '100%', backfaceVisibility: 'hidden', transform: 'rotateY(180deg)',
                         display: 'flex', flexDirection: 'column', padding: '1.5rem', overflow: 'hidden'
                     }}>
-                        <div style={{ flex: 1, width: '100%', overflowY: 'auto', paddingRight: '0.25rem' }} className="custom-scrollbar">
-                            <div style={{ padding: '0.5rem 0.5rem 2rem' }}>
+                        <div style={{ flex: 1, width: '100%', overflowY: 'auto', paddingRight: '0.25rem', display: 'flex', flexDirection: 'column' }} className="custom-scrollbar">
+                            <div style={{ padding: '0.5rem 0.5rem 2rem', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                                 {currentQuestion && currentQuestion.answer.image && (
                                     <img
                                         src={currentQuestion.answer.image}
@@ -235,7 +235,7 @@ const ReviewQuestion = ({
                                         onClick={(e) => { e.stopPropagation(); setViewingImage(currentQuestion.answer.image); }}
                                     />
                                 )}
-                                <h2 style={{ fontSize: '1.6rem', color: 'var(--accent-color)', fontWeight: '800', textAlign: 'left', lineHeight: '1.4' }}>
+                                <h2 style={{ fontSize: '1.6rem', color: 'var(--accent-color)', fontWeight: '800', textAlign: 'center', lineHeight: '1.4' }}>
                                     {currentQuestion ? currentQuestion.answer.text : ''}
                                 </h2>
                                 {currentQuestion && currentQuestion.answer.audio && (

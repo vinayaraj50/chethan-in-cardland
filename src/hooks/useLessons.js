@@ -17,16 +17,10 @@ export const useLessons = (user, hasDrive, showAlert) => {
     const pendingUpdates = useRef([]);
     const batchIntervalRef = useRef(null);
 
-    // Synchronize strategy
-    useEffect(() => {
-        // 2026 Strategy: Only enable Drive if we have an explicit token.
-        // On refresh, we might have 'hasDrive' true from the UI/IdentityState,
-        // but 'user.token' might be null until ensureDriveAccess completes.
-        // We set the access to true if we expect drive, but pass the token as well.
-        storageService.setDriveAccess(hasDrive, user?.token);
-    }, [hasDrive, user?.token]);
 
-    const handleUpdateLocalLesson = useCallback((updated) => {
+
+    const handleUpdateLocalLesson = useCallback(async (updated) => {
+        // 1. Optimistic UI Update
         setLessons(prev => {
             const index = prev.findIndex(s => s.id === updated.id);
             if (index >= 0) {
@@ -36,7 +30,15 @@ export const useLessons = (user, hasDrive, showAlert) => {
             }
             return [updated, ...prev];
         });
-    }, []);
+
+        // 2. Persist to Storage (Critical Fix)
+        try {
+            await storageService.saveLesson(updated);
+        } catch (e) {
+            console.error('[Lessons] Failed to persist update:', e);
+            showAlert?.('Auto-save failed', 'error');
+        }
+    }, [showAlert]);
 
     const fetchPublicLessons = useCallback(async () => {
         // Legacy: Manual fetch is now a no-op or just re-triggers a local check if we wanted, 
@@ -107,8 +109,14 @@ export const useLessons = (user, hasDrive, showAlert) => {
             const metadata = await storageService.listLessons();
 
             // Filter out existing DEMO_LESSON to avoid double rendering
+            // Handle Demo Lesson Persistence:
+            // If the user modified the demo (progress/marks), it will be in metadata with an ID.
+            // We prefer the persisted version over the static default, but MUST merge questions.
+            const demoFromStorage = metadata.find(m => m.id === DEMO_LESSON.id);
+            const demoToUse = demoFromStorage ? { ...DEMO_LESSON, ...demoFromStorage } : DEMO_LESSON;
+
             const userLessons = metadata.filter(m => m.id !== DEMO_LESSON.id);
-            setLessons([DEMO_LESSON, ...userLessons]);
+            setLessons([demoToUse, ...userLessons]);
             setLoading(false);
 
             // Lazy fetch full contents
@@ -122,7 +130,10 @@ export const useLessons = (user, hasDrive, showAlert) => {
                         const next = [...prev];
                         updates.forEach(upd => {
                             const idx = next.findIndex(s => s.id === upd.id);
-                            if (idx >= 0) next[idx] = { ...next[idx], ...upd, loading: false };
+                            if (idx >= 0) {
+                                // Merge content into metadata, ensuring we don't lose existing fields
+                                next[idx] = { ...next[idx], ...upd, loading: false };
+                            }
                         });
                         return next;
                     });
@@ -166,6 +177,20 @@ export const useLessons = (user, hasDrive, showAlert) => {
             setLoading(false);
         }
     }, [user]);
+
+    // Synchronize strategy & Auto-Fetch (Moved here to access fetchLessons)
+    useEffect(() => {
+        // 2026 Strategy: Only enable Drive if we have an explicit token.
+        // On refresh, we might have 'hasDrive' true from the UI/IdentityState,
+        // but 'user.token' might be null until ensureDriveAccess completes.
+        // We set the access to true if we expect drive, but pass the token as well.
+        storageService.setDriveAccess(hasDrive, user?.token);
+
+        if (hasDrive && user?.token && user) {
+            console.log('[Lessons] Drive token active. Syncing My Lessons...');
+            fetchLessons(true);
+        }
+    }, [hasDrive, user?.token, user, fetchLessons]);
     const deleteLesson = useCallback(async (lesson) => {
         if (!lesson) return;
         setLoading(true);
@@ -186,6 +211,7 @@ export const useLessons = (user, hasDrive, showAlert) => {
 
         } catch (e) {
             console.error(e);
+            throw e;
         } finally {
             setLoading(false);
         }

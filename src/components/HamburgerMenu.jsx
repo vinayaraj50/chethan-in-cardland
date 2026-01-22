@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import CloseButton from './common/CloseButton';
-import { X, LogOut, Trash2, Sun, Moon, Volume2, VolumeX, MessageCircle, Settings, User, ChevronDown, MessageSquare, ExternalLink, Users, Sparkles } from 'lucide-react';
+import { X, LogOut, Trash2, Sun, Moon, Volume2, VolumeX, MessageCircle, Settings, User, ChevronDown, MessageSquare, ExternalLink, Users, Sparkles, RotateCcw, Eye, EyeOff } from 'lucide-react';
 import { ADMIN_EMAIL } from '../constants/config';
 
 const HamburgerMenu = ({ user, theme, onToggleTheme, soundsEnabled, onToggleSounds, onShowFeedback, onClose, onLogout, onLogin,
@@ -8,6 +8,7 @@ const HamburgerMenu = ({ user, theme, onToggleTheme, soundsEnabled, onToggleSoun
     onShowAdminPanel,
     onShowReferral,
     onShowTour,
+    onRestorePurchases,
     appVersion
 }) => {
 
@@ -123,11 +124,11 @@ const HamburgerMenu = ({ user, theme, onToggleTheme, soundsEnabled, onToggleSoun
                 {/* Sponsor Button */}
 
 
-                {/* Eye Safe Toggle */}
+                {/* Eye Care Toggle */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>{theme === 'dark' ? 'Eye Safe On' : 'Eye Safe Off'}</span>
+                    <span>{theme === 'dark' ? 'Eye Care On' : 'Eye Care Off'}</span>
                     <button className={`neo-button icon-btn ${theme === 'dark' ? 'neo-glow-blue' : ''}`} onClick={onToggleTheme}>
-                        {theme === 'dark' ? <Moon size={20} /> : <Moon size={20} />}
+                        {theme === 'dark' ? <Eye size={20} /> : <EyeOff size={20} />}
                     </button>
                 </div>
 
@@ -160,6 +161,9 @@ const HamburgerMenu = ({ user, theme, onToggleTheme, soundsEnabled, onToggleSoun
                         <>
                             <button className="neo-button" style={{ width: '100%', color: '#8b5cf6' }} onClick={onShowTour}>
                                 <Sparkles size={18} /> Beginner's Guide
+                            </button>
+                            <button className="neo-button" style={{ width: '100%', color: 'var(--accent-color)' }} onClick={() => { onClose(); onRestorePurchases(); }}>
+                                <RotateCcw size={18} /> Restore Purchased
                             </button>
                             <button className="neo-button" style={{ width: '100%' }} onClick={onLogout}>
                                 <LogOut size={18} /> Logout

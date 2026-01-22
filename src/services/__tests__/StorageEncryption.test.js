@@ -5,8 +5,14 @@ import { identityService } from '../googleAuth';
 import * as cryptoUtils from '../../utils/lessonCrypto';
 
 // Mock dependencies
+// Mock dependencies
 vi.mock('../googleDrive');
-vi.mock('../googleAuth');
+vi.mock('../googleAuth', () => ({
+    identityService: {
+        get uid() { return 'user_123'; },
+        ensureDriveAccess: vi.fn(),
+    }
+}));
 vi.mock('../../utils/lessonCrypto');
 
 describe('StorageOrchestrator Encryption/Decryption Flow', () => {
@@ -21,13 +27,8 @@ describe('StorageOrchestrator Encryption/Decryption Flow', () => {
     beforeEach(() => {
         vi.clearAllMocks();
 
-        // Setup Identity
-        try {
-            Object.defineProperty(identityService, 'uid', {
-                get: vi.fn(() => MOCK_UID),
-                configurable: true
-            });
-        } catch (e) { }
+        // Setup Identity (Mocked in factory)
+
 
         // Setup Crypto
         vi.mocked(cryptoUtils.deriveUserKey).mockResolvedValue(MOCK_KEY);
@@ -92,20 +93,28 @@ describe('StorageOrchestrator Encryption/Decryption Flow', () => {
     });
 
     test('saveLesson encrypts data before sending to Drive', async () => {
+        vi.useFakeTimers();
         const lesson = { id: '1', title: 'Top Secret' };
 
         vi.mocked(drive.saveLesson).mockResolvedValue({ id: 'new_id' });
 
         await storageService.saveLesson(lesson);
 
+        // Trigger the SyncQueue debounce
+        vi.advanceTimersByTime(3000);
+        // Flush microtasks
+        for (let i = 0; i < 20; i++) await Promise.resolve();
+
         expect(cryptoUtils.deriveUserKey).toHaveBeenCalledWith(MOCK_UID);
         expect(cryptoUtils.encryptLesson).toHaveBeenCalledWith(expect.objectContaining(lesson), MOCK_KEY);
 
         expect(drive.saveLesson).toHaveBeenCalledWith(
             'mock_token',
-            ENCRYPTED_BLOB,
-            undefined, // fileId is undefined in lesson object
-            null // folderId default is null
+            expect.objectContaining(lesson),
+            undefined, // fileId
+            null, // folderId
+            ENCRYPTED_BLOB // content
         );
+        vi.useRealTimers();
     });
 });

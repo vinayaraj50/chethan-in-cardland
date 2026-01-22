@@ -7,6 +7,7 @@ import { storage } from './utils/storage';
 import { useUserProfile } from './hooks/useUserProfile';
 import { useNavigationGuard } from './hooks/useNavigationGuard';
 import { useTour, TourProvider } from './components/TourContext';
+import { useEntitlementSync } from './hooks/useEntitlementSync';
 
 // Components
 import Home from './pages/Home';
@@ -74,6 +75,9 @@ const AppContent = () => {
         handleEditLesson,
         handleReviewLaunch
     } = useAppActions();
+
+    // Entitlement Sync - Auto-restore purchased lessons if missing locally
+    const { performSync: handleRestorePurchases } = useEntitlementSync();
 
     const isGlobalLoading = loading || hookLoading;
 
@@ -174,7 +178,19 @@ const AppContent = () => {
 
     const sortedLessons = useMemo(() => {
         let filtered = filterLabel ? lessons.filter(s => s.label === filterLabel) : lessons;
-        if (searchQuery.trim()) filtered = filtered.filter(s => s.title.toLowerCase().includes(searchQuery.toLowerCase()));
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase().trim();
+            const isNumberedSearch = /^\d+\.$/.test(query);
+
+            filtered = filtered.filter(s => {
+                const title = (s.title || '').toLowerCase();
+                if (isNumberedSearch) {
+                    const regex = new RegExp(`(^|\\s)${query.replace('.', '\\.')}(\\s|$)`);
+                    return regex.test(title);
+                }
+                return title.includes(query);
+            });
+        }
 
         return [...filtered].sort((a, b) => {
             if (isTourActive) {
@@ -269,6 +285,7 @@ const AppContent = () => {
                 showNotification={showNotification}
                 setUserProfile={setUserProfile}
                 refreshProfile={reloadProfile}
+                onRestorePurchases={() => handleRestorePurchases(true)}
             />
 
             <FeatureTour

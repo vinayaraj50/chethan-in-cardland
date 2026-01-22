@@ -10,6 +10,12 @@ export default defineConfig({
     strictPort: true,
     // NOTE: COOP/COEP headers removed for Firebase Auth compatibility.
     // signInWithPopup requires cross-origin popup access to accounts.google.com
-    // which is blocked by any COOP policy other than 'unsafe-none' (default).
+    proxy: {
+      '/firebase-proxy': {
+        target: 'https://firebasestorage.googleapis.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/firebase-proxy/, '')
+      }
+    }
   },
 })

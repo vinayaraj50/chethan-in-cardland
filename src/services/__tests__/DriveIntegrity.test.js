@@ -72,6 +72,8 @@ describe('Drive Integrity', () => {
     });
 
     it('should NOT delete questions when updating only metadata (Smart Merge)', async () => {
+        vi.useFakeTimers();
+
         const fullLesson = {
             id: 'lesson-1',
             title: 'Full Lesson',
@@ -80,6 +82,10 @@ describe('Drive Integrity', () => {
 
         // 1. Save the full lesson first
         await storageService.saveLesson(fullLesson);
+        vi.advanceTimersByTime(3000); // Trigger debounce
+
+        // Flush microtasks to allow async timeout callback to complete
+        for (let i = 0; i < 20; i++) await Promise.resolve();
 
         // 2. Simulate a progress update (stub)
         const progressUpdate = {
@@ -90,6 +96,8 @@ describe('Drive Integrity', () => {
 
         // 3. Save the update
         await storageService.saveLesson(progressUpdate);
+        vi.advanceTimersByTime(3000); // Trigger debounce
+        for (let i = 0; i < 20; i++) await Promise.resolve();
 
         // 4. Verify that the Drive save included the questions (from the merge)
         const lastDriveCall = [...mocks.mockDriveSave.mock.calls].reverse().find(call => call[1].id === 'lesson-1');
@@ -99,5 +107,7 @@ describe('Drive Integrity', () => {
         expect(dataSentToDrive.questions).toBeDefined();
         expect(dataSentToDrive.questions.length).toBe(1);
         expect(dataSentToDrive.lastMarks).toBe(10);
+
+        vi.useRealTimers();
     });
 });

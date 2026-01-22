@@ -40,117 +40,110 @@ export const useAppActions = () => {
     const { queuePostTourEvent, endTour } = useTour();
 
     // Helper to execute the actual import/purchase after checks/confirms
-    const processImport = async (lesson, cost, userProfile, handleUpdateCoins) => { // Added userProfile to signature
+    // 2026 Standard: Optimistic UI with Rollback Pattern
+    const processImport = async (lesson, cost, userProfile, handleUpdateCoins) => {
+        const originalCoins = userProfile?.coins || 0;
+
+        // 1. OPTIMISTIC UI: Update coins INSTANTLY for snappy feedback
+        if (cost > 0 && handleUpdateCoins) {
+            handleUpdateCoins(Math.max(0, originalCoins - cost));
+        }
+
         setHeaderLoading(true);
+
+        // 2. Timeout Protection: No operation should take > 15s
+        const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Operation timed out. Please try again.')), 15000)
+        );
+
         try {
-            // 1. Atomic Server-Side Purchase (Entitlement Grant)
-            // We do this BEFORE fetching content to ensure server allows decryption
-            if (cost > 0) {
-                if (!user?.uid) throw new Error("User must be logged in to purchase.");
+            const importOperation = async () => {
+                // Authoritative Entitlement Record (Firestore)
+                if (!user?.uid) throw new Error("User must be logged in to add lessons.");
+                console.log(`[AppActions] Recording ownership for "${lesson.title}" (${cost} coins)`);
+                await userService.purchaseLesson(user.uid, lesson.id, cost, lesson.title);
+                console.log('[AppActions] Entitlement recorded in Cloud Ledger.');
 
-                console.log('[AppActions] Initiating purchase transaction for:', lesson.title);
-                // We use the ID that the server recognizes (lessonId or storagePath or id)
-                // Typically matches the document ID in 'lessons' collection or the file ID.
-                // Should match what DECRYPTION_API expects.
-                const purchaseId = lesson.id;
+                let lessonToSave = { ...lesson };
+                console.log('[AppActions] Starting import for:', lesson.title);
 
-                await userService.purchaseLesson(user.uid, purchaseId, cost);
-                console.log('[AppActions] Purchase successful. Entitlement granted.');
-            }
+                const questions = lessonToSave.questions || lessonToSave.cards || [];
 
-            let lessonToSave = { ...lesson };
-            console.log('[AppActions] Starting import for:', lesson.title);
+                if (lessonToSave.isPublic && questions.length === 0) {
+                    const { getPublicFileContent } = await import('../services/publicDrive');
+                    const pathOrId = lessonToSave.storagePath || lessonToSave.driveFileId || lessonToSave.id;
+                    console.log('[AppActions] Fetching full content from:', pathOrId);
 
-            const questions = lessonToSave.questions || lessonToSave.cards || [];
+                    const fullContent = await getPublicFileContent(pathOrId);
 
-            if (lessonToSave.isPublic && questions.length === 0) {
-                const { getPublicFileContent } = await import('../services/publicDrive');
-                // FIX: Prioritize storagePath (Firestore Source of Truth) over legacy IDs
-                const pathOrId = lessonToSave.storagePath || lessonToSave.driveFileId || lessonToSave.id;
-                console.log('[AppActions] Fetching full content from:', pathOrId);
+                    if (fullContent) {
+                        let contentObj = null;
 
-                // Note: Content is fetched as encrypted blob. Decryption MUST happen on server.
-                const fullContent = await getPublicFileContent(pathOrId);
+                        if (typeof fullContent === 'string') {
+                            const { decryptionService } = await import('../services/decryptionService');
+                            console.log('[AppActions] Requesting server-side decryption...');
 
-                if (fullContent) {
-                    let contentObj = null;
+                            const idToken = await auth.currentUser?.getIdToken();
+                            if (!idToken) {
+                                throw new Error("User must be authenticated to decrypt lessons.");
+                            }
 
-                    if (typeof fullContent === 'string') {
-                        // STRICT SECURITY COMPLIANCE: 
-                        // Client must NEVER decrypt public content locally using a shared key.
-                        // We must send this blob to the backend for decryption.
-                        const { decryptionService } = await import('../services/decryptionService');
-                        console.log('[AppActions] Requesting server-side decryption...');
-
-                        const idToken = await auth.currentUser?.getIdToken();
-                        if (!idToken) {
-                            console.error('[AppActions] Authentication Check Failed: auth.currentUser is null. Please refresh the page or sign in again.');
-                            throw new Error("User must be authenticated to decrypt lessons.");
+                            const lessonIdForServer = lessonToSave.lessonId || lessonToSave.id;
+                            const rawDecrypted = await decryptionService.decryptPublicLesson(fullContent, lessonIdForServer, idToken);
+                            contentObj = normalizeLessonContent(rawDecrypted);
+                            console.log('[AppActions] Server decryption successful. Normalized questions:', contentObj.questions?.length);
+                        } else {
+                            contentObj = fullContent;
                         }
 
-                        // IMPORTANT: Send the lessonId field (matches encrypted blob), not the Firestore document ID
-                        const lessonIdForServer = lessonToSave.lessonId || lessonToSave.id;
-                        const rawDecrypted = await decryptionService.decryptPublicLesson(fullContent, lessonIdForServer, idToken);
+                        lessonToSave = {
+                            ...lessonToSave,
+                            ...contentObj,
+                            isPublic: true
+                        };
+                        const importedQuestions = lessonToSave.questions || lessonToSave.cards || [];
+                        console.log('[AppActions] Merged content. Questions count:', importedQuestions.length);
 
-                        // CRITICAL: Normalize decrypted content from new schema to internal format
-                        contentObj = normalizeLessonContent(rawDecrypted);
-
-                        console.log('[AppActions] Server decryption successful. Normalized questions:', contentObj.questions?.length);
-
+                        if (importedQuestions.length === 0) {
+                            throw new Error('Imported lesson contains no questions.');
+                        }
                     } else {
-                        contentObj = fullContent;
+                        throw new Error('Could not fetch lesson questions for import.');
                     }
-
-                    lessonToSave = {
-                        ...lessonToSave,
-                        ...contentObj,
-                        isPublic: true
-                    };
-                    const importedQuestions = lessonToSave.questions || lessonToSave.cards || [];
-                    console.log('[AppActions] Merged content. Questions count:', importedQuestions.length);
-
-                    if (importedQuestions.length === 0) {
-                        throw new Error('Imported lesson contains no questions.');
-                    }
-                } else {
-                    throw new Error('Could not fetch lesson questions for import.');
                 }
-            }
 
-            const activeQuestions = lessonToSave.questions || lessonToSave.cards || [];
-            const questionCount = activeQuestions.length;
-            const newLesson = {
-                ...lessonToSave,
-                id: Date.now().toString(),
-                driveFileId: null,
-                isPublic: false,
-                source: 'local', // Explicitly set as local
-                isLocal: true,
-                cost: 0,
-                questionCount: questionCount
+                const activeQuestions = lessonToSave.questions || lessonToSave.cards || [];
+                const questionCount = activeQuestions.length;
+                const newLesson = {
+                    ...lessonToSave,
+                    id: Date.now().toString(),
+                    driveFileId: null,
+                    isPublic: false,
+                    source: 'local',
+                    isLocal: true,
+                    cost: 0,
+                    questionCount: questionCount
+                };
+
+                console.log('[AppActions] Saving imported lesson as new local lesson. Questions:', questionCount);
+                const savedLesson = await storageService.saveLesson(newLesson);
+
+                handleUpdateLocalLesson({ ...newLesson, driveFileId: savedLesson.driveFileId || savedLesson.id });
+                showHeaderNotice(cost > 0 ? `Purchased "${lesson.title}"!` : `Added "${lesson.title}"!`);
             };
 
-            console.log('[AppActions] Saving imported lesson as new local lesson. Questions:', questionCount);
-            const savedLesson = await storageService.saveLesson(newLesson);
-
-            // Sync local coin state from server source of truth (now that purchase is done)
-            if (cost > 0 && handleUpdateCoins) {
-                // We just call the updater with the new calculated value to keeps UI snappy
-                // But ideally we should re-sync profile. 
-                // For now, consistent subtraction is fine.
-                handleUpdateCoins((userProfile?.coins || 0) - cost);
-            }
-
-            handleUpdateLocalLesson({ ...newLesson, driveFileId: savedLesson.driveFileId || savedLesson.id });
-            showHeaderNotice(cost > 0 ? `Purchased "${lesson.title}"!` : `Added "${lesson.title}"!`);
+            // Race against timeout
+            await Promise.race([importOperation(), timeoutPromise]);
 
         } catch (error) {
             console.error('[AppActions] Import/Purchase failed:', error);
+
+            // 3. ROLLBACK: Restore original coins on failure
+            if (cost > 0 && handleUpdateCoins) {
+                handleUpdateCoins(originalCoins);
+            }
+
             showNotification('alert', `Operation failed: ${error.message}`);
-            // If purchase succeeded but save failed, user is charged but no content.
-            // This is an edge case. In a real app we'd have a 'Restore Purchases' button
-            // or the server would check 'purchasedLessons' on next attempt and skip charge.
-            // Our purchaseLesson handles idempotency, so it's safe to retry.
         } finally {
             setHeaderLoading(false);
         }
@@ -196,18 +189,28 @@ export const useAppActions = () => {
         showToast({
             message: `Deleted "${lesson.title}"`,
             type: 'undo',
-            duration: 4000,
+            duration: 10000,
             onUndo: () => {
                 isUndone = true;
-                // Restore logic - simplified append. 
-                // For a perfect implementation we'd need the index, but appending is acceptable for "Undo".
-                // Ideally, we re-fetch or keep index, but let's just push back.
                 setLessons(prev => [...prev, lesson]);
             },
-            onClose: () => {
-                // If not undone, commit the delete
+            onClose: async () => {
                 if (!isUndone) {
-                    apiHookDelete(lesson);
+                    try {
+                        // 1. Delete local file
+                        await apiHookDelete(lesson);
+
+                        // 2. Mark as archived in Firestore (preserves entitlement)
+                        if (user?.uid && lesson.id) {
+                            await userService.archiveLesson(user.uid, lesson.id);
+                            console.log(`[AppActions] Lesson ${lesson.id} archived in Firestore.`);
+                        }
+                    } catch (err) {
+                        console.error('Delete failed:', err);
+                        // If delete physically fails, restore UI and alert (Fail-Safe)
+                        setLessons(prev => [...prev, lesson]);
+                        showNotification('alert', `Failed to delete: ${err.message}`);
+                    }
                 }
             }
         });
@@ -216,7 +219,7 @@ export const useAppActions = () => {
         toggleModal('showAddModal', false);
         setReviewLesson(null);
         setNoteLesson(null);
-    }, [apiHookDelete, toggleModal, setReviewLesson, setNoteLesson, setLessons, showToast]);
+    }, [user, apiHookDelete, toggleModal, setReviewLesson, setNoteLesson, setLessons, showToast, showNotification]);
 
     const handleDeleteAllData = useCallback(async (allowAppExit) => {
         if (!user) return;

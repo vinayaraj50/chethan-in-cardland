@@ -45,10 +45,18 @@ export const decryptionService = {
             });
 
             if (!response.ok) {
-                if (response.status === 401) throw new Error('Unauthorized: Server rejected decryption request.');
-                if (response.status === 403) throw new Error('Forbidden: You do not have permission to decrypt this lesson.');
+                let serverError = response.statusText;
+                try {
+                    const errorJson = await response.json();
+                    serverError = errorJson.error || errorJson.message || serverError;
+                } catch (e) {
+                    // Fallback to status text
+                }
+
+                if (response.status === 401) throw new Error(`Unauthorized: ${serverError}`);
+                if (response.status === 403) throw new Error(`Forbidden: ${serverError}`);
                 if (response.status === 429) throw new Error('Rate Limit Exceeded. Please try again later.');
-                throw new Error(`Decryption Server Error: ${response.statusText}`);
+                throw new Error(`Decryption Server Error: ${serverError}`);
             }
 
             const result = await response.json();

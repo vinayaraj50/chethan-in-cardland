@@ -3,6 +3,7 @@ import confetti from 'canvas-confetti';
 import { playTada, playSwoosh, playTing, playCompletion, playDopamine, playPartial } from '../utils/soundEffects';
 // 2026 Note: Drive interaction now managed via storageService
 import { getRandomPhrase } from '../constants/phrases';
+import { userService } from '../services/userService';
 
 export const useReviewSession = ({
     lesson,
@@ -17,7 +18,7 @@ export const useReviewSession = ({
     const hasPreviousRatings = questions.some(q => q.lastRating !== undefined) || false;
 
     // Check if there's an interrupted session (has lastSessionIndex saved)
-    const hasInterruptedSession = lesson.lastSessionIndex !== undefined && lesson.lastSessionIndex > 0;
+    const hasInterruptedSession = lesson.lastSessionIndex !== undefined;
 
     // State - Always show start screen now for options
     const [showStartScreen, setShowStartScreen] = useState(true);
@@ -37,7 +38,7 @@ export const useReviewSession = ({
 
     // Section Notes Toggle (persisted preference)
     const [showSectionNotes, setShowSectionNotes] = useState(
-        lesson.showSectionNotes !== undefined ? lesson.showSectionNotes : true
+        lesson.showSectionNotes !== undefined ? lesson.showSectionNotes : false
     );
 
     // Audio Recording State
@@ -51,6 +52,30 @@ export const useReviewSession = ({
     // Ref to track if progress was saved on this session close
     const progressSavedRef = useRef(false);
 
+    // Refs to hold latest state for unmount saving (Prevent Recursion)
+    const latestStateRef = useRef({
+        lesson,
+        firstRatings,
+        reviewedCountSession,
+        currentIndex,
+        rating,
+        showSectionNotes,
+        onUpdate
+    });
+
+    // Update refs on change
+    useEffect(() => {
+        latestStateRef.current = {
+            lesson,
+            firstRatings,
+            reviewedCountSession,
+            currentIndex,
+            rating,
+            showSectionNotes,
+            onUpdate
+        };
+    }, [lesson, firstRatings, reviewedCountSession, currentIndex, rating, showSectionNotes, onUpdate]);
+
     // Derived State
     const currentQuestion = studyQuestions[currentIndex];
 
@@ -61,14 +86,15 @@ export const useReviewSession = ({
     // Save partial progress function
     const savePartialProgress = useCallback(() => {
         // Only save if at least 1 question was reviewed and lesson is owned (not public)
-        if (reviewedCountSession < 1 || lesson.isPublic || progressSavedRef.current) {
+        if (reviewedCountSession < 1 || lesson.isPublic) {
             return;
         }
 
-        progressSavedRef.current = true;
+        // If current question is flipped/rated, we should resume at the next index
+        const resumeIndex = rating !== 0 ? currentIndex + 1 : currentIndex;
 
         // Update question ratings from this session
-        const updatedQuestions = lessonQuestions.map((q) => {
+        const updatedQuestions = (lesson.questions || lesson.cards || []).map((q) => {
             const qId = q.id || q.question?.text;
             const fRating = firstRatings[qId];
             if (fRating !== undefined) {
@@ -81,7 +107,7 @@ export const useReviewSession = ({
             ...lesson,
             questions: updatedQuestions,
             // Save session index for potential resume
-            lastSessionIndex: currentIndex,
+            lastSessionIndex: resumeIndex,
             // Mark as partially reviewed
             partialReviewDate: new Date().toISOString(),
             // Persist section notes preference
@@ -89,11 +115,14 @@ export const useReviewSession = ({
         };
 
         onUpdate(updatedLesson);
-    }, [lesson, lessonQuestions, firstRatings, reviewedCountSession, currentIndex, showSectionNotes, onUpdate]);
+    }, [lesson, firstRatings, reviewedCountSession, currentIndex, rating, showSectionNotes, onUpdate]);
 
     // Handle close with progress save
     const handleCloseWithSave = useCallback(() => {
-        savePartialProgress();
+        if (!progressSavedRef.current) {
+            savePartialProgress();
+            progressSavedRef.current = true;
+        }
         onClose();
     }, [savePartialProgress, onClose]);
 
@@ -113,24 +142,64 @@ export const useReviewSession = ({
         };
     }, []);
 
-    // Effect for saving on browser/tab close (beforeunload)
+    // Effect for saving on browser/tab close (beforeunload) and component unmount
+    // Uses refs to avoid infinite recursion/re-initialization loops
     useEffect(() => {
-        const handleBeforeUnload = () => {
-            // Attempt to save - browser may not complete the request, but we try
-            if (reviewedCountSession >= 1 && !lesson.isPublic && !progressSavedRef.current) {
-                savePartialProgress();
+        const performSave = () => {
+            const state = latestStateRef.current;
+
+            // Only save if at least 1 question was reviewed and lesson is owned (not public)
+            // And prevent double save if handleCloseWithSave was already called
+            if (state.reviewedCountSession >= 1 && !state.lesson.isPublic && !progressSavedRef.current) {
+                const resumeIndex = state.rating !== 0 ? state.currentIndex + 1 : state.currentIndex;
+
+                const updatedQuestions = (state.lesson.questions || state.lesson.cards || []).map((q) => {
+                    const qId = q.id || q.question?.text;
+                    const fRating = state.firstRatings[qId];
+                    if (fRating !== undefined) {
+                        return { ...q, lastRating: fRating };
+                    }
+                    return q;
+                });
+
+                const updatedLesson = {
+                    ...state.lesson,
+                    questions: updatedQuestions,
+                    // Save session index for potential resume
+                    lastSessionIndex: resumeIndex,
+                    // Mark as partially reviewed
+                    partialReviewDate: new Date().toISOString(),
+                    // Persist section notes preference
+                    showSectionNotes: state.showSectionNotes
+                };
+
+                // Call the updater
+                if (state.onUpdate) {
+                    state.onUpdate(updatedLesson);
+                }
+                progressSavedRef.current = true;
+            }
+        };
+
+        const handleBeforeUnload = (e) => {
+            performSave();
+
+            // If we have pending syncs or are in the middle of a session with unrated cards,
+            // ask for confirmation to prevent progress loss.
+            if (storageService.hasPendingSyncs?.() || (latestStateRef.current.reviewedCountSession > 0 && !progressSavedRef.current)) {
+                e.preventDefault();
+                e.returnValue = ''; // Modern browser standard for showing close confirmation
             }
         };
 
         window.addEventListener('beforeunload', handleBeforeUnload);
+
         return () => {
             window.removeEventListener('beforeunload', handleBeforeUnload);
-            // Also save on component unmount
-            if (reviewedCountSession >= 1 && !lesson.isPublic && !progressSavedRef.current) {
-                savePartialProgress();
-            }
+            // Save on unmount (internal app navigation)
+            performSave();
         };
-    }, [reviewedCountSession, lesson.isPublic, savePartialProgress]);
+    }, []); // Empty dependency array ensures this effect only runs on mount/unmount
 
     useEffect(() => {
         if (!showStartScreen && !showModeSelection && studyQuestions.length > 0) {
@@ -216,12 +285,25 @@ export const useReviewSession = ({
                 return r !== undefined && r < 2;
             });
 
+            const currentStage = lesson.reviewStage || -1;
+            let nextReviewDate = new Date();
+            let nextStage = currentStage;
+
+            if (avg >= 1.5) {
+                nextStage = currentStage + 1;
+                const daysToAdd = getNextInterval(nextStage);
+                nextReviewDate.setDate(nextReviewDate.getDate() + daysToAdd);
+            } else {
+                nextStage = -1;
+            }
+
             setSessionResult({
                 avg,
                 totalMarks,
                 maxPossibleMarks,
                 fullMarks,
-                lowRatedQuestions
+                lowRatedQuestions,
+                nextReviewDate: nextReviewDate.toLocaleDateString()
             });
             playCompletion();
 
@@ -254,18 +336,6 @@ export const useReviewSession = ({
                 return q;
             });
 
-            const currentStage = lesson.reviewStage || -1;
-            let nextReviewDate = new Date();
-            let nextStage = currentStage;
-
-            if (avg >= 1.5) {
-                nextStage = currentStage + 1;
-                const daysToAdd = getNextInterval(nextStage);
-                nextReviewDate.setDate(nextReviewDate.getDate() + daysToAdd);
-            } else {
-                nextStage = -1;
-            }
-
             const updatedLesson = {
                 ...lesson,
                 questions: updatedQuestions,
@@ -279,6 +349,32 @@ export const useReviewSession = ({
             // 2026 Strategy: Use authoritative onUpdate pipeline.
             // This ensures both Local + Drive stay in sync via storageService.
             onUpdate(updatedLesson);
+
+            // Check and reward referral completion (if applicable)
+            // Only for qualified lessons (non-demo, non-user-created)
+            if (user?.uid) {
+                const isDemo = lesson.id === 'demo-lesson';
+                const isUserCreated = !lesson.lessonId && !lesson.storagePath; // User-created lessons don't have these
+
+                try {
+                    const result = await userService.checkReferralCompletion(
+                        user.uid,
+                        lesson.id || lesson.lessonId,
+                        isDemo,
+                        isUserCreated
+                    );
+
+                    if (result.rewarded && showAlert) {
+                        showAlert({
+                            type: 'success',
+                            message: `Congratulations! Your referrer received ${result.bonus} coins for your first lesson completion! 🎉`
+                        });
+                    }
+                } catch (error) {
+                    console.error('[ReferralCheck] Error:', error);
+                    // Silent fail - don't interrupt user experience
+                }
+            }
         } else {
             setIsFlipped(false);
             setRating(0);
@@ -303,16 +399,23 @@ export const useReviewSession = ({
         deleteRecording();
     };
 
+    const [streakCount, setStreakCount] = useState(0);
+
+    // ... (rest of state)
+
     const handleRating = (val, customFeedbackMsg = null) => {
         const isByHeart = val === 2;
         const isPartial = val === 1;
 
         if (isByHeart) {
             playDopamine();
+            setStreakCount(prev => prev + 1);
         } else if (isPartial) {
             playPartial();
+            setStreakCount(0);
         } else {
             playTing();
+            setStreakCount(0);
         }
         setRating(val);
 
@@ -326,12 +429,25 @@ export const useReviewSession = ({
             setStudyQuestions(prev => [...prev, currentQuestion]);
         }
 
-        const msg = customFeedbackMsg || getRandomPhrase(isByHeart ? 'mastered' : 'retry');
+        // Determine context for feedback
+        let type = 'retry';
+        if (isByHeart) type = 'success';
+        else if (isPartial) type = 'partial';
+
+        const context = {
+            type,
+            isFirstQuestion: currentIndex === 0 && reviewedCountSession === 0,
+            streakCount: isByHeart ? streakCount + 1 : 0
+        };
+
+        const msg = customFeedbackMsg || getRandomPhrase(context);
         setFeedback({ message: msg, type: isByHeart ? 'success' : 'retry' });
 
-
-
         setReviewedCountSession(prev => prev + 1);
+
+        // 2026 Strategy: Save on every flip (Netflix-style)
+        // This is non-blocking due to the SyncQueue in storageService
+        savePartialProgress();
     };
 
     // Audio Helpers

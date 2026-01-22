@@ -64,7 +64,19 @@ const Home = ({
 
     const getSortedLessons = () => {
         let filtered = filterLabel ? lessons.filter(s => s.label === filterLabel) : lessons;
-        if (searchQuery.trim()) filtered = filtered.filter(s => s.title.toLowerCase().includes(searchQuery.toLowerCase()));
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase().trim();
+            const isNumberedSearch = /^\d+\.$/.test(query);
+
+            filtered = filtered.filter(s => {
+                const title = s.title.toLowerCase();
+                if (isNumberedSearch) {
+                    const regex = new RegExp(`(^|\\s)${query.replace('.', '\\.')}(\\s|$)`);
+                    return regex.test(title);
+                }
+                return title.includes(query);
+            });
+        }
 
         return [...filtered].sort((a, b) => {
             if (sortBy === 'Upcoming Review') {
@@ -82,7 +94,13 @@ const Home = ({
     const filteredPublicLessons = publicLessons.filter(lesson => {
         if (!lesson || !lesson.title) return false;
 
-        const matchesSearch = lesson.title.toLowerCase().includes(searchQuery.toLowerCase());
+        const query = searchQuery.toLowerCase().trim();
+        const isNumberedSearch = /^\d+\.$/.test(query);
+        const title = lesson.title.toLowerCase();
+
+        const matchesSearch = isNumberedSearch
+            ? new RegExp(`(^|\\s)${query.replace('.', '\\.')}(\\s|$)`).test(title)
+            : title.includes(query);
         const matchesStandard = !filters.standard || lesson.standard === filters.standard;
         const matchesSyllabus = !filters.syllabus || lesson.syllabus === filters.syllabus;
         const matchesMedium = !filters.medium || lesson.medium === filters.medium;

@@ -1,6 +1,5 @@
 import React from 'react';
 import { useAdmin } from '../../context/AdminContext';
-import GrantCoinsModal from './GrantCoinsModal';
 import { requestDriveAccess } from '../../services/googleAuth';
 import { RefreshCw, AlertTriangle, CheckCircle, Database, Lock, UserPlus } from 'lucide-react';
 import { useAuth } from '../AuthProvider';
@@ -14,6 +13,8 @@ import { userService } from '../../services/userService';
  * - Diagnostic Feedback for Empty/Error States
  * - Explicit Auth Trigger
  */
+
+import GrantCoinsModal from './GrantCoinsModal';
 
 const IndexTable = () => {
     const { users, loading, error, stats, refresh, grantCoins, processingIds, recentlyGranted } = useAdmin();
@@ -72,7 +73,6 @@ const IndexTable = () => {
                                 {users.map((user) => {
                                     const userId = user.id || user.uid || user.email;
                                     const isProcessing = processingIds?.has(userId);
-                                    const isRecentlyGranted = recentlyGranted?.has(userId);
 
                                     return (
                                         <tr key={userId} style={styles.tr}>
@@ -102,7 +102,7 @@ const IndexTable = () => {
                                                     onClick={() => setSelectedUser(user)}
                                                     style={{
                                                         ...styles.actionLink,
-                                                        color: isRecentlyGranted ? '#008060' : (isProcessing ? '#6d7175' : '#101010'),
+                                                        color: isProcessing ? '#6d7175' : '#008060',
                                                         opacity: isProcessing ? 0.5 : 1,
                                                         cursor: isProcessing ? 'wait' : 'pointer',
                                                         textDecoration: isProcessing ? 'none' : 'underline',
@@ -111,11 +111,7 @@ const IndexTable = () => {
                                                         gap: '4px'
                                                     }}
                                                 >
-                                                    {isRecentlyGranted ? (
-                                                        <><CheckCircle size={14} /> Success</>
-                                                    ) : (
-                                                        isProcessing ? 'Granting...' : 'Grant Coins'
-                                                    )}
+                                                    {isProcessing ? 'Store...' : 'Grant Coins'}
                                                 </button>
                                             </td>
                                         </tr>

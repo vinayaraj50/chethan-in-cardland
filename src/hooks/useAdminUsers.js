@@ -38,14 +38,19 @@ function adminReducer(state, action) {
         case 'GRANT_OPTIMISTIC':
             return {
                 ...state,
-                users: state.users.map(u => u.email === action.payload.email ? { ...u, coins: u.coins + action.payload.amount } : u)
+                users: state.users.map(u => u.email === action.payload.email ? { ...u, coins: (u.coins || 0) + action.payload.amount } : u)
+            };
+        case 'GRANT_REVERT':
+            return {
+                ...state,
+                users: state.users.map(u => u.email === action.payload.email ? { ...u, coins: (u.coins || 0) - action.payload.amount } : u)
             };
         default:
             return state;
     }
 }
 
-export const useAdminUsers = (activeSection, searchInput, publicFolderId = null) => {
+export const useAdminUsers = (activeSection, searchInput, publicFolderId = null, showToast = null) => {
     const { token } = useAuth();
     const [state, dispatch] = useReducer(adminReducer, initialState);
 
@@ -80,18 +85,47 @@ export const useAdminUsers = (activeSection, searchInput, publicFolderId = null)
         return () => clearTimeout(timer);
     }, [searchInput]);
 
-    const handleGrant = async (targetEmail, amount) => {
+    const handleGrant = useCallback(async (userObj, amount) => {
         if (!token) return;
-        try {
-            // Optimistic update for Shopify-like responsiveness
-            dispatch({ type: 'GRANT_OPTIMISTIC', payload: { email: targetEmail, amount } });
-            await grantCoins(token, targetEmail, amount);
-        } catch (err) {
-            // Revert or show error if ledger sync fails
-            console.error('[useAdminUsers] Ledger Sync Failed', err);
-            throw err;
+
+        const targetEmail = userObj.email;
+        let isUndone = false;
+
+        // 1. Optimistic Update
+        dispatch({ type: 'GRANT_OPTIMISTIC', payload: { email: targetEmail, amount } });
+
+        // 2. Show Toast with Undo
+        if (showToast) {
+            showToast({
+                message: `Granted ${amount} coins to ${targetEmail}`,
+                type: 'undo',
+                duration: 8000,
+                onUndo: () => {
+                    isUndone = true;
+                    dispatch({ type: 'GRANT_REVERT', payload: { email: targetEmail, amount } });
+                },
+                onClose: async () => {
+                    if (!isUndone) {
+                        try {
+                            await grantCoins(token, userObj, amount);
+                        } catch (err) {
+                            console.error('[useAdminUsers] Ledger Sync Failed', err);
+                            dispatch({ type: 'GRANT_REVERT', payload: { email: targetEmail, amount } });
+                            // Optionally alert if physical sync fails after toast closes
+                        }
+                    }
+                }
+            });
+        } else {
+            // Fallback if no toast system provided
+            try {
+                await grantCoins(token, userObj, amount);
+            } catch (err) {
+                dispatch({ type: 'GRANT_REVERT', payload: { email: targetEmail, amount } });
+                throw err;
+            }
         }
-    };
+    }, [token, showToast]);
 
     return {
         ...state,

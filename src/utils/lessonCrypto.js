@@ -74,8 +74,13 @@ export const encryptLesson = async (data, key) => {
     combined.set(iv);
     combined.set(new Uint8Array(cipherBuffer), iv.length);
 
-    // Convert to Base64 (using a resilient method for browser compat)
-    return btoa(String.fromCharCode(...combined));
+    // Convert to Base64 (using a resilient chunked method for large files)
+    const CHUNK_SIZE = 8192;
+    let binary = '';
+    for (let i = 0; i < combined.length; i += CHUNK_SIZE) {
+        binary += String.fromCharCode.apply(null, combined.subarray(i, i + CHUNK_SIZE));
+    }
+    return btoa(binary);
 };
 
 /**

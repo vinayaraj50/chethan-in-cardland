@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import React, { useState } from 'react';
 import CloseButton from './common/CloseButton';
 import { saveUserProfile } from '../services/userProfile';
+import { userService } from '../services/userService';
 
 const ReferralModal = ({ user, userProfile, onClose, onUpdateProfile, showAlert, onShowFeedback }) => {
     const [inputCode, setInputCode] = useState('');
@@ -37,12 +38,14 @@ ${referralLink}`;
 
         setLoading(true);
         try {
-            const updated = { ...userProfile, referredBy: inputCode.trim() };
-            await onUpdateProfile(updated);
-            showAlert('Referral code applied! Your friend will get coins when you finish a review.');
+            const result = await userService.applyReferral(user.uid, inputCode.trim());
+            showAlert(result.message || 'Referral code applied successfully!');
             onClose();
+            // Refresh profile to get updated referral status
+            window.location.reload();
         } catch (error) {
-            showAlert('Failed to apply code.');
+            const errorMsg = error.message || 'Failed to apply referral code.';
+            showAlert(errorMsg);
         } finally {
             setLoading(false);
         }
@@ -87,9 +90,12 @@ ${referralLink}`;
                     }}>
                         <Gift size={32} />
                     </div>
-                    <h2 style={{ margin: 0 }}>Sharing Bonus</h2>
-                    <p style={{ opacity: 0.7, marginTop: '0.5rem' }}>
-                        Invite a friend and receive <strong style={{ color: '#f59e0b' }}>50 Coins</strong> when they complete their first review!
+                    <h2 style={{ margin: 0 }}>Refer a Friend</h2>
+                    <p style={{ opacity: 0.7, marginTop: '0.5rem', fontSize: '0.95rem', lineHeight: '1.6' }}>
+                        Invite a <strong>first-time user</strong> and earn <strong style={{ color: '#f59e0b' }}>50 Coins</strong> when they complete their first lesson!
+                    </p>
+                    <p style={{ opacity: 0.6, marginTop: '0.75rem', fontSize: '0.85rem', fontStyle: 'italic' }}>
+                        Note: The referred user must be new to the app and complete a published lesson (demo and user-created lessons don't count).
                     </p>
 
                 </div>

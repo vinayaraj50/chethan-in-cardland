@@ -56,7 +56,8 @@ class PaymentRegistry {
         try {
             // 2. Perform Atomic Update
             console.log(`[PaymentRegistry] Initiating transfer: ${amount} coins -> ${targetUid}`);
-            const newBalance = await userService.updateBalance(targetUid, amount);
+            const result = await userService.adminAddCoins(targetUid, amount);
+            const newBalance = result.newBalance;
 
             // 3. Log Transaction (Audit Trail)
             const txRef = doc(collection(db, 'transactions'), txId);

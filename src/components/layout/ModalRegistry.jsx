@@ -53,7 +53,8 @@ const ModalRegistry = ({
     showNotification,
     setUserProfile,
     saveUserProfile,
-    refreshProfile
+    refreshProfile,
+    onRestorePurchases
 }) => {
     const { modals, toggleModal, setReviewLesson: setUIReviewLesson, setNoteLesson: setUINoteLesson, setActiveLesson } = useUI();
     const { isActive: isTourActive, endTour, startTour } = useTour();
@@ -101,6 +102,7 @@ const ModalRegistry = ({
                     onShowReferral={() => { toggleModal('showMenu', false); window.history.pushState({ modal: 'active' }, '', window.location.pathname); toggleModal('showReferral', true); }}
                     onClose={() => toggleModal('showMenu', false)}
                     onLogout={onLogout}
+                    onRestorePurchases={onRestorePurchases}
                     onLogin={() => { toggleModal('showMenu', false); signIn('consent'); }}
                     onDeleteData={onDeleteData}
                     onShowAdminPanel={() => { toggleModal('showMenu', false); window.history.pushState({ modal: 'active' }, '', window.location.pathname); toggleModal('showAdminPanel', true); }}

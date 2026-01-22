@@ -73,7 +73,7 @@ const ReviewModal = ({ lesson, user, onClose, onEdit, onUpdate, showAlert, userC
                             padding: '2rem', position: 'relative'
                         }}
                     >
-                        <CloseButton onClose={handleCloseWithSave} theme="light" />
+                        <CloseButton onClick={handleCloseWithSave} theme="light" />
 
                         {/* Lesson Title Section */}
                         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
@@ -99,85 +99,9 @@ const ReviewModal = ({ lesson, user, onClose, onEdit, onUpdate, showAlert, userC
                             <p style={{ opacity: 0.6, fontSize: '0.95rem' }}>{totalQuestions} questions</p>
                         </div>
 
-                        {/* Review Options */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
-
-                            {/* Resume Option - Only shown if there's an interrupted session */}
-                            {hasInterruptedSession && lastSessionIndex > 0 && (
-                                <button
-                                    className="neo-button neo-glow-blue"
-                                    onClick={() => handleStartReview('resume', { resumeFromIndex: lastSessionIndex })}
-                                    style={{
-                                        padding: '1.1rem 1rem', display: 'flex', alignItems: 'center', gap: '1rem',
-                                        justifyContent: 'flex-start', background: 'var(--accent-color)', color: 'white',
-                                        border: 'none'
-                                    }}
-                                >
-                                    <div style={{
-                                        padding: '0.6rem', background: 'rgba(255,255,255,0.2)',
-                                        borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center'
-                                    }}>
-                                        <Play size={22} fill="white" />
-                                    </div>
-                                    <div style={{ textAlign: 'left' }}>
-                                        <div style={{ fontWeight: 'bold', fontSize: '1.05rem' }}>Continue Where You Left</div>
-                                        <div style={{ fontSize: '0.8rem', opacity: 0.85 }}>Resume from question {lastSessionIndex + 1}</div>
-                                    </div>
-                                </button>
-                            )}
-
-                            {/* Start Fresh Option */}
-                            <button
-                                className="neo-button"
-                                onClick={() => handleStartReview('all')}
-                                style={{
-                                    padding: '1.1rem 1rem', display: 'flex', alignItems: 'center', gap: '1rem',
-                                    border: '2px solid var(--border-color)', justifyContent: 'flex-start'
-                                }}
-                            >
-                                <div style={{
-                                    width: '44px', height: '44px', borderRadius: '12px', overflow: 'hidden',
-                                    flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    background: 'var(--accent-soft)'
-                                }}>
-                                    <RotateCcw size={22} color="var(--accent-color)" />
-                                </div>
-                                <div style={{ textAlign: 'left' }}>
-                                    <div style={{ fontWeight: 'bold', fontSize: '1.05rem' }}>
-                                        {hasInterruptedSession ? 'Start From Beginning' : 'Start Review'}
-                                    </div>
-                                    <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>Go through all {totalQuestions} questions</div>
-                                </div>
-                            </button>
-
-                            {/* Tough Cards Only Option */}
-                            <button
-                                className="neo-button"
-                                disabled={difficultQuestionsCount === 0}
-                                onClick={() => handleStartReview('difficult')}
-                                style={{
-                                    padding: '1.1rem 1rem', display: 'flex', alignItems: 'center', gap: '1rem',
-                                    border: '2px solid var(--border-color)', justifyContent: 'flex-start',
-                                    opacity: difficultQuestionsCount === 0 ? 0.5 : 1
-                                }}
-                            >
-                                <div style={{ padding: '0.6rem', background: '#fee2e2', borderRadius: '12px', color: '#dc2626' }}>
-                                    <AlertCircle size={22} />
-                                </div>
-                                <div style={{ textAlign: 'left' }}>
-                                    <div style={{ fontWeight: 'bold', fontSize: '1.05rem' }}>Tough Cards Only</div>
-                                    <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>
-                                        {difficultQuestionsCount > 0
-                                            ? `Focus on ${difficultQuestionsCount} challenging question${difficultQuestionsCount > 1 ? 's' : ''}`
-                                            : 'No tough cards yet'}
-                                    </div>
-                                </div>
-                            </button>
-                        </div>
-
-                        {/* Section Notes Toggle */}
+                        {/* Section Notes Toggle - Moved to top */}
                         <div style={{
-                            marginTop: '1.5rem',
+                            marginBottom: '1rem',
                             padding: '1rem',
                             background: 'var(--bg-color)',
                             borderRadius: '1rem',
@@ -188,7 +112,7 @@ const ReviewModal = ({ lesson, user, onClose, onEdit, onUpdate, showAlert, userC
                                     {showSectionNotes ? <Eye size={20} color="var(--accent-color)" /> : <EyeOff size={20} style={{ opacity: 0.5 }} />}
                                     <div>
                                         <div style={{ fontWeight: '600', fontSize: '0.95rem' }}>Show Important Notes</div>
-                                        <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>Display section notes before questions</div>
+                                        <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>Display short notes for quick review</div>
                                     </div>
                                 </div>
                                 <button
@@ -222,6 +146,133 @@ const ReviewModal = ({ lesson, user, onClose, onEdit, onUpdate, showAlert, userC
                                     />
                                 </button>
                             </div>
+                        </div>
+
+                        {/* Review Options */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+
+                            {/* Secondary Actions (Non-primary) */}
+                            {/* If we have tough cards, "Start All" becomes secondary */}
+                            {(lesson.lastReviewed && difficultQuestionsCount > 0) && (
+                                <button
+                                    className="neo-button"
+                                    onClick={() => handleStartReview('all')}
+                                    style={{
+                                        padding: '1.1rem 1rem', display: 'flex', alignItems: 'center', gap: '1rem',
+                                        border: '2px solid var(--border-color)', justifyContent: 'flex-start'
+                                    }}
+                                >
+                                    <div style={{
+                                        width: '44px', height: '44px', borderRadius: '12px', overflow: 'hidden',
+                                        flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        background: 'var(--accent-soft)'
+                                    }}>
+                                        <RotateCcw size={22} color="var(--accent-color)" />
+                                    </div>
+                                    <div style={{ textAlign: 'left' }}>
+                                        <div style={{ fontWeight: 'bold', fontSize: '1.05rem' }}>Start From Beginning</div>
+                                        <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>Go through all {totalQuestions} questions</div>
+                                    </div>
+                                </button>
+                            )}
+
+                            {/* If we are resuming, "Start All" becomes secondary */}
+                            {(hasInterruptedSession && !(lesson.lastReviewed && difficultQuestionsCount > 0)) && (
+                                <button
+                                    className="neo-button"
+                                    onClick={() => handleStartReview('all')}
+                                    style={{
+                                        padding: '1.1rem 1rem', display: 'flex', alignItems: 'center', gap: '1rem',
+                                        border: '2px solid var(--border-color)', justifyContent: 'flex-start'
+                                    }}
+                                >
+                                    <div style={{
+                                        width: '44px', height: '44px', borderRadius: '12px', overflow: 'hidden',
+                                        flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        background: 'var(--accent-soft)'
+                                    }}>
+                                        <RotateCcw size={22} color="var(--accent-color)" />
+                                    </div>
+                                    <div style={{ textAlign: 'left' }}>
+                                        <div style={{ fontWeight: 'bold', fontSize: '1.05rem' }}>Start From Beginning</div>
+                                        <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>Go through all {totalQuestions} questions</div>
+                                    </div>
+                                </button>
+                            )}
+
+                            {/* Primary CTA at bottom */}
+                            {lesson.lastReviewed && difficultQuestionsCount > 0 ? (
+                                <button
+                                    className="neo-button neo-glow-blue"
+                                    onClick={() => handleStartReview('difficult')}
+                                    style={{
+                                        padding: '1.1rem 1rem', display: 'flex', alignItems: 'center', gap: '1rem',
+                                        border: 'none',
+                                        justifyContent: 'flex-start',
+                                        background: 'var(--accent-color)',
+                                        color: 'white'
+                                    }}
+                                >
+                                    <div style={{
+                                        width: '44px', height: '44px', borderRadius: '12px', overflow: 'hidden',
+                                        flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        background: 'rgba(255,255,255,0.2)'
+                                    }}>
+                                        <AlertCircle size={22} color="white" />
+                                    </div>
+                                    <div style={{ textAlign: 'left' }}>
+                                        <div style={{ fontWeight: 'bold', fontSize: '1.05rem' }}>Review Tough Cards Only</div>
+                                        <div style={{ fontSize: '0.8rem', opacity: 0.9 }}>Focus on {difficultQuestionsCount} challenging questions</div>
+                                    </div>
+                                </button>
+                            ) : hasInterruptedSession ? (
+                                lastSessionIndex !== undefined && (
+                                    <button
+                                        className="neo-button neo-glow-blue"
+                                        onClick={() => handleStartReview('resume', { resumeFromIndex: lastSessionIndex })}
+                                        style={{
+                                            padding: '1.1rem 1rem', display: 'flex', alignItems: 'center', gap: '1rem',
+                                            justifyContent: 'flex-start', background: 'var(--accent-color)', color: 'white',
+                                            border: 'none'
+                                        }}
+                                    >
+                                        <div style={{
+                                            padding: '0.6rem', background: 'rgba(255,255,255,0.2)',
+                                            borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                        }}>
+                                            <Play size={22} fill="white" />
+                                        </div>
+                                        <div style={{ textAlign: 'left' }}>
+                                            <div style={{ fontWeight: 'bold', fontSize: '1.05rem' }}>Continue Where You Left</div>
+                                            <div style={{ fontSize: '0.8rem', opacity: 0.85 }}>Resume from question {lastSessionIndex + 1}</div>
+                                        </div>
+                                    </button>
+                                )
+                            ) : (
+                                <button
+                                    className="neo-button neo-glow-blue"
+                                    onClick={() => handleStartReview('all')}
+                                    style={{
+                                        padding: '1.1rem 1rem', display: 'flex', alignItems: 'center', gap: '1rem',
+                                        border: 'none',
+                                        justifyContent: 'flex-start',
+                                        background: 'var(--accent-color)',
+                                        color: 'white'
+                                    }}
+                                >
+                                    <div style={{
+                                        width: '44px', height: '44px', borderRadius: '12px', overflow: 'hidden',
+                                        flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        background: 'rgba(255,255,255,0.2)'
+                                    }}>
+                                        <RotateCcw size={22} color="white" />
+                                    </div>
+                                    <div style={{ textAlign: 'left' }}>
+                                        <div style={{ fontWeight: 'bold', fontSize: '1.05rem' }}>Start Review</div>
+                                        <div style={{ fontSize: '0.8rem', opacity: 0.9 }}>Go through all {totalQuestions} questions</div>
+                                    </div>
+                                </button>
+                            )}
                         </div>
                     </motion.div>
                 </motion.div>
@@ -300,6 +351,11 @@ const ReviewModal = ({ lesson, user, onClose, onEdit, onUpdate, showAlert, userC
                         <div style={{ fontSize: '3rem', fontWeight: 'bold', color: 'var(--accent-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
                             {sessionResult.totalMarks} <span style={{ fontSize: '1.5rem', opacity: 0.5 }}>/ {sessionResult.maxPossibleMarks}</span>
                         </div>
+                        {sessionResult.nextReviewDate && (
+                            <div style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: 'var(--accent-color)', fontWeight: '600' }}>
+                                Recommended next review: {sessionResult.nextReviewDate}
+                            </div>
+                        )}
                     </div>
 
                     {sessionResult.fullMarks ? (

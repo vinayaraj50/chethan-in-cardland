@@ -36,3 +36,11 @@ Refuse to implement any logic that doesn't explicitly include a "Failure Case." 
 3. **Professionalism**: Avoid 'student-level' or 'quick-fix' logic. If a feature request compromises security, refuse to implement it and explain the 'Google-level' professional alternative.
 4. **Autonomy**: Propose and implement comprehensive, high-performance solutions independently. Do not ask for permission for standard best practices—just execute them.
 5. **Error Handling**: Every function must include professional logging, input validation, and exhaustive error-catching.
+
+## Data Persistence & State Management
+
+**CRITICAL RULE: NO BROWSER STORAGE FOR LOGIC**
+- **Never** use `localStorage`, `sessionStorage`, or `IndexedDB` to store core business logic, purchase data, review schedules, or user progress.
+- Browser storage is **ephemeral and untrusted**.
+- All state changes (card flips, lesson completions, purchases) must be persisted to the **authoritative backend** (Google Drive / Firestore) immediately or via a guaranteed sync queue.
+- Use browser storage **only** for non-critical UI preferences (e.g., theme, sound settings) or as a read-only cache for offline creation performance (verified against server truth).

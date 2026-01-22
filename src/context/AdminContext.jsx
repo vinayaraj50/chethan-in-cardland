@@ -10,8 +10,11 @@ import { useAuth } from '../components/AuthProvider';
 
 const AdminContext = createContext(null);
 
+import { useUI } from './UIContext';
+
 export const AdminProvider = ({ children }) => {
     const { user } = useAuth(); // Admin User
+    const { showToast } = useUI();
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(false);
     const [processingIds, setProcessingIds] = useState(new Set());
@@ -60,41 +63,58 @@ export const AdminProvider = ({ children }) => {
             refresh: () => discoverUsers(),
             grantCoins: async (userObj, amount) => {
                 const targetId = userObj.id || userObj.uid || userObj.email;
-                setProcessingIds(prev => new Set(prev).add(targetId));
-                try {
-                    const result = await adminService.grantCoins(user.token, userObj, amount);
+                const originalBalance = userObj.coins || 0;
+                let isUndone = false;
 
-                    // Authoritative State Update: Don't wait for eventually-consistent sync
-                    if (result && result.newBalance !== undefined) {
+                // 1. OPTIMISTIC UPDATE
+                setUsers(current => current.map(u => {
+                    const uId = u.id || u.uid || u.email;
+                    if (uId === targetId) return { ...u, coins: (u.coins || 0) + amount };
+                    return u;
+                }));
+
+                // 2. SHOW UNDO TOAST
+                showToast({
+                    message: `Granted ${amount} coins to ${userObj.email}`,
+                    type: 'undo',
+                    duration: 10000,
+                    onUndo: () => {
+                        isUndone = true;
                         setUsers(current => current.map(u => {
                             const uId = u.id || u.uid || u.email;
-                            if (uId === targetId) return { ...u, coins: result.newBalance };
+                            if (uId === targetId) return { ...u, coins: originalBalance };
                             return u;
                         }));
+                    },
+                    onClose: async () => {
+                        if (isUndone) return;
+
+                        setProcessingIds(prev => new Set(prev).add(targetId));
+                        try {
+                            const result = await adminService.grantCoins(user.token, userObj, amount);
+                            if (result && result.newBalance !== undefined) {
+                                setUsers(current => current.map(u => {
+                                    const uId = u.id || u.uid || u.email;
+                                    if (uId === targetId) return { ...u, coins: result.newBalance };
+                                    return u;
+                                }));
+                            }
+                        } catch (e) {
+                            console.error('[AdminContext] Grant failed', e);
+                            setUsers(current => current.map(u => {
+                                const uId = u.id || u.uid || u.email;
+                                if (uId === targetId) return { ...u, coins: originalBalance };
+                                return u;
+                            }));
+                        } finally {
+                            setProcessingIds(prev => {
+                                const next = new Set(prev);
+                                next.delete(targetId);
+                                return next;
+                            });
+                        }
                     }
-
-                    // Success Feedback Loop
-                    setRecentlyGranted(prev => new Set(prev).add(targetId));
-                    setTimeout(() => {
-                        setRecentlyGranted(prev => {
-                            const next = new Set(prev);
-                            next.delete(targetId);
-                            return next;
-                        });
-                    }, 3000);
-
-                    // Background re-sync (optional cleanup)
-                    discoverUsers();
-                } catch (e) {
-                    console.error('[AdminContext] Grant failed', e);
-                    throw e;
-                } finally {
-                    setProcessingIds(prev => {
-                        const next = new Set(prev);
-                        next.delete(targetId);
-                        return next;
-                    });
-                }
+                });
             }
         }}>
             {children}

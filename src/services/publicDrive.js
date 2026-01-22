@@ -1,6 +1,7 @@
 import { db, firebaseStorage } from './firebase';
 import { collection, getDocs, query, where, setDoc, doc, serverTimestamp, updateDoc, onSnapshot } from 'firebase/firestore';
-import { ref, getDownloadURL, uploadBytes } from 'firebase/storage';
+import { ref, getBytes, uploadBytes } from 'firebase/storage';
+import { tryDevProxyFetch } from '../utils/devProxy';
 
 /**
  * @fileoverview FirebaseLessonService handles interactions with the authoritative Firestore/Storage catalog.
@@ -74,6 +75,7 @@ class FirebaseLessonService {
 
     /**
      * Fetch lesson content from Firebase Storage.
+     * Uses 2026 Standard (getBytes) with a Dev Proxy Fallback for localhost.
      */
     async getPublicFileContent(storagePathOrId) {
         try {
@@ -86,12 +88,11 @@ class FirebaseLessonService {
 
             console.log('[Storage] Fetching content from:', path);
             const storageRef = ref(firebaseStorage, path);
-            const url = await getDownloadURL(storageRef);
-            const response = await fetch(url);
 
-            if (!response.ok) throw new Error(`Firebase Storage HTTP ${response.status}`);
+            // 1. STANDARD PATH: Official SDK (Production/Standard)
+            const arrayBuffer = await getBytes(storageRef);
+            const text = new TextDecoder().decode(arrayBuffer);
 
-            const text = await response.text();
             console.log('[Storage] Raw content length:', text?.length);
             try {
                 const parsed = JSON.parse(text);
@@ -102,6 +103,15 @@ class FirebaseLessonService {
                 return text; // Return raw encrypted text
             }
         } catch (e) {
+            console.warn('[Storage] Standard SDK fetch failed:', e.message);
+
+            // 2. DEV RECOVERY PATH: Proxy Gateway
+            // Solves CORS on localhost without requiring developers to reconfigure production buckets
+            if (import.meta.env.DEV && (e.code === 'storage/retry-limit-exceeded' || e.message.includes('network'))) {
+                const result = await tryDevProxyFetch(ref(firebaseStorage, storagePathOrId));
+                if (result) return result;
+            }
+
             console.error('[Storage] Content Fetch Failed:', e);
             throw new Error(`Failed to download lesson content: ${e.message}`);
         }

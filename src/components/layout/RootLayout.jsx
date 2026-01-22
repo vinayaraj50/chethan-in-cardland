@@ -70,6 +70,7 @@ const RootLayout = ({
                     ) : notification ? (
                         <motion.div
                             key="notification"
+                            className={notification.type === 'confirm' ? "neo-glow-header-confirm" : "neo-glow-blue"}
                             initial={{ opacity: 0, scale: 0.95 }}
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.95 }}
@@ -82,17 +83,15 @@ const RootLayout = ({
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'space-between',
-                                background: 'var(--bg-color)',
                                 zIndex: 11,
                                 borderRadius: '16px',
-                                boxShadow: '5px 5px 10px var(--shadow-dark), -5px -5px 10px var(--shadow-light)',
                                 padding: '0 1rem'
                             }}
                         >
-                            <span style={{ fontWeight: '600', fontSize: '0.9rem', color: 'var(--text-color)', flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            <span style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-color)', flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                 {notification.message}
                             </span>
-                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
                                 {notification.type === 'confirm' ? (
                                     <>
                                         <button
@@ -102,7 +101,17 @@ const RootLayout = ({
                                                 if (notification.onConfirm) notification.onConfirm();
                                                 clearNotification();
                                             }}
-                                            style={{ padding: '0.3rem 0.8rem', fontSize: '0.8rem', height: 'auto', minHeight: 'unset', color: 'var(--accent-color)' }}
+                                            style={{
+                                                padding: '0.4rem 1.2rem',
+                                                fontSize: '0.85rem',
+                                                fontWeight: '800',
+                                                height: 'auto',
+                                                minHeight: 'unset',
+                                                background: 'var(--accent-color)',
+                                                color: 'white',
+                                                border: 'none',
+                                                boxShadow: '0 4px 12px rgba(var(--accent-rgb), 0.4)'
+                                            }}
                                         >
                                             Confirm
                                         </button>
@@ -132,7 +141,7 @@ const RootLayout = ({
                                             e.stopPropagation();
                                             clearNotification();
                                         }}
-                                        style={{ padding: '0.3rem 0.8rem', fontSize: '0.8rem', height: 'auto', minHeight: 'unset' }}
+                                        style={{ padding: '0.4rem 1rem', fontSize: '0.85rem', fontWeight: '700', height: 'auto', minHeight: 'unset', color: 'var(--accent-color)' }}
                                     >
                                         Got it
                                     </button>
@@ -142,6 +151,7 @@ const RootLayout = ({
                     ) : toast ? (
                         <motion.div
                             key="toast"
+                            className="neo-glow-header"
                             initial={{ opacity: 0, scale: 0.95 }}
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.95 }}
@@ -154,14 +164,12 @@ const RootLayout = ({
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'space-between',
-                                background: 'var(--bg-color)',
                                 color: 'var(--text-color)',
                                 zIndex: 10,
                                 borderRadius: '16px',
                                 fontWeight: '600',
                                 fontSize: '0.9rem',
-                                padding: '0 1rem',
-                                boxShadow: '5px 5px 10px var(--shadow-dark), -5px -5px 10px var(--shadow-light)'
+                                padding: '0 1rem'
                             }}
                         >
                             <span style={{ flex: 1, textAlign: 'left', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -207,6 +215,7 @@ const RootLayout = ({
                     ) : headerNotice ? (
                         <motion.div
                             key="notice"
+                            className="neo-glow-header"
                             initial={{ opacity: 0, scale: 0.95 }}
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.95 }}
@@ -219,15 +228,13 @@ const RootLayout = ({
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                background: 'var(--bg-color)',
                                 color: 'var(--accent-color)',
                                 zIndex: 10,
                                 borderRadius: '16px',
                                 fontWeight: '700',
                                 fontSize: '1rem',
                                 padding: '0 1.5rem',
-                                textAlign: 'center',
-                                boxShadow: '5px 5px 10px var(--shadow-dark), -5px -5px 10px var(--shadow-light)'
+                                textAlign: 'center'
                             }}
                         >
                             <span>{headerNotice.message}</span>
