@@ -20,7 +20,7 @@ export const useEntitlementSync = () => {
     const { showToast } = useUI();
     const isSyncing = useRef(false);
 
-    const performSync = useCallback(async (isManual = false) => {
+    const performSync = useCallback(async (isManual = false, onComplete = null) => {
         if (!user || !token || isSyncing.current) return;
 
         isSyncing.current = true;
@@ -110,6 +110,11 @@ export const useEntitlementSync = () => {
                 } catch (err) {
                     console.error(`[EntitlementSync] Failed to restore ${lessonId}:`, err);
                 }
+            }
+
+            // 5. Finalize UI State (Triggers My Lessons refresh)
+            if (restoredCount > 0 && onComplete) {
+                await onComplete();
             }
 
             if (isManual) {

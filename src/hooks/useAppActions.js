@@ -131,7 +131,7 @@ export const useAppActions = () => {
                 // CRITICAL: Do NOT set driveFileId to the local ID. 
                 // It must remain null/undefined until the SyncQueue successfully uploads it to Drive.
                 handleUpdateLocalLesson(newLesson);
-                showHeaderNotice(cost > 0 ? `Purchased "${lesson.title}"!` : `Added "${lesson.title}"!`);
+                // showHeaderNotice(cost > 0 ? `Purchased "${lesson.title}"!` : `Added "${lesson.title}"!`);
             };
 
             // Race against timeout
