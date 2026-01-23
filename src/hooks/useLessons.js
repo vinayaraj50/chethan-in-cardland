@@ -108,15 +108,22 @@ export const useLessons = (user, hasDrive, showAlert) => {
             // Fetch metadata list via Orchestrator (instant for local, cloud-synced for drive)
             const metadata = await storageService.listLessons();
 
-            // Filter out existing DEMO_LESSON to avoid double rendering
-            // Handle Demo Lesson Persistence:
-            // If the user modified the demo (progress/marks), it will be in metadata with an ID.
-            // We prefer the persisted version over the static default, but MUST merge questions.
+            // 2026 Guard: Filter out any duplicates caused by legacy timestamp-ID issues
+            const uniqueUserLessons = [];
+            const seenIds = new Set();
+
+            // Handle Demo Lesson Persistence
             const demoFromStorage = metadata.find(m => m.id === DEMO_LESSON.id);
             const demoToUse = demoFromStorage ? { ...DEMO_LESSON, ...demoFromStorage } : DEMO_LESSON;
 
-            const userLessons = metadata.filter(m => m.id !== DEMO_LESSON.id);
-            setLessons([demoToUse, ...userLessons]);
+            metadata.forEach(l => {
+                if (l.id !== DEMO_LESSON.id && !seenIds.has(l.id)) {
+                    seenIds.add(l.id);
+                    uniqueUserLessons.push(l);
+                }
+            });
+
+            setLessons([demoToUse, ...uniqueUserLessons]);
             setLoading(false);
 
             // Lazy fetch full contents

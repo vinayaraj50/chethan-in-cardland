@@ -36,7 +36,7 @@ export const useEntitlementSync = () => {
             }
 
             // 2. Fetch Reality (Local Storage)
-            const localIndex = await storageService.listLessons();
+            const localIndex = await storageService.listLessons({ includeDeleted: true });
             const localIds = new Set(localIndex.map(l => l.id));
 
             // 3. Find Missing Souls
@@ -102,6 +102,12 @@ export const useEntitlementSync = () => {
                     }
 
                     finalLesson.id = lessonId;
+
+                    // CONTENT INTEGRITY GUARD: Never restore a "shell". If content is missing, restoration is incomplete.
+                    const isStub = (l) => !l || (!l.questions && !l.cards) || l.error;
+                    if (isStub(finalLesson)) {
+                        throw new Error('RESTORATION_INTEGRITY_FAILURE: Restored lesson is missing content.');
+                    }
 
                     // C. Save to Local Storage (Auth-bound sync handled by Orchestrator)
                     await storageService.saveLesson(finalLesson);

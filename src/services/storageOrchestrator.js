@@ -109,22 +109,29 @@ class StorageOrchestrator {
     /**
      * Resilient fetch of lesson metadata.
      */
-    async listLessons() {
+    async listLessons(options = {}) {
+        const { includeDeleted = false } = options;
         const store = getStore();
         const localLessons = store.get('lessons', []);
 
         if (!this.#hasDrive || !this.#token) {
-            return localLessons;
+            // Return only non-deleted local lessons unless requested
+            return includeDeleted ? localLessons : localLessons.filter(l => !l._isDeleted);
         }
 
         try {
             const driveFiles = await drive.listLessonMetadata(this.#token);
             const driveMetadata = driveFiles.map(file => {
                 const props = file.appProperties || {};
+                // 2026 Guard: Resolve Global ID. Numeric IDs indicate legacy "Ghost" imports.
+                const rawId = props.id || file.name.replace('cic_lesson_', '').replace('.json', '');
+                const isGhost = !isNaN(rawId) && rawId.length > 10; // Simple timestamp check
+
                 return {
-                    id: props.id || file.id,
+                    id: rawId,
+                    isGhost,
                     driveFileId: file.id,
-                    title: props.title || file.name.replace('cic_lesson_', '').replace('.json', ''),
+                    title: props.title || rawId,
                     questionCount: parseInt(props.questionCount || props.cardsCount) || 0,
                     lastMarks: props.lastMarks ? parseInt(props.lastMarks) : undefined,
                     nextReview: props.nextReview || undefined,
@@ -134,32 +141,56 @@ class StorageOrchestrator {
                 };
             });
 
+            // Phase 2: Self-Healing Migration (Ghost to Body)
+            // If we have a ghost with progress and a body (canonical) without, merge them.
             const merged = [];
             const localMap = new Map(localLessons.map(l => [l.id, l]));
 
+            // Temporary map to track ghosts by title for re-mapping
+            const ghostTitleMap = new Map();
+            driveMetadata.forEach(l => {
+                if (l.isGhost && l.nextReview) ghostTitleMap.set(l.title, l);
+            });
+
             driveMetadata.forEach(driveLesson => {
-                const localLesson = localMap.get(driveLesson.id);
+                let currentLesson = driveLesson;
 
-                // Conflict Resolution: Last-Write-Wins
-                const isLocalNewer = localLesson && localLesson.updatedAt &&
-                    (!driveLesson.modifiedTime || new Date(localLesson.updatedAt) > new Date(driveLesson.modifiedTime));
-
-                if (isLocalNewer) {
-                    merged.push(localLesson);
-                } else {
-                    merged.push(driveLesson);
+                // 2026 Strategy: If this is a clean canonical lesson from Firestore but we have a ghost with progress
+                // we should "adopt" the ghost's progress until the next save fixes the ID permanently.
+                const ghost = ghostTitleMap.get(driveLesson.title);
+                if (!driveLesson.isGhost && ghost && !driveLesson.nextReview) {
+                    currentLesson = { ...driveLesson, ...ghost, id: driveLesson.id };
                 }
 
-                if (localLesson) localMap.delete(driveLesson.id);
+                const localLesson = localMap.get(currentLesson.id);
+
+                // Progress-Prioritized Merge
+                // If local exists (even if deleted), check timestamps.
+                // If local is deleted, it is considered "newer" than the drive copy if the delete happened recently.
+                // However, logically, if we have a local copy, it is the authority for this session.
+                const isLocalNewer = localLesson && localLesson.updatedAt &&
+                    (!currentLesson.modifiedTime || new Date(localLesson.updatedAt) > new Date(currentLesson.modifiedTime));
+
+                // If local is marked deleted, it overrides drive presence
+                if (localLesson && localLesson._isDeleted) {
+                    merged.push(localLesson); // Push to merged, will be filtered later
+                } else if (isLocalNewer || (localLesson?.nextReview && !currentLesson.nextReview)) {
+                    merged.push(localLesson);
+                } else {
+                    merged.push(currentLesson);
+                }
+
+                if (localLesson) localMap.delete(currentLesson.id);
             });
 
             merged.push(...localMap.values());
             store.set('lessons', merged);
 
-            return merged;
+            // Final Filter: Hide soft-deleted lessons from the UI unless requested
+            return includeDeleted ? merged : merged.filter(l => !l._isDeleted);
         } catch (err) {
             console.error('[Storage] Drive fetch failed. Falling back to local.', err);
-            return localLessons;
+            return includeDeleted ? localLessons : localLessons.filter(l => !l._isDeleted);
         }
     }
 
@@ -219,7 +250,7 @@ class StorageOrchestrator {
      * 2. Enqueue for Drive Sync (Background).
      */
     async saveLesson(lesson, folderId = null) {
-        const isStub = (l) => !l || (!l.questions && !l.cards);
+        const isStub = (l) => !l || (!l.questions && !l.cards) || l.error;
 
         // Phase 1: Local Cache (Instant Truth)
         const store = getStore();
@@ -263,8 +294,11 @@ class StorageOrchestrator {
         store.set('lessons', metadata);
 
         // Phase 2: Background Sync to Drive (Silent)
-        if (this.#hasDrive) {
+        // STRICT WRITE GUARD: Never persist a "shell" to Drive as it corrupts the cloud record.
+        if (this.#hasDrive && !isStub(lessonToPersist)) {
             this.#syncQueue.enqueue(lessonToPersist, folderId);
+        } else if (this.#hasDrive && isStub(lessonToPersist)) {
+            console.warn('[StorageOrchestrator] Strict Write Guard: Blocked stub sync to Drive for', lesson.id);
         }
 
         return lessonToPersist;
@@ -329,21 +363,75 @@ class StorageOrchestrator {
         }
     }
 
-    async deleteLesson(lesson) {
-        if (this.#hasDrive && this.#token && lesson.driveFileId) {
-            await drive.deleteLesson(this.#token, lesson.driveFileId).catch(() => { });
+    async deleteLesson(lesson, hardDelete = true) {
+        if (hardDelete) {
+            // Hard Delete: Actually remove from storage
+            if (this.#hasDrive && this.#token && lesson.driveFileId) {
+                // Fire and forget drive delete (will be retried or cleaned up later if fails)
+                drive.deleteLesson(this.#token, lesson.driveFileId).catch(e => console.warn('Drive delete background fail:', e));
+            }
+
+            const store = getStore();
+            const metadata = store.get('lessons', []);
+            store.set('lessons', metadata.filter(m => m.id !== lesson.id));
+
+            const allLocal = store.get('lessons_full', {});
+            delete allLocal[lesson.id];
+            store.set('lessons_full', allLocal);
+        } else {
+            // Soft Delete: Mark as deleted but keep data
+            this.softDeleteLesson(lesson.id);
+        }
+    }
+
+    // 2026 Resilience: Soft Delete (Gmail Style)
+    // Marks local data as deleted so it persists across reloads/logouts
+    // but remains available for Undo.
+    async softDeleteLesson(lessonId) {
+        const store = getStore();
+
+        // 1. Mark in Metadata List
+        const metadata = store.get('lessons', []);
+        const targetIdx = metadata.findIndex(m => m.id === lessonId);
+        if (targetIdx >= 0) {
+            metadata[targetIdx]._isDeleted = true;
+            metadata[targetIdx]._deletedAt = Date.now();
+            store.set('lessons', metadata);
         }
 
-        const store = getStore();
-        const metadata = store.get('lessons', []);
-        store.set('lessons', metadata.filter(m => m.id !== lesson.id));
-
+        // 2. Mark in Full Content Cache
         const allLocal = store.get('lessons_full', {});
-        delete allLocal[lesson.id];
-        store.set('lessons_full', allLocal);
+        if (allLocal[lessonId]) {
+            allLocal[lessonId]._isDeleted = true;
+            allLocal[lessonId]._deletedAt = Date.now();
+            store.set('lessons_full', allLocal);
+        }
+    }
 
-        // Ensure queue is cleared for this lesson
-        // (Implicitly done as we don't have a specific remove, but flush handles all)
+    async restoreLesson(lessonId) {
+        const store = getStore();
+
+        // 1. Un-mark in Metadata List
+        const metadata = store.get('lessons', []);
+        const targetIdx = metadata.findIndex(m => m.id === lessonId);
+        if (targetIdx >= 0) {
+            delete metadata[targetIdx]._isDeleted;
+            delete metadata[targetIdx]._deletedAt;
+            store.set('lessons', metadata);
+        }
+
+        // 2. Un-mark in Full Content Cache
+        const allLocal = store.get('lessons_full', {});
+        if (allLocal[lessonId]) {
+            delete allLocal[lessonId]._isDeleted;
+            delete allLocal[lessonId]._deletedAt;
+            store.set('lessons_full', allLocal);
+        }
+    }
+
+    // Explicit Hard Delete (used after potential Undo window closes)
+    async hardDeleteLesson(lesson) {
+        await this.deleteLesson(lesson, true);
     }
 
     async shutdown() {

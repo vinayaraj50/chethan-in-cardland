@@ -443,7 +443,7 @@ const ReviewModal = ({ lesson, user, onClose, onEdit, onUpdate, showAlert, userC
             backdropFilter: 'blur(1.2rem)', WebkitBackdropFilter: 'blur(1.2rem)', background: 'rgba(255,255,255,0.01)', zIndex: 2000,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             padding: 0, // No padding on overlay for full screen feel on mobile
-            height: '100vh',
+            height: '100dvh',
             overflow: 'hidden'
         }}>
             <AnimatePresence mode="wait">

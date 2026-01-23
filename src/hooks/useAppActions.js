@@ -116,7 +116,7 @@ export const useAppActions = () => {
                 const questionCount = activeQuestions.length;
                 const newLesson = {
                     ...lessonToSave,
-                    id: Date.now().toString(),
+                    id: lesson.id, // 2026 Standard: Maintain Immutable Identity
                     driveFileId: null,
                     isPublic: false,
                     source: 'local',
@@ -131,7 +131,8 @@ export const useAppActions = () => {
                 // CRITICAL: Do NOT set driveFileId to the local ID. 
                 // It must remain null/undefined until the SyncQueue successfully uploads it to Drive.
                 handleUpdateLocalLesson(newLesson);
-                // showHeaderNotice(cost > 0 ? `Purchased "${lesson.title}"!` : `Added "${lesson.title}"!`);
+                // SUCCESS FEEDBACK: Using global toast for consistency
+                showToast({ message: cost > 0 ? `Purchased "${lesson.title}"!` : `Added "${lesson.title}"!`, type: 'success' });
             };
 
             // Race against timeout
@@ -183,8 +184,18 @@ export const useAppActions = () => {
     }, [user, queuePostTourEvent, signIn, showNotification]);
 
     const handleDeleteLesson = useCallback((lesson) => {
-        // Optimistic UI - Immediately remove from list
+        if (!user) return;
+
+        // 1. Optimistic UI - Immediately remove from list
         setLessons(prev => prev.filter(l => l.id !== lesson.id));
+
+        // 2. Immediate Persistent Soft Delete (Gmail Style)
+        // This ensures if user logs out immediately, the item is still marked hidden/archived.
+        storageService.softDeleteLesson(lesson.id);
+
+        if (user.uid && lesson.id) {
+            userService.archiveLesson(user.uid, lesson.id).catch(e => console.warn('Archive failed:', e));
+        }
 
         let isUndone = false;
 
@@ -194,24 +205,26 @@ export const useAppActions = () => {
             duration: 10000,
             onUndo: () => {
                 isUndone = true;
+                // Restore UI
                 setLessons(prev => [...prev, lesson]);
+
+                // Restore Persistence
+                storageService.restoreLesson(lesson.id);
+                if (user.uid && lesson.id) {
+                    userService.restoreLesson(user.uid, lesson.id).catch(e => console.warn('Restore failed:', e));
+                }
             },
             onClose: async () => {
                 if (!isUndone) {
                     try {
-                        // 1. Delete local file
-                        await apiHookDelete(lesson);
-
-                        // 2. Mark as archived in Firestore (preserves entitlement)
-                        if (user?.uid && lesson.id) {
-                            await userService.archiveLesson(user.uid, lesson.id);
-                            console.log(`[AppActions] Lesson ${lesson.id} archived in Firestore.`);
-                        }
+                        // 3. Deferred Hard Delete (Cleanup)
+                        // If we reach here, the user has let the toast expire.
+                        // We now permanently remove the file to save space.
+                        await storageService.hardDeleteLesson(lesson);
+                        console.log(`[AppActions] Permanently deleted ${lesson.id}`);
                     } catch (err) {
-                        console.error('Delete failed:', err);
-                        // If delete physically fails, restore UI and alert (Fail-Safe)
-                        setLessons(prev => [...prev, lesson]);
-                        showNotification('alert', `Failed to delete: ${err.message}`);
+                        console.error('Hard delete background fail:', err);
+                        // No need to alert user as the soft delete holds.
                     }
                 }
             }
@@ -221,7 +234,7 @@ export const useAppActions = () => {
         toggleModal('showAddModal', false);
         setReviewLesson(null);
         setNoteLesson(null);
-    }, [user, apiHookDelete, toggleModal, setReviewLesson, setNoteLesson, setLessons, showToast, showNotification]);
+    }, [user, toggleModal, setReviewLesson, setNoteLesson, setLessons, showToast]);
 
     const handleDeleteAllData = useCallback(async (allowAppExit) => {
         if (!user) return;
@@ -294,6 +307,10 @@ export const useAppActions = () => {
 
     const handleReviewLaunch = useCallback(async (s) => {
         if (s.isPublic && !s.isOwned && !s.isLocal) {
+            if (!user) {
+                signIn('consent');
+                return;
+            }
             showHeaderNotice('Add to My Lessons to open');
             return;
         }

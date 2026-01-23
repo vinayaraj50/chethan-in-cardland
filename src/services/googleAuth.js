@@ -112,11 +112,15 @@ class IdentityManager {
                     try {
                         console.info('[IdentityManager] Attempting silent Drive token restoration...');
                         await this.signIn({ prompt: 'none' });
-                        // signIn will call handleAuthSuccess which transitions to SUCCESS
                     } catch (e) {
-                        console.warn('[IdentityManager] Silent restoration failed. Forcing logout to maintain Atomic State.', e.message);
-                        // If we can't get a token, we don't allow a partial login.
-                        await this.signOut();
+                        const isPopupBlocked = e.code === 'auth/popup-blocked' || e.message?.includes('popup');
+                        if (isPopupBlocked) {
+                            console.warn('[IdentityManager] Silent token refresh blocked by browser. Remaining in Recruiter Mode.');
+                            // Don't sign out. User identity is kept, but hasDriveAccess will be false.
+                        } else {
+                            console.warn('[IdentityManager] Silent restoration failed. Forcing logout to maintain Atomic State.', e.message);
+                            await this.signOut();
+                        }
                     }
                 }
             } catch (error) {
