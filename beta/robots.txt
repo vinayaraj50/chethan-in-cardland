@@ -1,3 +1,0 @@
-User-agent: *
-Allow: /
-Sitemap: https://vinayaraj50.github.io/chethan-in-cardland/sitemap.xml
