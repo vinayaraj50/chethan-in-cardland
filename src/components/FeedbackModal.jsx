@@ -42,7 +42,7 @@ const FeedbackModal = ({ user, onClose, showAlert }) => {
             backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', background: 'rgba(255,255,255,0.01)', zIndex: 2000,
             display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
         }}>
-            <div className="modal-content neo-flat" style={{
+            <div className="modal-content neo-flat neo-popup" style={{
                 width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto', padding: '2rem',
                 display: 'flex', flexDirection: 'column', gap: '1.5rem', position: 'relative'
             }}>

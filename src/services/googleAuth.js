@@ -101,23 +101,13 @@ class IdentityManager {
                     const credential = GoogleAuthProvider.credentialFromResult(result);
                     await this.#handleAuthSuccess(result.user, credential);
                 } else if (auth.currentUser) {
-                    // 2. Restore from Firebase persistence
-                    console.info('[IdentityManager] User restored from Firebase persistence.');
+                    // 2. User exists in Firebase persistence, but we require a fresh Drive token.
+                    // We intentionally skip automatic restoration to avoid popup blockers.
+                    // The user must click "Login" manually.
+                    console.info('[IdentityManager] User detected. Waiting for manual login to acquire access token.');
 
-                    // CRITICAL: We do NOT transition to SUCCESS yet.
-                    // We must first verify Drive access to maintain "Atomic Login" standards.
-                    this.#identity = this.#mapUser(auth.currentUser);
-                    sessionManager.startSession(this.#identity.id);
-
-                    try {
-                        console.info('[IdentityManager] Attempting silent Drive token restoration...');
-                        await this.signIn({ prompt: 'none' });
-                        // signIn will call handleAuthSuccess which transitions to SUCCESS
-                    } catch (e) {
-                        console.warn('[IdentityManager] Silent restoration failed. Forcing logout to maintain Atomic State.', e.message);
-                        // If we can't get a token, we don't allow a partial login.
-                        await this.signOut();
-                    }
+                    // Do NOT set identity or start session yet. 
+                    // Let the UI remain in "Logged Out" state until explicit user action.
                 }
             } catch (error) {
                 console.error('[IdentityManager] Initialization Error:', error);
@@ -185,9 +175,19 @@ class IdentityManager {
             await this.#handleAuthSuccess(user, credential);
         } catch (error) {
             console.error('[IdentityManager] Sign-In Failed:', error.code, error.message);
-            // ... (rest of error handling remains same, handled by transition below)
-            this.#handleSystemError(error);
-            throw error; // Rethrow for initialize() to handle
+
+            // IGNORE POPUP BLOCKED ERRORS IN SILENT MODE
+            // We do NOT want to transition the whole app to an ERROR state just because 
+            // the browser blocked an invisible background refresh.
+            const isSilentPopupBlocked = options.prompt === 'none' && (error.code === 'auth/popup-blocked' || error.message?.includes('popup'));
+
+            if (!isSilentPopupBlocked) {
+                this.#handleSystemError(error);
+            } else {
+                console.warn('[IdentityManager] Suppressing UI error for blocked silent sign-in.');
+            }
+
+            throw error; // Rethrow for initialize() or caller to handle
         }
     }
 

@@ -150,7 +150,7 @@ const Home = ({
             </button>
 
             {showSettings && (
-                <div className="neo-flat settings-dropdown" style={{
+                <div className="neo-flat settings-dropdown neo-popup" style={{
                     position: 'absolute',
                     top: 'calc(100% + 10px)',
                     right: 0,
@@ -160,9 +160,7 @@ const Home = ({
                     borderRadius: '24px',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '1.75rem',
-                    border: '1px solid rgba(255,255,255,0.4)',
-                    boxShadow: 'var(--neo-box-shadow)'
+                    gap: '1.75rem'
                 }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
                         <div style={{ position: 'relative' }}>

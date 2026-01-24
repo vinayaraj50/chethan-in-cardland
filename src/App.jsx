@@ -285,7 +285,7 @@ const AppContent = () => {
                 showNotification={showNotification}
                 setUserProfile={setUserProfile}
                 refreshProfile={reloadProfile}
-                onRestorePurchases={() => handleRestorePurchases(true)}
+                onRestorePurchases={() => handleRestorePurchases(true, fetchLessons)}
             />
 
             <FeatureTour

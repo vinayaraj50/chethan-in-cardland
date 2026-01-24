@@ -148,70 +148,6 @@ const RootLayout = ({
                                 )}
                             </div>
                         </motion.div>
-                    ) : toast ? (
-                        <motion.div
-                            key="toast"
-                            className="neo-glow-header"
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.95 }}
-                            style={{
-                                position: 'absolute',
-                                left: '1rem',
-                                right: '1rem',
-                                top: '0.5rem',
-                                bottom: '0.5rem',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                color: 'var(--text-color)',
-                                zIndex: 10,
-                                borderRadius: '16px',
-                                fontWeight: '600',
-                                fontSize: '0.9rem',
-                                padding: '0 1rem'
-                            }}
-                        >
-                            <span style={{ flex: 1, textAlign: 'left', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                {toast.message}
-                            </span>
-                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                                {toast.onUndo && (
-                                    <button
-                                        className="neo-button"
-                                        style={{ padding: '0.3rem 0.8rem', fontSize: '0.8rem', height: 'auto', minHeight: 'unset' }}
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            toast.onUndo();
-                                            toast.onClose ? toast.onClose() : hideToast();
-                                        }}
-                                    >
-                                        Undo
-                                    </button>
-                                )}
-                                <button
-                                    className="neo-button icon-btn"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        hideToast();
-                                    }}
-                                    style={{
-                                        padding: '4px',
-                                        width: '28px',
-                                        height: '28px',
-                                        minWidth: '28px',
-                                        background: 'var(--bg-color)',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        border: 'none',
-                                        boxShadow: '2px 2px 5px var(--shadow-dark), -2px -2px 5px var(--shadow-light)'
-                                    }}
-                                >
-                                    <X size={14} color="#ef4444" />
-                                </button>
-                            </div>
-                        </motion.div>
                     ) : headerNotice ? (
                         <motion.div
                             key="notice"
@@ -306,7 +242,8 @@ const RootLayout = ({
                 .app-layout {
                     display: flex;
                     flex-direction: column;
-                    min-height: 100dvh;
+                    height: 100dvh;
+                    overflow: hidden;
                     background: var(--bg-color);
                 }
                 .main-header {
@@ -326,7 +263,7 @@ const RootLayout = ({
                     align-items: center;
                 }
                 .app-logo {
-                    height: 2.5rem;
+                    height: 4.5rem;
                     width: auto;
                     filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
                 }
@@ -340,7 +277,7 @@ const RootLayout = ({
                         padding: 0.75rem 1rem;
                     }
                     .app-logo {
-                        height: 2rem;
+                        height: 3.5rem;
                     }
                 }
             `}</style>

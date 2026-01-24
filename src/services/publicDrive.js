@@ -75,45 +75,67 @@ class FirebaseLessonService {
 
     /**
      * Fetch lesson content from Firebase Storage.
-     * Uses 2026 Standard (getBytes) with a Dev Proxy Fallback for localhost.
+     * Uses 2026 Standard (getBytes) with exponential backoff retry and Dev Proxy Fallback.
      */
     async getPublicFileContent(storagePathOrId) {
-        try {
-            // Heuristic to ensure we have a valid storage path
-            let path = storagePathOrId;
-            if (!path.includes('/')) {
-                // If it's just an ID, assume standard lesson path
-                path = `lessons/${path}.enc`;
-            }
+        // Heuristic to ensure we have a valid storage path
+        let path = storagePathOrId;
+        if (!path.includes('/')) {
+            path = `lessons/${path}.enc`;
+        }
 
-            console.log('[Storage] Fetching content from:', path);
-            const storageRef = ref(firebaseStorage, path);
+        console.log('[Storage] Fetching content from:', path);
+        const storageRef = ref(firebaseStorage, path);
 
-            // 1. STANDARD PATH: Official SDK (Production/Standard)
-            const arrayBuffer = await getBytes(storageRef);
-            const text = new TextDecoder().decode(arrayBuffer);
+        // Retry configuration: 3 attempts with exponential backoff (2s, 4s, 8s)
+        const MAX_RETRIES = 3;
+        const BASE_DELAY_MS = 2000;
 
-            console.log('[Storage] Raw content length:', text?.length);
+        for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
             try {
-                const parsed = JSON.parse(text);
-                console.log('[Storage] Successfully parsed JSON. Questions found:', (parsed.questions?.length || parsed.cards?.length || 0));
-                return parsed;
+                // STANDARD PATH: Official SDK with timeout wrapper
+                const arrayBuffer = await Promise.race([
+                    getBytes(storageRef),
+                    new Promise((_, reject) =>
+                        setTimeout(() => reject(new Error('Storage fetch timeout')), 30000)
+                    )
+                ]);
+
+                const text = new TextDecoder().decode(arrayBuffer);
+                console.log('[Storage] Raw content length:', text?.length);
+
+                try {
+                    const parsed = JSON.parse(text);
+                    console.log('[Storage] Successfully parsed JSON. Questions found:', (parsed.questions?.length || parsed.cards?.length || 0));
+                    return parsed;
+                } catch {
+                    console.log('[Storage] Content is string (likely encrypted)');
+                    return text; // Return raw encrypted text
+                }
             } catch (e) {
-                console.log('[Storage] Content is string (likely encrypted)');
-                return text; // Return raw encrypted text
-            }
-        } catch (e) {
-            console.warn('[Storage] Standard SDK fetch failed:', e.message);
+                const isRetryable = e.code === 'storage/retry-limit-exceeded' ||
+                    e.message.includes('network') ||
+                    e.message.includes('timeout');
 
-            // 2. DEV RECOVERY PATH: Proxy Gateway
-            // Solves CORS on localhost without requiring developers to reconfigure production buckets
-            if (import.meta.env.DEV && (e.code === 'storage/retry-limit-exceeded' || e.message.includes('network'))) {
-                const result = await tryDevProxyFetch(ref(firebaseStorage, storagePathOrId));
-                if (result) return result;
-            }
+                console.warn(`[Storage] Attempt ${attempt}/${MAX_RETRIES} failed:`, e.message);
 
-            console.error('[Storage] Content Fetch Failed:', e);
-            throw new Error(`Failed to download lesson content: ${e.message}`);
+                if (isRetryable && attempt < MAX_RETRIES) {
+                    const delay = BASE_DELAY_MS * Math.pow(2, attempt - 1);
+                    console.log(`[Storage] Retrying in ${delay}ms...`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    continue;
+                }
+
+                // DEV RECOVERY PATH: Proxy Gateway (last resort for localhost)
+                if (import.meta.env.DEV && isRetryable) {
+                    console.log('[Storage] Attempting dev proxy fallback...');
+                    const result = await tryDevProxyFetch(ref(firebaseStorage, storagePathOrId));
+                    if (result) return result;
+                }
+
+                console.error('[Storage] Content Fetch Failed after retries:', e);
+                throw new Error(`Failed to download lesson content: ${e.message}`);
+            }
         }
     }
 

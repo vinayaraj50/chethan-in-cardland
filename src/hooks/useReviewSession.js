@@ -38,7 +38,7 @@ export const useReviewSession = ({
 
     // Section Notes Toggle (persisted preference)
     const [showSectionNotes, setShowSectionNotes] = useState(
-        lesson.showSectionNotes !== undefined ? lesson.showSectionNotes : false
+        lesson.showSectionNotes !== undefined ? lesson.showSectionNotes : !lesson.lastReviewed
     );
 
     // Audio Recording State
@@ -343,7 +343,8 @@ export const useReviewSession = ({
                 questionCountAtLastReview: totalOriginalQuestions,
                 lastReviewed: new Date().toLocaleDateString(),
                 nextReview: nextReviewDate.toISOString(),
-                reviewStage: nextStage
+                reviewStage: nextStage,
+                showSectionNotes: false // Reset for next revision to save time
             };
 
             // 2026 Strategy: Use authoritative onUpdate pipeline.
@@ -397,6 +398,8 @@ export const useReviewSession = ({
         setFirstRatings({});
         setFeedback(null);
         deleteRecording();
+        // Reset notes toggle to OFF when restarting for revision
+        setShowSectionNotes(false);
     };
 
     const [streakCount, setStreakCount] = useState(0);

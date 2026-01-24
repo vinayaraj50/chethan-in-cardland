@@ -108,15 +108,22 @@ export const useLessons = (user, hasDrive, showAlert) => {
             // Fetch metadata list via Orchestrator (instant for local, cloud-synced for drive)
             const metadata = await storageService.listLessons();
 
-            // Filter out existing DEMO_LESSON to avoid double rendering
-            // Handle Demo Lesson Persistence:
-            // If the user modified the demo (progress/marks), it will be in metadata with an ID.
-            // We prefer the persisted version over the static default, but MUST merge questions.
+            // 2026 Guard: Filter out any duplicates caused by legacy timestamp-ID issues
+            const uniqueUserLessons = [];
+            const seenIds = new Set();
+
+            // Handle Demo Lesson Persistence
             const demoFromStorage = metadata.find(m => m.id === DEMO_LESSON.id);
             const demoToUse = demoFromStorage ? { ...DEMO_LESSON, ...demoFromStorage } : DEMO_LESSON;
 
-            const userLessons = metadata.filter(m => m.id !== DEMO_LESSON.id);
-            setLessons([demoToUse, ...userLessons]);
+            metadata.forEach(l => {
+                if (l.id !== DEMO_LESSON.id && !seenIds.has(l.id)) {
+                    seenIds.add(l.id);
+                    uniqueUserLessons.push(l);
+                }
+            });
+
+            setLessons([demoToUse, ...uniqueUserLessons]);
             setLoading(false);
 
             // Lazy fetch full contents
@@ -140,19 +147,19 @@ export const useLessons = (user, hasDrive, showAlert) => {
                 }
             }, 500);
 
-            // Sequential fetch with limited concurrency
-            const queue = [...userLessons];
+            // High-concurrency fetch with limited queues
+            const queue = [...uniqueUserLessons];
             const fetchNext = async () => {
                 if (queue.length === 0) return;
                 const lesson = queue.shift();
                 try {
                     const content = await storageService.getLessonContent(lesson);
-                    pendingUpdates.current.push(content);
+                    if (content) pendingUpdates.current.push(content);
                 } catch (e) { }
                 await fetchNext();
             };
 
-            await Promise.all([fetchNext(), fetchNext()]);
+            await Promise.all([fetchNext(), fetchNext(), fetchNext(), fetchNext()]);
 
             // FINAL FLUSH: Ensure any remaining updates in the queue are applied before we stop the batcher
             if (pendingUpdates.current.length > 0) {
@@ -190,6 +197,18 @@ export const useLessons = (user, hasDrive, showAlert) => {
             console.log('[Lessons] Drive token active. Syncing My Lessons...');
             fetchLessons(true);
         }
+
+        // Feature: Window Focus Sync (Netflix-Style Roaming)
+        // silently checks for updates when user returns to the tab
+        const onFocus = () => {
+            if (document.visibilityState === 'visible' && hasDrive && user?.token) {
+                console.log('[Lessons] Window focused. Checking cloud for roaming progress...');
+                fetchLessons(false);
+            }
+        };
+
+        window.addEventListener('visibilitychange', onFocus);
+        return () => window.removeEventListener('visibilitychange', onFocus);
     }, [hasDrive, user?.token, user, fetchLessons]);
     const deleteLesson = useCallback(async (lesson) => {
         if (!lesson) return;

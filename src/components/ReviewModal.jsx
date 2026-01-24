@@ -67,7 +67,7 @@ const ReviewModal = ({ lesson, user, onClose, onEdit, onUpdate, showAlert, userC
                 >
                     <motion.div
                         initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }}
-                        className="neo-flat"
+                        className="neo-flat neo-popup"
                         style={{
                             width: '100%', maxWidth: '420px',
                             padding: '2rem', position: 'relative'
@@ -331,7 +331,7 @@ const ReviewModal = ({ lesson, user, onClose, onEdit, onUpdate, showAlert, userC
                     key="session-result"
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    className="neo-flat"
+                    className="neo-flat neo-popup"
                     style={{
                         width: '100%',
                         maxWidth: '420px',
@@ -443,7 +443,7 @@ const ReviewModal = ({ lesson, user, onClose, onEdit, onUpdate, showAlert, userC
             backdropFilter: 'blur(1.2rem)', WebkitBackdropFilter: 'blur(1.2rem)', background: 'rgba(255,255,255,0.01)', zIndex: 2000,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             padding: 0, // No padding on overlay for full screen feel on mobile
-            height: '100vh',
+            height: '100dvh',
             overflow: 'hidden'
         }}>
             <AnimatePresence mode="wait">

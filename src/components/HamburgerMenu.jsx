@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import CloseButton from './common/CloseButton';
-import { X, LogOut, Trash2, Sun, Moon, Volume2, VolumeX, MessageCircle, Settings, User, ChevronDown, MessageSquare, ExternalLink, Users, Sparkles, RotateCcw, Eye, EyeOff } from 'lucide-react';
+import { X, LogOut, Trash2, Sun, Moon, Volume2, VolumeX, MessageCircle, Settings, User, ChevronDown, MessageSquare, ExternalLink, Users, Sparkles, RotateCcw, Eye, EyeOff, Maximize, Minimize } from 'lucide-react';
 import { ADMIN_EMAIL } from '../constants/config';
 
 const HamburgerMenu = ({ user, theme, onToggleTheme, soundsEnabled, onToggleSounds, onShowFeedback, onClose, onLogout, onLogin,
@@ -11,6 +11,13 @@ const HamburgerMenu = ({ user, theme, onToggleTheme, soundsEnabled, onToggleSoun
     onRestorePurchases,
     appVersion
 }) => {
+    const [isFullscreen, setIsFullscreen] = useState(!!document.fullscreenElement);
+
+    React.useEffect(() => {
+        const handleFSChange = () => setIsFullscreen(!!document.fullscreenElement);
+        document.addEventListener('fullscreenchange', handleFSChange);
+        return () => document.removeEventListener('fullscreenchange', handleFSChange);
+    }, []);
 
     const handleCheckUpdate = () => {
         if (window.confirm("Check for updates? This will refresh the page.")) {
@@ -137,6 +144,23 @@ const HamburgerMenu = ({ user, theme, onToggleTheme, soundsEnabled, onToggleSoun
                     <span>{soundsEnabled ? 'Sounds On' : 'Sounds Off'}</span>
                     <button className={`neo-button icon-btn ${soundsEnabled ? 'neo-glow-blue' : ''}`} onClick={onToggleSounds}>
                         {soundsEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
+                    </button>
+                </div>
+
+                {/* Fullscreen Toggle */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>Full Screen</span>
+                    <button
+                        className={`neo-button icon-btn ${isFullscreen ? 'neo-glow-blue' : ''}`}
+                        onClick={() => {
+                            if (!isFullscreen) {
+                                document.documentElement.requestFullscreen().catch(e => console.error(e));
+                            } else {
+                                document.exitFullscreen();
+                            }
+                        }}
+                    >
+                        {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
                     </button>
                 </div>
 

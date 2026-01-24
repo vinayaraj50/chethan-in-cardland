@@ -20,7 +20,7 @@ export const useEntitlementSync = () => {
     const { showToast } = useUI();
     const isSyncing = useRef(false);
 
-    const performSync = useCallback(async (isManual = false) => {
+    const performSync = useCallback(async (isManual = false, onComplete = null) => {
         if (!user || !token || isSyncing.current) return;
 
         isSyncing.current = true;
@@ -36,7 +36,7 @@ export const useEntitlementSync = () => {
             }
 
             // 2. Fetch Reality (Local Storage)
-            const localIndex = await storageService.listLessons();
+            const localIndex = await storageService.listLessons({ includeDeleted: true });
             const localIds = new Set(localIndex.map(l => l.id));
 
             // 3. Find Missing Souls
@@ -103,13 +103,37 @@ export const useEntitlementSync = () => {
 
                     finalLesson.id = lessonId;
 
-                    // C. Save to Local Storage
-                    await storageService.saveLesson(finalLesson, user.uid);
+                    // CONTENT INTEGRITY GUARD: Never restore a "shell". If content is missing, restoration is incomplete.
+                    const isStub = (l) => !l || (!l.questions && !l.cards) || l.error;
+                    if (isStub(finalLesson)) {
+                        throw new Error('RESTORATION_INTEGRITY_FAILURE: Restored lesson is missing content.');
+                    }
+
+                    // C. Update Local Metadata (Auth-bound sync handled by Orchestrator)
+                    // We DO NOT call storageService.saveLesson(finalLesson) here because that
+                    // would trigger a destructive sync pulse with empty progress.
+                    // Instead, we just list it in metadata. The Orchestrator will pull the
+                    // actual progress from Drive during its hydration loop.
+                    const store = storageService.getStore();
+                    const allMeta = store.get(`meta_${user.uid}`, []);
+                    if (!allMeta.find(m => m.id === finalLesson.id)) {
+                        allMeta.push({
+                            id: finalLesson.id,
+                            title: finalLesson.title,
+                            questionCount: finalLesson.questions?.length || 0
+                        });
+                        store.set(`meta_${user.uid}`, allMeta);
+                    }
                     restoredCount++;
                     console.log(`[EntitlementSync] Restored ${lessonId} successfully.`);
                 } catch (err) {
                     console.error(`[EntitlementSync] Failed to restore ${lessonId}:`, err);
                 }
+            }
+
+            // 5. Finalize UI State (Triggers My Lessons refresh)
+            if (restoredCount > 0 && onComplete) {
+                await onComplete();
             }
 
             if (isManual) {

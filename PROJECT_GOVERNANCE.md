@@ -39,8 +39,9 @@ Refuse to implement any logic that doesn't explicitly include a "Failure Case." 
 
 ## Data Persistence & State Management
 
-**CRITICAL RULE: NO BROWSER STORAGE FOR LOGIC**
-- **Never** use `localStorage`, `sessionStorage`, or `IndexedDB` to store core business logic, purchase data, review schedules, or user progress.
-- Browser storage is **ephemeral and untrusted**.
-- All state changes (card flips, lesson completions, purchases) must be persisted to the **authoritative backend** (Google Drive / Firestore) immediately or via a guaranteed sync queue.
-- Use browser storage **only** for non-critical UI preferences (e.g., theme, sound settings) or as a read-only cache for offline creation performance (verified against server truth).
+**CRITICAL RULE: CLOUD-TRUTH AUTHORITY (MASTER)**
+- **Google Drive is the absolute source of truth** for all user progress and owned lessons.
+- **Browser storage is a DISPOSABLE CACHE only**. It is never an authority.
+- On every login, the app MUST pull latest state from Drive BEFORE allowing local writes.
+- **Merge Logic**: If local progress (e.g. 0% on new device) conflicts with remote progress (e.g. 50% on Drive), the **Remote (Cloud) MUST win**.
+- **No Blind Saves**: Never overwrite cloud files without first verifying if a newer version exists remotely.
