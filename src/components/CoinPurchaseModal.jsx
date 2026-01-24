@@ -34,7 +34,7 @@ const CoinPurchaseModal = ({ user, onClose, userCoins, onShare, onShowFeedback }
                 initial={{ opacity: 0, scale: 0.9, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                className="neo-flat"
+                className="neo-flat neo-popup"
                 onClick={(e) => e.stopPropagation()}
                 style={{
                     width: '90%', maxWidth: '420px', padding: '0',

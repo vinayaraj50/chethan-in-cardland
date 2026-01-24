@@ -61,7 +61,7 @@ ${referralLink}`;
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
-                className="neo-flat"
+                className="neo-flat neo-popup"
                 style={{ padding: '2rem', maxWidth: '400px', width: '90%', position: 'relative' }}
             >
                 <div style={{ position: 'absolute', top: '10px', right: '10px', display: 'flex', gap: '8px' }}>

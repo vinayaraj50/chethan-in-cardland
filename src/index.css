@@ -398,6 +398,16 @@ button {
 }
 
 
+/* Popup & Modal Glow */
+.neo-popup {
+  box-shadow:
+    6px 6px 12px var(--shadow-dark),
+    -6px -6px 12px var(--shadow-light),
+    0 0 20px rgba(var(--accent-rgb), 0.6),
+    0 0 40px rgba(var(--accent-rgb), 0.3) !important;
+  border: 1px solid rgba(255, 255, 255, 0.4) !important;
+}
+
 @keyframes pulse {
   0% {
     transform: scale(0.95);

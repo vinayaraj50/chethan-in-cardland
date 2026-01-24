@@ -109,8 +109,21 @@ export const useEntitlementSync = () => {
                         throw new Error('RESTORATION_INTEGRITY_FAILURE: Restored lesson is missing content.');
                     }
 
-                    // C. Save to Local Storage (Auth-bound sync handled by Orchestrator)
-                    await storageService.saveLesson(finalLesson);
+                    // C. Update Local Metadata (Auth-bound sync handled by Orchestrator)
+                    // We DO NOT call storageService.saveLesson(finalLesson) here because that
+                    // would trigger a destructive sync pulse with empty progress.
+                    // Instead, we just list it in metadata. The Orchestrator will pull the
+                    // actual progress from Drive during its hydration loop.
+                    const store = storageService.getStore();
+                    const allMeta = store.get(`meta_${user.uid}`, []);
+                    if (!allMeta.find(m => m.id === finalLesson.id)) {
+                        allMeta.push({
+                            id: finalLesson.id,
+                            title: finalLesson.title,
+                            questionCount: finalLesson.questions?.length || 0
+                        });
+                        store.set(`meta_${user.uid}`, allMeta);
+                    }
                     restoredCount++;
                     console.log(`[EntitlementSync] Restored ${lessonId} successfully.`);
                 } catch (err) {

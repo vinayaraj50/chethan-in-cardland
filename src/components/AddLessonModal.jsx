@@ -620,7 +620,7 @@ const AddLessonModal = ({
         }}>
             <div
                 ref={modalRef}
-                className="modal-content neo-flat" style={{
+                className="modal-content neo-flat neo-popup" style={{
                     width: '100%', maxWidth: '600px',
                     height: window.innerWidth < 768 ? '100%' : '90vh',
                     maxHeight: '100%',

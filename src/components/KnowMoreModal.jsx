@@ -94,7 +94,7 @@ const KnowMoreModal = ({ isOpen, onClose, onLogin }) => {
                         initial={{ scale: 0.9, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
                         exit={{ scale: 0.9, opacity: 0 }}
-                        className="neo-flat"
+                        className="neo-flat neo-popup"
                         style={{
                             width: '95vw', maxWidth: '600px', maxHeight: '90vh',
                             display: 'flex', flexDirection: 'column', position: 'relative',

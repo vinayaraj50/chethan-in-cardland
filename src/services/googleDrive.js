@@ -61,8 +61,8 @@ import { resilientFetch } from '../utils/resilientFetch';
  * List all lesson/stack metadata without fetching full content.
  */
 export const listLessonMetadata = async (token) => {
-    // Look for both new 'cic_lesson_' and old 'flashcard_stack_' files
-    const query = "mimeType = 'application/json' and (name contains 'cic_lesson_' or name contains 'flashcard_stack_') and trashed = false";
+    // 2026 Optimization: Fetch both Contents AND detached Progress files in one batch call
+    const query = "mimeType = 'application/json' and (name contains 'cic_lesson_' or name contains 'cic_progress_' or name contains 'flashcard_stack_') and trashed = false";
     const fields = 'files(id, name, owners, permissions, ownedByMe, sharingUser, starred, createdTime, modifiedTime, appProperties)';
     const url = `${DRIVE_API_URL}?q=${encodeURIComponent(query)}&fields=${fields}&supportsAllDrives=true&includeItemsFromAllDrives=true&spaces=drive&t=${Date.now()}`;
 
@@ -415,7 +415,10 @@ export const findFolderByName = async (token, folderName) => {
  * Find a file by name within a specific folder.
  */
 export const findFileByName = async (token, fileName, folderId) => {
-    const query = `'${folderId}' in parents and name = '${fileName}' and trashed = false`;
+    let query = `name = '${fileName}' and trashed = false`;
+    if (folderId) {
+        query += ` and '${folderId}' in parents`;
+    }
     const url = `${DRIVE_API_URL}?q=${encodeURIComponent(query)}&fields=files(id, name)&t=${Date.now()}`;
 
     const response = await resilientFetch(url, {

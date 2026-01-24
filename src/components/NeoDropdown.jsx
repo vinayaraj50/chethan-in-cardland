@@ -57,7 +57,7 @@ const NeoDropdown = ({
             </button>
 
             {isOpen && (
-                <div className="neo-flat" style={{
+                <div className="neo-flat neo-popup" style={{
                     position: 'absolute',
                     top: '100%',
                     left: 0,

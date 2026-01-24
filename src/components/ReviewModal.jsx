@@ -67,7 +67,7 @@ const ReviewModal = ({ lesson, user, onClose, onEdit, onUpdate, showAlert, userC
                 >
                     <motion.div
                         initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }}
-                        className="neo-flat"
+                        className="neo-flat neo-popup"
                         style={{
                             width: '100%', maxWidth: '420px',
                             padding: '2rem', position: 'relative'
@@ -331,7 +331,7 @@ const ReviewModal = ({ lesson, user, onClose, onEdit, onUpdate, showAlert, userC
                     key="session-result"
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    className="neo-flat"
+                    className="neo-flat neo-popup"
                     style={{
                         width: '100%',
                         maxWidth: '420px',

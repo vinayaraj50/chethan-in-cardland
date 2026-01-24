@@ -147,19 +147,19 @@ export const useLessons = (user, hasDrive, showAlert) => {
                 }
             }, 500);
 
-            // Sequential fetch with limited concurrency
-            const queue = [...userLessons];
+            // High-concurrency fetch with limited queues
+            const queue = [...uniqueUserLessons];
             const fetchNext = async () => {
                 if (queue.length === 0) return;
                 const lesson = queue.shift();
                 try {
                     const content = await storageService.getLessonContent(lesson);
-                    pendingUpdates.current.push(content);
+                    if (content) pendingUpdates.current.push(content);
                 } catch (e) { }
                 await fetchNext();
             };
 
-            await Promise.all([fetchNext(), fetchNext()]);
+            await Promise.all([fetchNext(), fetchNext(), fetchNext(), fetchNext()]);
 
             // FINAL FLUSH: Ensure any remaining updates in the queue are applied before we stop the batcher
             if (pendingUpdates.current.length > 0) {
@@ -197,6 +197,18 @@ export const useLessons = (user, hasDrive, showAlert) => {
             console.log('[Lessons] Drive token active. Syncing My Lessons...');
             fetchLessons(true);
         }
+
+        // Feature: Window Focus Sync (Netflix-Style Roaming)
+        // silently checks for updates when user returns to the tab
+        const onFocus = () => {
+            if (document.visibilityState === 'visible' && hasDrive && user?.token) {
+                console.log('[Lessons] Window focused. Checking cloud for roaming progress...');
+                fetchLessons(false);
+            }
+        };
+
+        window.addEventListener('visibilitychange', onFocus);
+        return () => window.removeEventListener('visibilitychange', onFocus);
     }, [hasDrive, user?.token, user, fetchLessons]);
     const deleteLesson = useCallback(async (lesson) => {
         if (!lesson) return;
